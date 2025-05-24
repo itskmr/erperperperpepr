@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { VALIDATION_PATTERNS } from '../StudentForm/StudentFormTypes';
 
 interface Address {
   houseNo: string;
@@ -6,6 +7,12 @@ interface Address {
   city: string;
   state: string;
   pinCode: string;
+  permanentHouseNo: string;
+  permanentStreet: string;
+  permanentCity: string;
+  permanentState: string;
+  permanentPinCode: string;
+  sameAsPresentAddress: boolean;
 }
 
 interface Parent {
@@ -59,6 +66,8 @@ interface Transport {
   stand: string;
   route: string;
   driver: string;
+  pickupLocation: string;
+  dropLocation: string;
 }
 
 interface LastEducation {
@@ -96,6 +105,8 @@ interface StudentFormData {
   branchName: string;
   fullName: string;
   dateOfBirth: string;
+  age: string;
+  penNo: string;
   gender: string;
   bloodGroup: string;
   nationality: string;
@@ -111,6 +122,8 @@ interface StudentFormData {
   rollNumber: string;
   className: string;
   section: string;
+  stream: string;
+  semester: string;
   admissionDate: string;
   previousSchool: string;
   address: Address;
@@ -141,6 +154,8 @@ export const useStudentRegistration = () => {
     branchName: '',
     fullName: '',
     dateOfBirth: '',
+    age: '',
+    penNo: '',
     gender: '',
     bloodGroup: '',
     nationality: '',
@@ -156,6 +171,8 @@ export const useStudentRegistration = () => {
     rollNumber: '',
     className: '',
     section: '',
+    stream: '',
+    semester: '',
     admissionDate: new Date().toISOString().split('T')[0],
     previousSchool: '',
     address: {
@@ -163,7 +180,13 @@ export const useStudentRegistration = () => {
       street: '',
       city: '',
       state: '',
-      pinCode: ''
+      pinCode: '',
+      permanentHouseNo: '',
+      permanentStreet: '',
+      permanentCity: '',
+      permanentState: '',
+      permanentPinCode: '',
+      sameAsPresentAddress: false
     },
     father: {
       name: '',
@@ -218,7 +241,9 @@ export const useStudentRegistration = () => {
       area: '',
       stand: '',
       route: '',
-      driver: ''
+      driver: '',
+      pickupLocation: '',
+      dropLocation: ''
     },
     documents: {
       studentImage: null,
@@ -310,6 +335,43 @@ export const useStudentRegistration = () => {
     
     if (error) setError('');
     if (success) setSuccess(false);
+  };
+
+  // Check if a field is required
+  const isRequiredField = (name: string): boolean => {
+    const requiredFields = [
+      'admissionNo', 'fullName', 'admissionDate', 
+      'dateOfBirth', 'gender', 'className', 'mobileNumber',
+      'address.city', 'address.state', 'father.name', 'mother.name'
+    ];
+    return requiredFields.includes(name);
+  };
+
+  // Validate form fields based on field type
+  const validateField = (name: string, value: string): string | null => {
+    // Skip validation for empty optional fields
+    if (value === '' && !isRequiredField(name)) {
+      return null;
+    }
+
+    // Handle nested fields
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      // Skip validation for document fields
+      if (parent === 'documents') {
+        return null;
+      }
+    }
+
+    // Validation based on field name
+    if (name === 'fullName' || name === 'father.name' || name === 'mother.name' || 
+        name === 'guardian.name' || name === 'religion' || name === 'caste') {
+      if (value && !VALIDATION_PATTERNS.TEXT_ONLY.test(value)) {
+        return 'Please enter text only (no numbers or special characters)';
+      }
+    }
+
+    return null;
   };
 
   const validateCurrentStep = () => {

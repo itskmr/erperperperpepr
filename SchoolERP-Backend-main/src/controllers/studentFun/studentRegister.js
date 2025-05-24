@@ -60,8 +60,7 @@ const getAllRegisteredStudents = async (req, res) => {
     const students = await prisma.registration.findMany({
       select: {
         formNo: true,
-        firstName: true,
-        lastName: true,
+        fullName: true,
         gender: true,
         regnDate: true,
         paymentStatus: true,

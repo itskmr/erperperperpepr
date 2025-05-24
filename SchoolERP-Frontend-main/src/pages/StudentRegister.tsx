@@ -1,8 +1,7 @@
 import { useState, ChangeEvent, FormEvent } from "react";
 
 interface FormData {
-  firstName: string;
-  lastName: string;
+  fullName: string;
   gender: string;
   formNo: string;
   dob: string;
@@ -43,10 +42,30 @@ interface FormData {
   studentDateOfBirthCertificate: File | null;
 }
 
+// Add these validation functions after the FormData interface and before the component
+const validatePhoneNumber = (phone: string): boolean => {
+  const phoneRegex = /^[6-9]\d{9}$/;
+  return phoneRegex.test(phone);
+};
+
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validatePincode = (pincode: string): boolean => {
+  const pincodeRegex = /^\d{6}$/;
+  return pincodeRegex.test(pincode);
+};
+
+const validateAadhar = (aadhar: string): boolean => {
+  const aadharRegex = /^\d{12}$/;
+  return aadharRegex.test(aadhar);
+};
+
 const StudentRegistration = () => {
   const [formData, setFormData] = useState<FormData>({
-    firstName: "",
-    lastName: "",
+    fullName: "",
     gender: "",
     formNo: "",
     dob: "",
@@ -90,6 +109,57 @@ const StudentRegistration = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [validationErrors, setValidationErrors] = useState<{
+    contactNo?: string;
+    studentEmail?: string;
+    pincode?: string;
+    studentAadharCardNo?: string;
+    fatherAadharCardNo?: string;
+    motherAadharCardNo?: string;
+  }>({});
+
+  const validateForm = (): boolean => {
+    const errors: typeof validationErrors = {};
+    let isValid = true;
+
+    // Contact Number validation
+    if (formData.contactNo && !validatePhoneNumber(formData.contactNo)) {
+      errors.contactNo = "Please enter a valid 10-digit mobile number starting with 6-9";
+      isValid = false;
+    }
+
+    // Email validation
+    if (formData.studentEmail && !validateEmail(formData.studentEmail)) {
+      errors.studentEmail = "Please enter a valid email address";
+      isValid = false;
+    }
+
+    // Pincode validation
+    if (formData.pincode && !validatePincode(formData.pincode)) {
+      errors.pincode = "Please enter a valid 6-digit pincode";
+      isValid = false;
+    }
+
+    // Aadhar Card validations
+    if (formData.studentAadharCardNo && !validateAadhar(formData.studentAadharCardNo)) {
+      errors.studentAadharCardNo = "Please enter a valid 12-digit Aadhar number";
+      isValid = false;
+    }
+
+    if (formData.fatherAadharCardNo && !validateAadhar(formData.fatherAadharCardNo)) {
+      errors.fatherAadharCardNo = "Please enter a valid 12-digit Aadhar number";
+      isValid = false;
+    }
+
+    if (formData.motherAadharCardNo && !validateAadhar(formData.motherAadharCardNo)) {
+      errors.motherAadharCardNo = "Please enter a valid 12-digit Aadhar number";
+      isValid = false;
+    }
+
+    setValidationErrors(errors);
+    return isValid;
+  };
+
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type, checked, files } = e.target as HTMLInputElement;
     setFormData((prev) => ({
@@ -112,30 +182,169 @@ const StudentRegistration = () => {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    const formDataToSend = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        formDataToSend.append(key, value instanceof File ? value : String(value));
-      }
-    });
+    setError(null);
+
+    // Validate required fields
+    if (!formData.formNo || !formData.fullName || !formData.contactNo || !formData.registerForClass || 
+        !formData.city || !formData.state || !formData.fatherName || !formData.motherName) {
+      setError("Please fill in all required fields");
+      setLoading(false);
+      return;
+    }
+
+    // Run all validations
+    if (!validateForm()) {
+      setLoading(false);
+      return;
+    }
 
     try {
+      const formDataToSend = new FormData();
+      
+      // Map form fields to match backend expectations
+      const mappedData = {
+        // Basic student info
+        admissionNo: formData.formNo.trim(), // Trim whitespace
+        fullName: formData.fullName.trim(),
+        dateOfBirth: formData.dob,
+        gender: formData.gender,
+        bloodGroup: formData.bloodGroup,
+        mobileNumber: formData.contactNo.trim(),
+        email: formData.studentEmail?.trim() || '',
+        className: formData.registerForClass.trim(),
+        section: formData.admissionCategory || 'A', // Default to 'A' if not provided
+        
+        // Address info
+        'address.city': formData.city.trim(),
+        'address.state': formData.state.trim(),
+        'address.pinCode': formData.pincode?.trim() || '',
+        
+        // Parent info
+        'father.name': formData.fatherName.trim(),
+        'father.contactNumber': formData.fatherMobileNo?.trim() || '',
+        'father.email': formData.fatherEmail?.trim() || '',
+        'father.aadhaarNo': formData.fatherAadharCardNo?.trim() || '',
+        'father.isCampusEmployee': formData.isFatherCampusEmployee ? 'yes' : 'no',
+        
+        'mother.name': formData.motherName.trim(),
+        'mother.contactNumber': formData.motherMobileNo?.trim() || '',
+        'mother.aadhaarNo': formData.motherAadharCardNo?.trim() || '',
+        
+        // Other fields
+        category: formData.category || 'General',
+        religion: formData.religion || 'Other',
+        aadhaarNumber: formData.studentAadharCardNo?.trim() || '',
+        regnDate: formData.regnDate || new Date().toISOString().split('T')[0],
+        testDate: formData.testDate || '',
+        transactionNo: formData.transactionNo?.trim() || '',
+        regnCharge: formData.regnCharge?.trim() || '0',
+        examSubject: formData.examSubject?.trim() || '',
+        paymentStatus: formData.paymentStatus?.trim() || 'Pending',
+        singleParent: formData.singleParent ? 'yes' : 'no',
+        smsAlert: formData.smsAlert ? 'yes' : 'no',
+      };
+
+      // Add all mapped fields to FormData
+      Object.entries(mappedData).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          formDataToSend.append(key, String(value));
+        }
+      });
+
+      // Add document files
+      if (formData.casteCertificate) {
+        formDataToSend.append('documents.casteCertificate', formData.casteCertificate);
+      }
+      if (formData.studentAadharCard) {
+        formDataToSend.append('documents.studentAadharCard', formData.studentAadharCard);
+      }
+      if (formData.fatherAadharCard) {
+        formDataToSend.append('documents.fatherAadharCard', formData.fatherAadharCard);
+      }
+      if (formData.motherAadharCard) {
+        formDataToSend.append('documents.motherAadharCard', formData.motherAadharCard);
+      }
+      if (formData.previousClassMarksheet) {
+        formDataToSend.append('documents.previousClassMarksheet', formData.previousClassMarksheet);
+      }
+      if (formData.transferCertificate) {
+        formDataToSend.append('documents.transferCertificate', formData.transferCertificate);
+      }
+      if (formData.studentDateOfBirthCertificate) {
+        formDataToSend.append('documents.studentDateOfBirthCertificate', formData.studentDateOfBirthCertificate);
+      }
+
+      // Add required schoolId
+      formDataToSend.append('schoolId', '1');
+
       const response = await fetch(
-        `http://localhost:5000/register/student/addNew?formNo=${formData.formNo}`,
+        'http://localhost:5000/api/students',
         {
           method: "POST",
           body: formDataToSend,
         }
       );
+
       const data = await response.json();
-      if (data.ok) {
-        setLoading(false);
+
+      if (!response.ok) {
+        if (response.status === 500) {
+          throw new Error('Server error occurred. Please try again later.');
+        }
+        throw new Error(data.message || 'Failed to submit registration');
+      }
+
+      if (data.success) {
         alert("Registration submitted successfully!");
+        // Reset form after successful submission
+        setFormData({
+          fullName: "",
+          gender: "",
+          formNo: "",
+          dob: "",
+          category: "",
+          religion: "",
+          registerForClass: "",
+          admissionCategory: "",
+          bloodGroup: "",
+          regnDate: "",
+          testDate: "",
+          transactionNo: "",
+          singleParent: false,
+          contactNo: "",
+          studentEmail: "",
+          address: "",
+          city: "",
+          state: "",
+          pincode: "",
+          studentAadharCardNo: "",
+          regnCharge: "",
+          examSubject: "",
+          paymentStatus: "",
+          fatherName: "",
+          fatherMobileNo: "",
+          smsAlert: false,
+          fatherEmail: "",
+          fatherAadharCardNo: "",
+          isFatherCampusEmployee: false,
+          motherName: "",
+          motherMobileNo: "",
+          motherAadharCardNo: "",
+          casteCertificate: null,
+          studentAadharCard: null,
+          fatherAadharCard: null,
+          motherAadharCard: null,
+          previousClassMarksheet: null,
+          transferCertificate: null,
+          studentDateOfBirthCertificate: null,
+        });
+      } else {
+        throw new Error(data.message || 'Registration failed');
       }
     } catch (err) {
-      setLoading(false);
-      setError((err as Error).message);
-      alert("Failed to submit registration. Please check your backend server.");
+      const errorMessage = (err as Error).message;
+      setError(errorMessage);
+      alert("Failed to submit registration: " + errorMessage);
     } finally {
       setLoading(false);
     }
@@ -165,24 +374,12 @@ const StudentRegistration = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              First Name
+              Full Name
             </label>
             <input
               type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Last Name
-            </label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
+              name="fullName"
+              value={formData.fullName}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -337,8 +534,13 @@ const StudentRegistration = () => {
               name="contactNo"
               value={formData.contactNo}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                validationErrors.contactNo ? 'border-red-500' : 'border-gray-300'
+              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
+            {validationErrors.contactNo && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.contactNo}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -349,8 +551,13 @@ const StudentRegistration = () => {
               name="studentEmail"
               value={formData.studentEmail}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                validationErrors.studentEmail ? 'border-red-500' : 'border-gray-300'
+              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
+            {validationErrors.studentEmail && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.studentEmail}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -393,24 +600,34 @@ const StudentRegistration = () => {
               Pincode
             </label>
             <input
-              type="Text"
+              type="text"
               name="pincode"
               value={formData.pincode}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                validationErrors.pincode ? 'border-red-500' : 'border-gray-300'
+              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
+            {validationErrors.pincode && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.pincode}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Student Aadhar Card Number
             </label>
             <input
-              type="Text"
+              type="text"
               name="studentAadharCardNo"
               value={formData.studentAadharCardNo}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                validationErrors.studentAadharCardNo ? 'border-red-500' : 'border-gray-300'
+              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
+            {validationErrors.studentAadharCardNo && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.studentAadharCardNo}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -517,8 +734,13 @@ const StudentRegistration = () => {
               name="fatherAadharCardNo"
               value={formData.fatherAadharCardNo}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                validationErrors.fatherAadharCardNo ? 'border-red-500' : 'border-gray-300'
+              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
+            {validationErrors.fatherAadharCardNo && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.fatherAadharCardNo}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -586,8 +808,13 @@ const StudentRegistration = () => {
               name="motherAadharCardNo"
               value={formData.motherAadharCardNo}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border ${
+                validationErrors.motherAadharCardNo ? 'border-red-500' : 'border-gray-300'
+              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
             />
+            {validationErrors.motherAadharCardNo && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.motherAadharCardNo}</p>
+            )}
           </div>
         </div>
       </div>
@@ -708,8 +935,7 @@ const StudentRegistration = () => {
           className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700"
           onClick={() =>
             setFormData({
-              firstName: "",
-              lastName: "",
+              fullName: "",
               gender: "",
               formNo: "",
               dob: "",

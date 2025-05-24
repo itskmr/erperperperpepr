@@ -174,7 +174,7 @@ export const registerStudent = async (req, res) => {
           token,
           user: {
             id: updatedStudent.id,
-            name: `${updatedStudent.firstName} ${updatedStudent.lastName}`,
+            name: updatedStudent.fullName,
             email: updatedStudent.email,
             role: 'student',
             admissionNo: updatedStudent.admissionNo
@@ -254,7 +254,7 @@ export const registerStudent = async (req, res) => {
           token,
           user: {
             id: updatedStudent.id,
-            name: `${updatedStudent.firstName} ${updatedStudent.lastName}`,
+            name: updatedStudent.fullName,
             email: updatedStudent.email,
             role: 'student',
             admissionNo: updatedStudent.admissionNo
@@ -322,7 +322,7 @@ export const registerStudent = async (req, res) => {
             token,
             user: {
               id: updatedStudent.id,
-              name: `${updatedStudent.firstName} ${updatedStudent.lastName}`,
+              name: updatedStudent.fullName,
               email: updatedStudent.email,
               role: 'student',
               admissionNo: updatedStudent.admissionNo
@@ -421,7 +421,7 @@ export const loginStudent = async (req, res) => {
         token,
         user: {
           id: student.id,
-          name: `${student.firstName} ${student.lastName}`,
+          name: student.fullName,
           email: student.email,
           role: 'student',
           admissionNo: student.admissionNo,
@@ -1049,7 +1049,7 @@ export const studentSignupFromForm = async (req, res) => {
         token,
         user: {
           id: updatedStudent.id,
-          name: `${updatedStudent.firstName} ${updatedStudent.lastName}`,
+          name: updatedStudent.fullName,
           email: updatedStudent.email,
           role: 'student',
           admissionNo: updatedStudent.admissionNo,
@@ -1198,9 +1198,7 @@ export const registerNewStudent = async (req, res) => {
     // Create new student
     const newStudent = await prisma.student.create({
       data: {
-        firstName,
-        lastName,
-        middleName,
+        fullName: `${firstName} ${lastName}`,
         admissionNo: studentAdmissionNo,
         dateOfBirth: birthDate,
         age,
@@ -1226,7 +1224,7 @@ export const registerNewStudent = async (req, res) => {
       message: 'Student registration submitted successfully. Please wait for approval from your school administrator.',
       data: {
         id: newStudent.id,
-        name: `${newStudent.firstName} ${newStudent.lastName}`,
+        name: newStudent.fullName,
         admissionNo: newStudent.admissionNo,
         email: newStudent.email
       }
