@@ -1,0 +1,180 @@
+/* Math Expression Styles */
+.katex {
+  font-size: 1.1em !important;
+  font-family: 'KaTeX_Math', 'Times New Roman', Times, serif;
+  line-height: 1.2;
+}
+
+/* Inline math expression styling */
+.katex-inline {
+  display: inline-block;
+  margin: 0 0.2em;
+  vertical-align: middle;
+  background: rgba(245, 247, 250, 0.7);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* Block/display math styling */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1em;
+  margin: 1.2em 0;
+  background: rgba(245, 247, 250, 0.7);
+  border-radius: 8px;
+  border-left: 4px solid rgba(59, 130, 246, 0.5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Center display math */
+.katex-display > .katex {
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Improve fraction display */
+.katex .mfrac {
+  font-size: 1.05em;
+}
+
+.katex .mfrac .frac-line {
+  border-bottom-width: 1px;
+  margin: 0 -0.1em;
+}
+
+/* Improve square root display */
+.katex .sqrt {
+  font-size: 1.05em;
+}
+
+.katex .sqrt .sqrt-sign {
+  margin-right: 2px;
+}
+
+/* Improve display of quadratic formula */
+.katex .minner {
+  margin: 0 0.1em;
+}
+
+/* Enhance display of exponents */
+.katex .msupsub {
+  text-align: left;
+}
+
+.katex .mord.mtight {
+  font-size: 0.8em;
+}
+
+/* Specific bracketing in equations */
+.katex .mopen, .katex .mclose {
+  color: rgba(30, 58, 138, 0.9);
+}
+
+/* Enhance operators like plus/minus */
+.katex .mbin {
+  margin: 0 0.2em;
+  color: rgba(37, 99, 235, 0.9);
+}
+
+/* Equal signs in equations */
+.katex .mrel {
+  margin: 0 0.3em;
+  color: rgba(79, 70, 229, 0.9);
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  .katex-display {
+    padding: 0.75em;
+    font-size: 0.9em;
+  }
+  
+  .katex-inline {
+    font-size: 0.95em;
+  }
+}
+
+/* Better alignment in different contexts */
+p .katex-inline {
+  vertical-align: -0.5em;
+}
+
+li .katex-display {
+  margin: 0.8em 0;
+}
+
+blockquote .katex-display {
+  margin: 0.5em 0;
+  background: rgba(245, 247, 250, 0.5);
+}
+
+/* Handle matrix and multi-line equations better */
+.katex-display .katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.5rem;
+}
+
+/* Special styling for solutions to quadratic equations */
+.equation-solution {
+  background-color: rgba(236, 253, 245, 0.7);
+  border-left: 4px solid rgba(16, 185, 129, 0.5);
+  padding: 0.75em;
+  margin: 1em 0;
+  border-radius: 8px;
+}
+
+/* Improve alignment with text */
+.katex .mfrac .frac-line {
+  border-bottom-width: 1px;
+}
+
+/* Improve spacing for math operators */
+.katex .mbin {
+  margin: 0 0.15em;
+}
+
+.katex .mrel {
+  margin: 0 0.2em;
+}
+
+/* Handle stretchy delimiters better */
+.katex .delimsizing.mult .delim-size1 > span {
+  font-family: KaTeX_Size1;
+}
+
+/* Dark mode support */
+.dark .katex-display,
+.dark .katex-inline {
+  background: rgba(30, 41, 59, 0.5);
+  color: rgb(226, 232, 240);
+}
+
+.dark .katex-display {
+  border-left-color: rgba(59, 130, 246, 0.6);
+}
+
+.dark .katex .mopen, 
+.dark .katex .mclose {
+  color: rgba(147, 197, 253, 0.9);
+}
+
+.dark .katex .mbin {
+  color: rgba(147, 197, 253, 0.9);
+}
+
+.dark .katex .mrel {
+  color: rgba(165, 180, 252, 0.9);
+}
+
+/* Animations for newly rendered math */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.katex-display, .katex-inline {
+  animation: fadeIn 0.4s ease-out;
+} 

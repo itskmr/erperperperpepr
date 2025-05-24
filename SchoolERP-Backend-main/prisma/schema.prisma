@@ -1,0 +1,764 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SCHOOL
+  TEACHER
+  STUDENT
+}
+
+model Admin {
+  id        Int       @id @default(autoincrement())
+  fullName  String
+  email     String    @unique
+  password  String
+  username  String    @default("unknown")
+  role      Role      @default(ADMIN)
+  phone     String    @default("0123456789") @db.VarChar(15) // Changed length to 15
+  status    String    @default("active") // Added status field
+  lastLogin DateTime? // Added lastLogin field
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model School {
+  id          Int          @id @default(autoincrement())
+  fullName    String       @default("Unknown")
+  email       String       @unique
+  password    String
+  username    String       @unique @default(cuid())
+  code        String       @unique @default("SC000")
+  address     String       @default("Not Provided")
+  contact     BigInt       @default(0)
+  phone       String       @default("0123456789") @db.VarChar(15)
+  principal   String       @default("Unknown")
+  established Int          @default(2000)
+  role        Role         @default(SCHOOL)
+  status      String       @default("active")
+  lastLogin   DateTime?
+  teachers    Teacher[]
+  students    Student[]
+  departments Department[]
+  transferCertificates TransferCertificate[] 
+  Registration Registration[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Teacher {
+  id               Int       @id @default(autoincrement())
+  fullName         String
+  email            String    @unique
+  password         String
+  username         String    @unique @default(cuid())
+  phone            String    @default("0123456789") @db.VarChar(15)
+  
+  // Professional details
+  designation      String    @default("Teacher")
+  education        String?   @db.Text
+  address          String?   @db.Text
+  
+  // Teaching details
+  classes          String    @db.Text  // Comma-separated classes taught
+  subjects         String    @db.Text  // JSON string of subjects taught
+  sections         String    @db.Text  // JSON string of class and section combinations
+  
+  // Class incharge details
+  isClassIncharge  Boolean   @default(false)
+  inchargeClass    String?
+  inchargeSection  String?
+  
+  // Additional details
+  profileImage     String?   @db.Text
+  joining_year     DateTime  @default(now())
+  experience       String    @default("0")
+  
+  // Status fields
+  role             Role      @default(TEACHER)
+  status           String    @default("active") 
+  lastLogin        DateTime?
+  
+  // Relations
+  schoolId         Int
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  attendance       Attendance[]
+  
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  @@index([schoolId])
+  @@index([isClassIncharge, inchargeClass, inchargeSection])
+}
+
+model Student {
+  id               String   @id @default(uuid())
+  // Student Information
+  branchName       String?
+  fullName         String
+  admissionNo      String   @unique
+  password         String?  // For student login
+  email            String?  @unique // Email for login
+  penNo            String? // Added PEN Number field
+  studentId        String?
+  dateOfBirth      DateTime
+  age              Int? // Added calculated age field
+  gender           String
+  bloodGroup       String?
+  nationality      String?
+  religion         String?
+  category         String?
+  caste            String?
+  aadhaarNumber    String?
+  mobileNumber     String
+  emergencyContact String?
+  loginEnabled     Boolean  @default(false) // Flag to indicate if login is enabled
+  lastLogin        DateTime?
+  isVerified       Boolean  @default(false) // Track if email is verified
+  passwordResetToken String? // For password reset functionality
+  passwordResetExpires DateTime?
+
+  // Academic fields
+  rollNumber     String?
+  className      String
+  section        String?
+  stream         String? // Added stream field
+  semester       String? // Added semester field
+  admissionDate  DateTime @default(now())
+  previousSchool String?  @db.Text
+
+  // Address fields
+  presentHouseNo String?
+  presentStreet  String? @db.Text
+  presentCity    String
+  presentState   String
+  presentPinCode String?
+
+  permanentHouseNo String?
+  permanentStreet  String? @db.Text
+  permanentCity    String?
+  permanentState   String?
+  permanentPinCode String?
+
+  // Parent information
+  fatherName String
+  motherName String
+
+  // Relations
+  schoolId      Int
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  parentInfo    ParentInfo?
+  sessionInfo   SessionInfo?
+  transportInfo TransportInfo?
+  documents     Documents?
+  educationInfo EducationInfo?
+  otherInfo     OtherInfo?
+  studentTransport StudentTransport[]
+
+  // Meta
+  transferCertificates TransferCertificate[]
+  role            Role      @default(STUDENT)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  attendance      Attendance[]
+}
+
+// Normalized tables to reduce row size
+
+model ParentInfo {
+  id                     Int     @id @default(autoincrement())
+  // Father details
+  fatherQualification    String?
+  fatherOccupation       String?
+  fatherContact          String?
+  fatherEmail            String?
+  fatherAadhaarNo        String?
+  fatherAnnualIncome     String?
+  fatherIsCampusEmployee String? @default("no")
+
+  // Mother details
+  motherQualification    String?
+  motherOccupation       String?
+  motherContact          String?
+  motherEmail            String?
+  motherAadhaarNo        String?
+  motherAnnualIncome     String?
+  motherIsCampusEmployee String? @default("no")
+
+  // Guardian information
+  guardianName    String?
+  guardianAddress String? @db.Text
+  guardianContact String?
+
+  // Relation
+  studentId String   @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model SessionInfo {
+  id            Int     @id @default(autoincrement())
+  // Admit Session
+  admitGroup    String?
+  admitStream   String?
+  admitClass    String?
+  admitSection  String?
+  admitRollNo   String?
+  admitSemester String?
+  admitFeeGroup String?
+  admitHouse    String?
+
+  // Current Session
+  currentGroup    String?
+  currentStream   String?
+  currentClass    String?
+  currentSection  String?
+  currentRollNo   String?
+  currentSemester String?
+  currentFeeGroup String?
+  currentHouse    String?
+
+  // Relation
+  studentId String   @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model TransportInfo {
+  id              Int     @id @default(autoincrement())
+  transportMode   String?
+  transportArea   String?
+  transportStand  String?
+  transportRoute  String?
+  transportDriver String?
+  pickupLocation  String? // Added pickup location
+  dropLocation    String? // Added drop location
+
+  // Relation
+  studentId String   @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Documents {
+  id                       Int     @id @default(autoincrement())
+  studentImagePath         String? @db.Text
+  fatherImagePath          String? @db.Text
+  motherImagePath          String? @db.Text
+  guardianImagePath        String? @db.Text
+  signaturePath            String? @db.Text
+  parentSignaturePath      String? @db.Text // Added parent signature
+  fatherAadharPath         String? @db.Text
+  motherAadharPath         String? @db.Text
+  birthCertificatePath     String? @db.Text
+  migrationCertificatePath String? @db.Text
+  aadhaarCardPath          String? @db.Text
+  affidavitCertificatePath String? @db.Text // Added affidavit certificate
+  incomeCertificatePath    String? @db.Text // Added income certificate
+  addressProof1Path        String? @db.Text // Added address proof 1
+  addressProof2Path        String? @db.Text // Added address proof 2
+
+  // Academic registration
+  academicRegistrationNo String?
+
+  // Relation
+  studentId String   @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model EducationInfo {
+  id                Int       @id @default(autoincrement())
+  lastSchool        String?   @db.Text
+  lastSchoolAddress String?   @db.Text
+  lastTcDate        DateTime?
+  lastClass         String?
+  lastPercentage    String?
+  lastAttendance    String?
+  lastExtraActivity String?   @db.Text
+
+  // Relation
+  studentId String   @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model OtherInfo {
+  id                 Int     @id @default(autoincrement())
+  belongToBPL        String? @default("no")
+  minority           String? @default("no")
+  disability         String?
+  accountNo          String?
+  bank               String?
+  ifscCode           String?
+  medium             String?
+  lastYearResult     String?
+  singleParent       String? @default("no")
+  onlyChild          String? @default("no")
+  onlyGirlChild      String? @default("no")
+  adoptedChild       String? @default("no")
+  siblingAdmissionNo String?
+  transferCase       String? @default("no")
+  livingWith         String?
+  motherTongue       String?
+  admissionType      String? @default("new")
+  udiseNo            String?
+
+  // Relation
+  studentId String   @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Department {
+  id             Int      @id @default(autoincrement())
+  departmentName String
+  hOD            String
+  faculty_count  Int
+  description    String   @db.Text
+  schoolId       Int
+  school         School   @relation(fields: [schoolId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Fee {
+  id              String   @id @default(uuid())
+  admissionNumber String
+  studentName     String
+  fatherName      String // Added father's name field
+  class           String
+  section         String
+  totalFees       Float
+  amountPaid      Float
+  feeAmount       Float
+  paymentDate     DateTime
+  paymentMode     String
+  receiptNumber   String
+  status          String // 'Paid', 'Pending', 'Partial'   // 'Paid', 'Pending', 'Partial'
+  feeCategory     String? // Optional fee category field
+  feeCategories   String?  @db.Text // Store array as JSON string in Text field
+
+  // School relationship
+  schoolId Int?
+
+  // School relationship
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Fee Structure models for managing class fee structures
+model FeeStructure {
+  id             String        @id @default(uuid())
+  className      String
+  description    String?       @db.Text
+  schoolId       Int // To associate with a particular school
+  categories     FeeCategory[]
+  totalAnnualFee Float         @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model FeeCategory {
+  id           String       @id @default(uuid())
+  name         String       // Name of the fee category (e.g., "Tuition Fee", "Library Fee")
+  amount       Float        // The fee amount
+  frequency    String       // "Monthly", "Quarterly", "Yearly"
+  description  String?      @db.Text
+  structureId  String       // Foreign key to relate to a fee structure
+  structure    FeeStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model TransferCertificate {
+  id                  Int       @id @default(autoincrement())
+  // Student Information
+  admissionNumber     String    
+  fullName            String
+  fatherName          String
+  motherName          String
+  dateOfBirth         DateTime
+  nationality         String
+  category            String
+  dateOfAdmission     DateTime
+  
+  // Academic Information
+  currentClass        String
+  whetherFailed       WhetherFailed @default(No) // Enum for whether failed or not
+  section             String
+  rollNumber          String?
+  examAppearedIn      ExamAppearedIn @default(School) // Enum for exam appeared in
+  qualifiedForPromotion QualifiedStatus @default(Yes) // Enum for qualified status
+  
+  // Transfer Details
+  reasonForLeaving    ReasonForLeaving // Enum for reason for leaving
+  dateOfLeaving       DateTime
+  lastAttendanceDate  DateTime
+  toClass             String?
+  classInWords        String?
+  
+  // Academic Performance
+  maxAttendance       Int
+  obtainedAttendance  Int
+  subjectsStudied     String    @db.Text
+  
+  // Conduct Information
+  generalConduct      ConductStatus // Enum for conduct status
+  behaviorRemarks     String?   @db.Text
+  
+  // Financial Information
+  feesPaidUpTo        DateTime
+  tcCharge            Float     @default(0)
+  feeConcession       FeeConcessionStatus? @default(None) // Enum for fee concession status
+  
+  // Activities and Games
+  gamesPlayed         String?   @db.Text  // Stored as JSON string
+  extraActivities     String?   @db.Text  // Stored as JSON string
+  
+  // School Details
+  schoolId            Int
+  school              School    @relation(fields: [schoolId], references: [id])
+  issuedDate          DateTime  @default(now())
+  tcNumber            String    @unique
+  tcstatus            Int       @default(1) // 1=Issued, 2=Cancelled, 0=Draft
+  
+  // Relations
+  studentId           String
+  student             Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([admissionNumber])
+  @@index([tcNumber])
+  @@index([issuedDate])
+}
+
+// Enums for select fields
+enum QualifiedStatus {
+  Yes
+  No
+  NA
+  Pass
+  Fail
+  Compartment
+  AsperCBSEBoardResult
+  AppearedinclassXExam
+  AppearedinclassXIIExam
+}
+
+enum ReasonForLeaving {
+  FamilyRelocation
+  AdmissionInOtherSchool
+  Duetolongabsencewithoutinformation
+  FatherJobTransfer
+  GetAdmissioninHigherClass
+  GoingtoNativePlace
+  ParentWill
+  Passedoutfromtheschool
+  Shiftingtootherplace
+  TransferCase
+  Other
+}
+
+enum ConductStatus {
+  Excellent
+  Good
+  Satisfactory
+  NeedsImprovement
+  Poor
+}
+
+enum FeeConcessionStatus {
+  None
+  Partial
+  Full
+}
+
+enum GamesPlayed {
+  Football
+  Cricket
+  Swimming
+  Basketball
+  Kabaddi
+  Volleyball
+  Athlete
+  Chess
+  Badminton
+}
+
+enum ExtraCurricularActivities {
+  ParticipateInStageShow
+  ParticipateInSports
+  ParticipateInDebate
+  ParticipateInQuiz
+  ParticipateInPainting
+  ParticipateInSinging
+  ParticipateInDancing
+  ParticipateInOther
+}
+
+enum ExamAppearedIn {
+  School
+  Board
+  NA
+  CBSEBoard
+  SchoolFailed
+  SchoolPassed
+  SchoolCompartment
+  BoardPassed
+  BoardFailed
+  BoardCompartment
+}
+
+enum WhetherFailed {
+  Yes
+  No
+  NA
+  CBSEBoard
+}
+
+// Add new enum for attendance status
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// Add model for attendance tracking
+model Attendance {
+  id          Int              @id @default(autoincrement())
+  date        DateTime
+  status      AttendanceStatus
+  notes       String?          @db.Text
+  studentId   String
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId   Int
+  teacher     Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  className   String           // Storing the class name directly instead of using class ID
+  section     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([date, studentId])
+  @@index([date, className])
+  @@index([studentId, date])
+}
+
+model Registration {
+  // student information
+  registrationId      String  @id @default(uuid())
+  fullName           String
+  gender              String
+  formNo              String  @unique
+  dob                 String
+  category            String
+  religion            String
+  // schoolId            Int
+  // school              School    @relation(fields: [schoolId], references: [id], onDelete: Cascade),
+  registerForClass    String
+  admissionCategory   String
+  bloodGroup          String
+  regnDate            String
+  testDate            String
+  transactionNo       String
+  singleParent        Boolean
+  contactNo           String
+  studentEmail        String
+  address             String
+  city                String
+  state               String
+  pincode             String
+  studentAadharCardNo String
+  regnCharge          String
+  examSubject         String
+  paymentStatus       String
+
+  // father Details
+  fatherName             String
+  fatherMobileNo         String
+  smsAlert               Boolean
+  fatherEmail            String
+  fatherAadharCardNo     String
+  isFatherCampusEmployee Boolean
+
+  // mother Details
+  motherName         String
+  motherMobileNo     String
+  motherAadharCardNo String
+
+  // documents 
+  casteCertificate              String?
+  studentAadharCard             String?
+  fatherAadharCard              String?
+  motherAadharCard              String?
+  previousClassMarksheet        String?
+  transferCertificate           String?
+  studentDateOfBirthCertificate String?
+  School                        School? @relation(fields: [schoolId], references: [id])
+  schoolId                      Int?
+}
+
+
+// Trip Model
+model Trip {
+  id            String    @id @default(uuid())
+  date          DateTime
+  startTime     String
+  endTime       String
+  status        String    @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, DELAYED
+  startOdometer Float
+  endOdometer   Float?
+  notes         String?   @db.Text
+  delayMinutes  Int       @default(0)
+  
+  // Relations
+  busId         String
+  bus           Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
+  routeId       String
+  route         Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  driverId      String
+  driver        Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([date, routeId])
+  @@index([date, busId])
+  @@index([date, driverId])
+}
+
+// Maintenance Model
+model Maintenance {
+  id           String    @id @default(uuid())
+  busId        String
+  date         DateTime
+  type         String    // regular, repair, inspection
+  description  String?   @db.Text
+  cost         Float     @default(0)
+  odometer     Float?
+  nextDueDate  DateTime?
+  completedBy  String?
+  status       String    @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED
+  
+  // Relations
+  bus          Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@index([busId, date])
+  @@index([status])
+}
+
+// Bus Model
+model Bus {
+  id                  String        @id @default(uuid())
+  registrationNumber  String        @unique
+  make                String
+  model               String
+  capacity            Int
+  fuelType            String?
+  purchaseDate        DateTime?
+  insuranceExpiryDate DateTime?
+  lastMaintenanceDate DateTime?
+  lastInspectionDate  DateTime?
+  currentOdometer     Float         @default(0)
+  status              String        @default("ACTIVE") // ACTIVE, MAINTENANCE, INACTIVE
+  notes               String?       @db.Text
+  
+  // Relations
+  driverId            String?
+  driver              Driver?       @relation(fields: [driverId], references: [id])
+  routeId             String?       @unique
+  route               Route?        @relation(fields: [routeId], references: [id])
+  trips               Trip[]
+  maintenance         Maintenance[]
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+// Route Model
+model Route {
+  id              String        @id @default(uuid())
+  name            String
+  description     String?       @db.Text
+  startLocation   String
+  endLocation     String
+  distance        Float?
+  estimatedTime   Int?          // in minutes
+  stops           String?       @db.Text // JSON string of stops with format [{name, location, sequence, estimatedTime, studentsCount}]
+  schedule        String?       @db.Text // JSON string of schedule with format [{title, startTime, endTime, weekdays}]
+  
+  // Relations
+  busId           String?       // Remove @unique here
+  bus             Bus?          @relation()
+  trips           Trip[]
+  studentTransport StudentTransport[]
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// Driver Model
+model Driver {
+  id            String    @id @default(uuid())
+  name          String
+  licenseNumber String    @unique
+  contactNumber String
+  address       String?   @db.Text
+  experience    Int       @default(0)
+  joiningDate   DateTime
+  isActive      Boolean   @default(true)
+  photo         String?   @db.Text
+  
+  // Relations
+  buses         Bus[]
+  trips         Trip[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// StudentTransport Model
+model StudentTransport {
+  id             String    @id @default(uuid())
+  studentId      String
+  pickupLocation String
+  dropLocation   String
+  pickupTime     String?
+  dropTime       String?
+  fee            Float     @default(0)
+  
+  // Relations
+  routeId        String
+  route          Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  @@index([studentId])
+  @@index([routeId])
+}
+
+// Enum for Trip Status
+enum TripStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  CANCELED
+}
+
+// Enum for Maintenance Status
+enum MaintenanceStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}

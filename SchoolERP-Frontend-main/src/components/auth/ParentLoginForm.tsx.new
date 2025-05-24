@@ -1,0 +1,519 @@
+import React, { useState, useEffect } from 'react';
+import { FiAlertCircle, FiArrowRight, FiArrowLeft, FiCheck, FiLogIn } from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ParentLoginFields } from './forms';
+import { AUTH_ENDPOINTS, fetchAPI } from '../../config/api';
+
+interface ParentLoginFormProps {
+  onSubmit: (formData: { 
+    email: string; 
+    password: string; 
+    admissionNo?: string; 
+    invitationKey?: string;
+    isRegistration?: boolean 
+  }) => Promise<void>;
+  isLoading: boolean;
+  error: string;
+  useDemo: boolean;
+  setUseDemo: (useDemo: boolean) => void;
+  onBack: () => void;
+}
+
+// Demo account for parent
+const demoAccount = {
+  email: 'parent@gmail.com',
+  password: 'Parent@1234',
+  admissionNo: 'STU2023001',
+  invitationKey: '' // This will be populated from the server in real use
+};
+
+// Step type for multi-step form
+type FormStep = 'invitation' | 'admission' | 'email' | 'password' | 'confirm';
+
+const ParentLoginForm: React.FC<ParentLoginFormProps> = ({
+  onSubmit,
+  isLoading,
+  error,
+  useDemo,
+  setUseDemo,
+  onBack
+}) => {
+  const [formData, setFormData] = useState<{
+    email: string;
+    password: string;
+    confirmPassword?: string;
+    invitationKey?: string;
+    admissionNo?: string;
+    studentId?: string;
+    parentInfoId?: number;
+    isRegistration: boolean;
+  }>({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    invitationKey: '',
+    admissionNo: '',
+    studentId: undefined,
+    parentInfoId: undefined,
+    isRegistration: true,
+  });
+  
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+    invitationKey?: string;
+    admissionNo?: string;
+  }>({});
+  const [currentStep, setCurrentStep] = useState<FormStep>('invitation');
+  const [keyVerified, setKeyVerified] = useState<boolean>(false);
+  const [showLoginOption, setShowLoginOption] = useState<boolean>(false);
+
+  // Animation variants
+  const formVariants = {
+    hidden: { opacity: 0, x: -20 },
+    visible: { opacity: 1, x: 0, transition: { duration: 0.3 } },
+    exit: { opacity: 0, x: 20, transition: { duration: 0.2 } }
+  };
+
+  // Pre-fill form data when demo is selected
+  useEffect(() => {
+    if (useDemo) {
+      setFormData({
+        email: demoAccount.email,
+        password: demoAccount.password,
+        confirmPassword: demoAccount.password,
+        invitationKey: demoAccount.invitationKey,
+        admissionNo: demoAccount.admissionNo,
+        studentId: undefined,
+        parentInfoId: undefined,
+        isRegistration: true,
+      });
+      // In demo mode, verify the key automatically
+      setKeyVerified(true);
+    } else if (!keyVerified) {
+      setFormData({
+        email: '',
+        password: '',
+        confirmPassword: '',
+        invitationKey: '',
+        admissionNo: '',
+        studentId: undefined,
+        parentInfoId: undefined,
+        isRegistration: true,
+      });
+    }
+  }, [useDemo]);
+
+  const validateCurrentStep = (): boolean => {
+    const newErrors: typeof errors = {};
+
+    switch (currentStep) {
+      case 'invitation':
+        if (!formData.invitationKey) {
+          newErrors.invitationKey = 'Invitation key is required';
+        }
+        break;
+      
+      case 'admission':
+        if (!formData.admissionNo) {
+          newErrors.admissionNo = 'Admission number is required';
+        } else if (formData.admissionNo.length < 6) {
+          newErrors.admissionNo = 'Invalid admission number format';
+        }
+        break;
+      
+      case 'email':
+        if (!formData.email) {
+          newErrors.email = 'Email is required';
+        } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+          newErrors.email = 'Email is invalid';
+        }
+        break;
+      
+      case 'password':
+        if (!formData.password) {
+          newErrors.password = 'Password is required';
+        } else if (formData.password.length < 8) {
+          newErrors.password = 'Password must be at least 8 characters';
+        } else if (!/(?=.*[A-Z])/.test(formData.password)) {
+          newErrors.password = 'Password must include an uppercase letter';
+        } else if (!/(?=.*[0-9])/.test(formData.password)) {
+          newErrors.password = 'Password must include a number';
+        }
+        break;
+      
+      case 'confirm':
+        if (!formData.confirmPassword) {
+          newErrors.confirmPassword = 'Please confirm your password';
+        } else if (formData.confirmPassword !== formData.password) {
+          newErrors.confirmPassword = 'Passwords do not match';
+        }
+        break;
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const moveToNextStep = async (): Promise<void> => {
+    if (!validateCurrentStep()) return;
+
+    if (currentStep === 'invitation') {
+      if (useDemo) {
+        // For demo, just proceed
+        setKeyVerified(true);
+        setCurrentStep('admission');
+        return;
+      }
+
+      try {
+        // Call the backend API to validate the invitation key
+        const response = await fetch(AUTH_ENDPOINTS.PARENT_VALIDATE_INVITATION, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            invitationKey: formData.invitationKey,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setKeyVerified(true);
+          setCurrentStep('admission');
+          
+          // Store IDs for later use
+          setFormData(prev => ({
+            ...prev,
+            studentId: data.studentId,
+            parentInfoId: data.parentInfoId,
+            email: data.email || prev.email
+          }));
+          
+          // If already registered, show login option
+          if (data.isRegistered) {
+            setShowLoginOption(true);
+          }
+        } else {
+          setErrors({
+            ...errors,
+            invitationKey: data.message || 'Invalid invitation key'
+          });
+        }
+      } catch (error) {
+        console.error('Error validating invitation:', error);
+        setErrors({
+          ...errors,
+          invitationKey: 'Error validating invitation key'
+        });
+      }
+    } else if (currentStep === 'admission') {
+      if (useDemo) {
+        // For demo, just proceed
+        setCurrentStep('email');
+        return;
+      }
+
+      try {
+        // Call the backend API to validate both the invitation key and admission number
+        const response = await fetch(AUTH_ENDPOINTS.PARENT_VALIDATE_INVITATION, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            invitationKey: formData.invitationKey,
+            admissionNo: formData.admissionNo
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Store IDs for later use
+          setFormData(prev => ({
+            ...prev,
+            studentId: data.studentId,
+            parentInfoId: data.parentInfoId,
+            email: data.email || prev.email
+          }));
+          
+          setCurrentStep('email');
+          
+          // If already registered, show login option
+          if (data.isRegistered) {
+            setShowLoginOption(true);
+          }
+        } else {
+          setErrors({
+            ...errors,
+            admissionNo: data.message || 'Invalid admission number or invitation key'
+          });
+        }
+      } catch (error) {
+        console.error('Error validating admission number:', error);
+        setErrors({
+          ...errors,
+          admissionNo: 'Error validating admission number'
+        });
+      }
+    } else if (currentStep === 'email') {
+      setCurrentStep('password');
+    } else if (currentStep === 'password') {
+      setCurrentStep('confirm');
+    }
+  };
+
+  const moveToPreviousStep = (): void => {
+    if (currentStep === 'admission') {
+      setCurrentStep('invitation');
+    } else if (currentStep === 'email') {
+      setCurrentStep('admission');
+    } else if (currentStep === 'password') {
+      setCurrentStep('email');
+    } else if (currentStep === 'confirm') {
+      setCurrentStep('password');
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // Clear errors when typing
+    if (errors[name as keyof typeof errors]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: undefined,
+      }));
+    }
+  };
+
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    
+    if (currentStep !== 'confirm') {
+      await moveToNextStep();
+      return;
+    }
+    
+    if (!validateCurrentStep()) return;
+    
+    // Final submission for registration
+    await onSubmit({
+      email: formData.email,
+      password: formData.password,
+      admissionNo: formData.admissionNo,
+      invitationKey: formData.invitationKey,
+      isRegistration: true
+    });
+
+    // Show login option after registration
+    setShowLoginOption(true);
+  };
+
+  const handleLogin = async (): Promise<void> => {
+    await onSubmit({
+      email: formData.email,
+      password: formData.password,
+      isRegistration: false
+    });
+  };
+
+  // Progress indicator
+  const getProgress = (): number => {
+    switch (currentStep) {
+      case 'invitation': return 20;
+      case 'admission': return 40;
+      case 'email': return 60;
+      case 'password': return 80;
+      case 'confirm': return 100;
+      default: return 0;
+    }
+  };
+
+  return (
+    <div className="parent-login-container">
+      {/* Progress bar */}
+      <div className="w-full bg-gray-200 rounded-full h-2.5 mb-6">
+        <motion.div 
+          className="bg-pink-600 h-2.5 rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${getProgress()}%` }}
+          transition={{ duration: 0.5 }}
+        />
+      </div>
+      
+      {/* Step title */}
+      <motion.h3 
+        className="text-lg font-medium text-gray-900 mb-4 text-center"
+        key={`title-${currentStep}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        {currentStep === 'invitation' && 'Enter Invitation Code'}
+        {currentStep === 'admission' && 'Enter Student\'s Admission Number'}
+        {currentStep === 'email' && 'Enter Your Email'}
+        {currentStep === 'password' && 'Create a Password'}
+        {currentStep === 'confirm' && 'Confirm Your Password'}
+      </motion.h3>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded flex items-center">
+          <FiAlertCircle className="mr-2" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <motion.form
+        onSubmit={handleSubmit}
+        className="parent-login-form relative"
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            variants={formVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <ParentLoginFields
+              formData={formData}
+              errors={errors}
+              showPassword={showPassword}
+              showConfirmPassword={showConfirmPassword}
+              step={currentStep}
+              handleChange={handleChange}
+              togglePasswordVisibility={togglePasswordVisibility}
+              toggleConfirmPasswordVisibility={toggleConfirmPasswordVisibility}
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Demo credentials checkbox */}
+        {currentStep === 'invitation' && (
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={useDemo}
+                onChange={() => setUseDemo(!useDemo)}
+                className="form-checkbox h-5 w-5 text-pink-600"
+              />
+              <span className="ml-2 text-sm text-gray-700">
+                Use demo credentials
+              </span>
+            </label>
+          </div>
+        )}
+
+        {/* Navigation buttons */}
+        <div className="flex gap-3 mt-6">
+          {currentStep === 'invitation' ? (
+            <motion.button
+              type="button"
+              onClick={onBack}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-300"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Back
+            </motion.button>
+          ) : (
+            <motion.button
+              type="button"
+              onClick={moveToPreviousStep}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-300"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <FiArrowLeft className="mr-1 inline" />
+              Back
+            </motion.button>
+          )}
+
+          <motion.button
+            type={currentStep === 'confirm' ? 'submit' : 'button'}
+            onClick={currentStep !== 'confirm' ? moveToNextStep : undefined}
+            disabled={isLoading}
+            className="flex-1 bg-pink-600 hover:bg-pink-700 text-white py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-300 flex items-center justify-center"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {isLoading ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+              </span>
+            ) : (
+              <>
+                {currentStep === 'confirm' ? (
+                  <>
+                    <FiCheck className="mr-1" />
+                    Complete Registration
+                  </>
+                ) : (
+                  <>
+                    Next
+                    <FiArrowRight className="ml-1" />
+                  </>
+                )}
+              </>
+            )}
+          </motion.button>
+        </div>
+      </motion.form>
+
+      {/* Login option after registration */}
+      {showLoginOption && (
+        <motion.div
+          className="mt-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <button
+            onClick={handleLogin}
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-300 flex items-center justify-center"
+          >
+            <FiLogIn className="mr-2" />
+            Login with these credentials
+          </button>
+        </motion.div>
+      )}
+
+      {/* Help text box */}
+      <motion.div
+        className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-md"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <p className="text-xs text-pink-800 font-semibold">Parent Portal Registration</p>
+        <p className="text-xs text-pink-700 mt-1">
+          {currentStep === 'invitation' && 'Enter the invitation code you received from your child\'s school to begin registration.'}
+          {currentStep === 'admission' && 'Enter your child\'s admission number provided by the school to link your account.'}
+          {currentStep === 'email' && 'Provide your email address. This will be your login username to access your child\'s academic information.'}
+          {currentStep === 'password' && 'Create a strong password for your account. It should include uppercase, numbers, and be at least 8 characters.'}
+          {currentStep === 'confirm' && 'Please re-enter your password to confirm and complete your registration.'}
+        </p>
+      </motion.div>
+    </div>
+  );
+};
+
+export default ParentLoginForm; 
