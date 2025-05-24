@@ -106,10 +106,10 @@ model Student {
   admissionNo      String   @unique
   password         String?  // For student login
   email            String?  @unique // Email for login
-  penNo            String? // Added PEN Number field
+  penNo            String? // PEN Number field
   studentId        String?
   dateOfBirth      DateTime
-  age              Int? // Added calculated age field
+  age              Int? // Calculated age field
   gender           String
   bloodGroup       String?
   nationality      String?
@@ -119,37 +119,38 @@ model Student {
   aadhaarNumber    String?
   mobileNumber     String
   emergencyContact String?
-  loginEnabled     Boolean  @default(false) // Flag to indicate if login is enabled
+  loginEnabled     Boolean  @default(false)
   lastLogin        DateTime?
-  isVerified       Boolean  @default(false) // Track if email is verified
-  passwordResetToken String? // For password reset functionality
+  isVerified       Boolean  @default(false)
+  passwordResetToken String?
   passwordResetExpires DateTime?
 
   // Academic fields
   rollNumber     String?
   className      String
   section        String?
-  stream         String? // Added stream field
-  semester       String? // Added semester field
+  stream         String?
+  semester       String?
   admissionDate  DateTime @default(now())
   previousSchool String?  @db.Text
 
   // Address fields
-  presentHouseNo String?
-  presentStreet  String? @db.Text
-  presentCity    String
-  presentState   String
-  presentPinCode String?
+  houseNo        String?
+  street         String? @db.Text
+  city           String
+  state          String
+  pinCode        String?
 
   permanentHouseNo String?
   permanentStreet  String? @db.Text
   permanentCity    String?
   permanentState   String?
   permanentPinCode String?
+  sameAsPresentAddress Boolean @default(false)
 
   // Parent information
-  fatherName String
-  motherName String
+  fatherName     String
+  motherName     String
 
   // Relations
   schoolId      Int
@@ -168,6 +169,12 @@ model Student {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   attendance      Attendance[]
+
+  @@index([admissionNo])
+  @@index([email])
+  @@index([mobileNumber])
+  @@index([aadhaarNumber])
+  @@index([className, section])
 }
 
 // Normalized tables to reduce row size
@@ -193,9 +200,13 @@ model ParentInfo {
   motherIsCampusEmployee String? @default("no")
 
   // Guardian information
-  guardianName    String?
-  guardianAddress String? @db.Text
-  guardianContact String?
+  guardianName           String?
+  guardianAddress        String? @db.Text
+  guardianContact        String?
+  guardianEmail          String?
+  guardianAadhaarNo      String?
+  guardianOccupation     String?
+  guardianAnnualIncome   String?
 
   // Relation
   studentId String   @unique
@@ -236,8 +247,8 @@ model TransportInfo {
   transportStand  String?
   transportRoute  String?
   transportDriver String?
-  pickupLocation  String? // Added pickup location
-  dropLocation    String? // Added drop location
+  pickupLocation  String?
+  dropLocation    String?
 
   // Relation
   studentId String   @unique
@@ -251,19 +262,17 @@ model Documents {
   motherImagePath          String? @db.Text
   guardianImagePath        String? @db.Text
   signaturePath            String? @db.Text
-  parentSignaturePath      String? @db.Text // Added parent signature
+  parentSignaturePath      String? @db.Text
   fatherAadharPath         String? @db.Text
   motherAadharPath         String? @db.Text
   birthCertificatePath     String? @db.Text
   migrationCertificatePath String? @db.Text
   aadhaarCardPath          String? @db.Text
-  affidavitCertificatePath String? @db.Text // Added affidavit certificate
-  incomeCertificatePath    String? @db.Text // Added income certificate
-  addressProof1Path        String? @db.Text // Added address proof 1
-  addressProof2Path        String? @db.Text // Added address proof 2
-
-  // Academic registration
-  academicRegistrationNo String?
+  affidavitCertificatePath String? @db.Text
+  incomeCertificatePath    String? @db.Text
+  addressProof1Path        String? @db.Text
+  addressProof2Path        String? @db.Text
+  academicRegistrationNo   String?
 
   // Relation
   studentId String   @unique
@@ -271,14 +280,14 @@ model Documents {
 }
 
 model EducationInfo {
-  id                Int       @id @default(autoincrement())
-  lastSchool        String?   @db.Text
-  lastSchoolAddress String?   @db.Text
+  id                Int      @id @default(autoincrement())
+  lastSchool        String?
+  lastSchoolAddress String?  @db.Text
   lastTcDate        DateTime?
   lastClass         String?
   lastPercentage    String?
   lastAttendance    String?
-  lastExtraActivity String?   @db.Text
+  lastExtraActivity String?  @db.Text
 
   // Relation
   studentId String   @unique
@@ -286,25 +295,25 @@ model EducationInfo {
 }
 
 model OtherInfo {
-  id                 Int     @id @default(autoincrement())
-  belongToBPL        String? @default("no")
-  minority           String? @default("no")
-  disability         String?
-  accountNo          String?
-  bank               String?
-  ifscCode           String?
-  medium             String?
-  lastYearResult     String?
-  singleParent       String? @default("no")
-  onlyChild          String? @default("no")
-  onlyGirlChild      String? @default("no")
-  adoptedChild       String? @default("no")
+  id                Int      @id @default(autoincrement())
+  belongToBPL       String?  @default("no")
+  minority          String?  @default("no")
+  disability        String?
+  accountNo         String?
+  bank              String?
+  ifscCode          String?
+  medium            String?
+  lastYearResult    String?
+  singleParent      String?  @default("no")
+  onlyChild         String?  @default("no")
+  onlyGirlChild     String?  @default("no")
+  adoptedChild      String?  @default("no")
   siblingAdmissionNo String?
-  transferCase       String? @default("no")
-  livingWith         String?
-  motherTongue       String?
-  admissionType      String? @default("new")
-  udiseNo            String?
+  transferCase      String?  @default("no")
+  livingWith        String?
+  motherTongue      String?
+  admissionType     String?  @default("new")
+  udiseNo           String?
 
   // Relation
   studentId String   @unique

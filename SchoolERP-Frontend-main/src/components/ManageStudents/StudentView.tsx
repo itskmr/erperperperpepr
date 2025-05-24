@@ -32,7 +32,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         <div className="bg-blue-600 px-6 py-4 rounded-t-lg">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-bold text-white">
-              Student Information: {student.firstName} {student.middleName} {student.lastName}
+              Student Information: {student.fullName}
             </h3>
             <button
               onClick={onClose}
@@ -55,33 +55,18 @@ export const StudentView: React.FC<StudentViewProps> = ({
                 <p className="text-base font-semibold">{student.admissionNo}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Student ID</p>
-                <div className="flex items-center">
-                  <p className="text-base font-semibold mr-2">
-                    {student.studentId || (student.id ? `ID-${student.id}` : 'N/A')}
-                  </p>
-                  {(student.studentId || student.id) && (
-                    <button 
-                      onClick={() => copyToClipboard(student.studentId || `ID-${student.id}`)}
-                      className="text-gray-500 hover:text-blue-600 focus:outline-none"
-                      title="Copy to clipboard"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div>
                 <p className="text-sm font-medium text-gray-500">Class & Section</p>
                 <p className="text-base font-semibold">{student.className} {student.section}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Registration Date</p>
+                <p className="text-base font-semibold">{new Date(student.admissionDate).toLocaleDateString()}</p>
               </div>
             </div>
           </div>
 
           {/* Main content sections */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-6 space-y-6">
             {/* Personal Information */}
             <div className="border rounded-lg p-4">
               <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Personal Information</h4>
@@ -93,7 +78,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Date of Birth</p>
-                    <p>{student.dateOfBirth || 'N/A'}</p>
+                    <p>{student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : 'N/A'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -112,14 +97,14 @@ export const StudentView: React.FC<StudentViewProps> = ({
                     <p>{student.religion || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Nationality</p>
-                    <p>{student.nationality || 'N/A'}</p>
+                    <p className="text-sm font-medium text-gray-500">Category</p>
+                    <p>{student.category || 'N/A'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Mobile Number</p>
-                    <p>{student.mobileNumber}</p>
+                    <p>{student.mobileNumber || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Email</p>

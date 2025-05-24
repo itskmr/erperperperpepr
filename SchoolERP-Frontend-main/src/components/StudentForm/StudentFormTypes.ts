@@ -21,14 +21,14 @@ export interface Documents {
 
 // Define Address type - split into present and permanent
 export interface Address {
-  street: string;
   houseNo: string;
+  street: string;
   city: string;
   state: string;
   pinCode: string;
   
-  permanentStreet: string;
   permanentHouseNo: string;
+  permanentStreet: string;
   permanentCity: string;
   permanentState: string;
   permanentPinCode: string;
@@ -40,11 +40,11 @@ export interface Parent {
   name: string;
   qualification: string;
   occupation: string;
-  email: string;
   contactNumber: string;
+  email: string;
   aadhaarNo: string;
   annualIncome: string;
-  isCampusEmployee: string;
+  isCampusEmployee: 'yes' | 'no';
 }
 
 // Define Guardian type
@@ -52,6 +52,10 @@ export interface Guardian {
   name: string;
   address: string;
   contactNumber: string;
+  email: string;
+  aadhaarNo: string;
+  occupation: string;
+  annualIncome: string;
 }
 
 // Define Session type
@@ -95,23 +99,23 @@ export interface LastEducation {
 
 // Define Other type
 export interface Other {
-  belongToBPL: string;
-  minority: string;
+  belongToBPL: 'yes' | 'no';
+  minority: 'yes' | 'no';
   disability: string;
   accountNo: string;
   bank: string;
   ifscCode: string;
   medium: string;
   lastYearResult: string;
-  singleParent: string;
-  onlyChild: string;
-  onlyGirlChild: string;
-  adoptedChild: string;
+  singleParent: 'yes' | 'no';
+  onlyChild: 'yes' | 'no';
+  onlyGirlChild: 'yes' | 'no';
+  adoptedChild: 'yes' | 'no';
   siblingAdmissionNo: string;
-  transferCase: string;
-  livingWith: string;
+  transferCase: 'yes' | 'no';
+  livingWith: 'parents' | 'father' | 'mother' | 'guardian' | '';
   motherTongue: string;
-  admissionType: string;
+  admissionType: 'new' | 'old';
   udiseNo: string;
 }
 

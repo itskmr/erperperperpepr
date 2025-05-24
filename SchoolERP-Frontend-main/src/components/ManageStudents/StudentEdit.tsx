@@ -24,7 +24,51 @@ export const StudentEdit: React.FC<StudentEditProps> = ({
   // Initialize form with student data when it changes
   useEffect(() => {
     if (student) {
-      setFormData({ ...student });
+      setFormData({
+        ...student,
+        admissionDate: student.admissionDate || new Date().toISOString().split('T')[0],
+        dateOfBirth: student.dateOfBirth || '',
+        mobileNumber: student.mobileNumber || '',
+        email: student.email || '',
+        address: {
+          houseNo: student.address?.houseNo || '',
+          street: student.address?.street || '',
+          city: student.address?.city || '',
+          state: student.address?.state || '',
+          pinCode: student.address?.pinCode || '',
+          permanentHouseNo: student.address?.permanentHouseNo || '',
+          permanentStreet: student.address?.permanentStreet || '',
+          permanentCity: student.address?.permanentCity || '',
+          permanentState: student.address?.permanentState || '',
+          permanentPinCode: student.address?.permanentPinCode || '',
+          sameAsPresentAddress: student.address?.sameAsPresentAddress || false
+        },
+        father: {
+          name: student.father?.name || '',
+          qualification: student.father?.qualification || '',
+          occupation: student.father?.occupation || '',
+          email: student.father?.email || '',
+          contactNumber: student.father?.contactNumber || '',
+          aadhaarNo: student.father?.aadhaarNo || '',
+          annualIncome: student.father?.annualIncome || '',
+          isCampusEmployee: student.father?.isCampusEmployee || 'no'
+        },
+        mother: {
+          name: student.mother?.name || '',
+          qualification: student.mother?.qualification || '',
+          occupation: student.mother?.occupation || '',
+          email: student.mother?.email || '',
+          contactNumber: student.mother?.contactNumber || '',
+          aadhaarNo: student.mother?.aadhaarNo || '',
+          annualIncome: student.mother?.annualIncome || '',
+          isCampusEmployee: student.mother?.isCampusEmployee || 'no'
+        },
+        guardian: {
+          name: student.guardian?.name || '',
+          address: student.guardian?.address || '',
+          contactNumber: student.guardian?.contactNumber || ''
+        }
+      });
     }
   }, [student]);
 
@@ -34,13 +78,18 @@ export const StudentEdit: React.FC<StudentEditProps> = ({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
+    if (!formData) return;
+    
     // Handle nested properties
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
+      const parentKey = parent as keyof StudentFormData;
+      const parentObj = formData[parentKey] as { [key: string]: any };
+      
       setFormData({
         ...formData,
         [parent]: {
-          ...formData[parent as keyof StudentFormData],
+          ...parentObj,
           [child]: value
         }
       });
@@ -55,32 +104,26 @@ export const StudentEdit: React.FC<StudentEditProps> = ({
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData || !student?.id) return;
+    
     setIsSubmitting(true);
     setError(null);
     setSuccess(null);
 
     try {
-      // Make API call to update student
-      const response = await axios.put(
-        STUDENT_API.UPDATE(student.studentId),
-        formData
-      );
-
+      const response = await axios.put(`${STUDENT_API}/${student.id}`, formData);
+      
       if (response.data.success) {
-        setSuccess('Student updated successfully!');
-        // Notify parent component that the student was updated
+        setSuccess('Student information updated successfully');
         onStudentUpdated();
-        
-        // Close modal after 2 seconds
         setTimeout(() => {
           onClose();
         }, 2000);
       } else {
-        throw new Error(response.data.message || 'Failed to update student');
+        setError(response.data.message || 'Failed to update student information');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while updating the student');
-      console.error('Error updating student:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update student information');
     } finally {
       setIsSubmitting(false);
     }
@@ -93,7 +136,7 @@ export const StudentEdit: React.FC<StudentEditProps> = ({
         <div className="bg-blue-600 px-6 py-4 rounded-t-lg">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-bold text-white">
-              Edit Student: {student.firstName} {student.middleName} {student.lastName}
+              Edit Student: {student.fullName}
             </h3>
             <button
               onClick={onClose}

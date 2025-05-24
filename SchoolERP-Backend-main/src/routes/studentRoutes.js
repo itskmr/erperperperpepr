@@ -167,7 +167,7 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
     console.log('Student registration data received:', Object.keys(data));
     
     // Validate required fields
-    const requiredFields = ['fullName', 'admissionNo', 'gender', 'mobileNumber', 'className', 'address.city', 'address.state', 'father.name', 'mother.name'];
+    const requiredFields = ['fullName', 'admissionNo', 'gender', 'mobileNumber', 'address.city', 'address.state', 'father.name', 'mother.name'];
     const missingFields = requiredFields.filter(field => {
       if (field.includes('.')) {
         const [parent, child] = field.split('.');
@@ -301,7 +301,7 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
             permanentState: data['address.permanentState'] || null,
             permanentPinCode: data['address.permanentPinCode'] || null,
             fatherName: data['father.name'] || '',
-            motherName: data.motherName || '',
+            motherName: data['mother.name'] || '',
             schoolId: schoolId,
           }
         });

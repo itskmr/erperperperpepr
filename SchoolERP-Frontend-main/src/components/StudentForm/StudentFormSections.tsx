@@ -292,6 +292,9 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             { value: 'O-', label: 'O-' }
           ])}
           {renderInput('Caste', 'caste')}
+          {renderInput('Category', 'category')}
+          {renderInput('Nationality', 'nationality', 'text', true)}
+          {renderInput('Aadhar Number', 'aadhaarNumber')}
         </div>
       </div>
     ),
@@ -339,13 +342,13 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Current Session</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {renderInput('Group', 'currentSession.group')}
-            {renderSelect('Stream', 'stream', [
+            {renderSelect('Stream', 'currentSession.stream', [
               { value: '', label: 'Select Stream' },
               ...['Science', 'Commerce', 'Arts', 'Vocational', 'General'].map(stream => ({ 
                 value: stream.toLowerCase(), label: stream 
               }))
             ])}
-            {renderSelect('Class', 'className', [
+            {renderSelect('Class', 'currentSession.class', [
               { value: '', label: 'Select Class' },
               ...['Nursery', 'LKG', 'UKG', 
                  'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
@@ -354,14 +357,14 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
                 value: cls, label: cls 
               }))
             ], true)}
-            {renderSelect('Section', 'section', [
+            {renderSelect('Section', 'currentSession.section', [
               { value: '', label: 'Select Section' },
               ...['A', 'B', 'C', 'D'].map(section => ({ 
                 value: section, label: section 
               }))
             ])}
-            {renderInput('Roll No.', 'rollNumber')}
-            {renderSelect('Semester', 'semester', [
+            {renderInput('Roll No.', 'currentSession.rollNo')}
+            {renderSelect('Semester', 'currentSession.semester', [
               { value: '', label: 'Select Semester' },
               { value: '1st sem', label: '1st Semester' },
               { value: '2nd sem', label: '2nd Semester' }
@@ -381,17 +384,19 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       </div>
     ),
     
-    // Step 3: Contact Information (Transport moved to Address section)
+    // Step 3: Contact Information
     3: (
       <div className="space-y-8">
         <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Contact Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {renderInput('Mobile Number', 'mobileNumber', 'tel', true)}
-            {renderInput('Student Email', 'email', 'email')}
+            {renderInput('Student Email', 'email', 'email', true)}
             {renderInput('Father\'s Mobile', 'father.contactNumber', 'tel')}
             {renderInput('Mother\'s Mobile', 'mother.contactNumber', 'tel')}
-            {renderInput('Emergency Contact', 'emergencyContact', 'tel')}
+            {renderInput('Emergency Contact', 'emergencyContact', 'tel', true)}
+            {renderInput('Father\'s Email', 'father.email', 'email')}
+            {renderInput('Mother\'s Email', 'mother.email', 'email')}
           </div>
         </div>
       </div>
@@ -498,6 +503,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               { value: 'no', label: 'No' },
               { value: 'yes', label: 'Yes' }
             ])}
+            {renderInput('Contact Number', 'father.contactNumber', 'tel')}
           </div>
         </div>
         
@@ -514,6 +520,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               { value: 'no', label: 'No' },
               { value: 'yes', label: 'Yes' }
             ])}
+            {renderInput('Contact Number', 'mother.contactNumber', 'tel')}
           </div>
         </div>
         
@@ -523,6 +530,10 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             {renderInput('Guardian Name', 'guardian.name')}
             {renderTextarea('Guardian Address', 'guardian.address', false, 2)}
             {renderInput('Guardian Mobile', 'guardian.contactNumber', 'tel')}
+            {renderInput('Guardian Email', 'guardian.email', 'email')}
+            {renderInput('Guardian Aadhar No', 'guardian.aadhaarNo')}
+            {renderInput('Guardian Occupation', 'guardian.occupation')}
+            {renderInput('Guardian Annual Income', 'guardian.annualIncome')}
           </div>
         </div>
       </div>
