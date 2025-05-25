@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-import UpdateFeeRecord from './UpdateFeeRecord'; // Make sure this component is imported
+import axios, { AxiosError } from 'axios';
+import UpdateFeeRecord from './UpdateFeeRecord';
 import { getFeeStructureByClassName, getFeeCategories } from '../../services/feeStructureService';
-import { FeeCategory } from '../../types/FeeStructureTypes';
 import { toast } from 'react-hot-toast';
 
 // Types
+interface FeeCategoryType {
+  id: string;
+  name: string;
+  amount: number;
+  frequency: string;
+}
+
 interface FeeRecord {
   id: string;
   admissionNumber: string;
@@ -21,12 +27,50 @@ interface FeeRecord {
   paymentMode: string;
   receiptNumber: string;
   status: 'Paid' | 'Pending' | 'Partial';
-  feeCategory?: string; // Keep for backward compatibility
-  feeCategories?: string[]; // New field for multiple categories
+  feeCategory?: string;
+  feeCategories?: string[];
+  studentDetails?: {
+    fullName: string;
+    fatherName: string;
+    motherName: string;
+    email: string;
+    mobileNumber: string;
+    className: string;
+    section: string;
+    rollNumber: string;
+  };
+}
+
+interface StudentResponse {
+  success: boolean;
+  data: {
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    fullName?: string;
+    fatherName: string;
+    motherName: string;
+    email: string;
+    mobileNumber: string;
+    sessionInfo?: {
+      currentClass?: string;
+      currentSection?: string;
+      currentRollNo?: string;
+      admitClass?: string;
+      admitSection?: string;
+      admitRollNo?: string;
+    };
+  };
+}
+
+interface FeeResponse {
+  success: boolean;
+  message?: string;
+  data: FeeRecord | FeeRecord[];
 }
 
 const API_URL = 'http://localhost:5000/api/fees';
-const STUDENT_API_URL = 'http://localhost:5000/api/students'; // Add API URL for students
+const STUDENT_API_URL = 'http://localhost:5000/api/students';
 
 // Standardized class options to match the rest of the system
 const CLASS_OPTIONS = [
@@ -68,26 +112,22 @@ const FeeCollectionApp: React.FC = () => {
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [studentSearchLoading, setStudentSearchLoading] = useState(false); // State for student search loading
-  const [studentNotFound, setStudentNotFound] = useState(false); // State for student not found error
   
   // New state for fee categories
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const [feeStructureCategories, setFeeStructureCategories] = useState<FeeCategory[]>([]);
+  const [feeStructureCategories, setFeeStructureCategories] = useState<FeeCategoryType[]>([]);
   const [isCategoryLoading, setIsCategoryLoading] = useState(false);
 
   // Update functionality
   const [selectedRecord, setSelectedRecord] = useState<FeeRecord | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  // Add this state to track previous fee amount
-  const [previousFeeAmount, setPreviousFeeAmount] = useState(0);
 
   // Add a new state for selected categories
-  const [selectedCategories, setSelectedCategories] = useState<{
-    id: string;
-    name: string;
-    amount: number;
-  }[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<FeeCategoryType[]>([]);
+
+  // New state for student details
+  const [studentDetails, setStudentDetails] = useState<FeeRecord['studentDetails'] | null>(null);
+  const [isLoadingStudent, setIsLoadingStudent] = useState(false);
 
   // Load data from backend
   useEffect(() => {
@@ -102,21 +142,34 @@ const FeeCollectionApp: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      const response = await axios.get(API_URL);
+      const response = await axios.get<FeeResponse>(API_URL);
       if (response.data.success) {
         // Transform dates to string format for the component
-        const formattedRecords = response.data.data.map((record: any) => ({
-          ...record,
-          paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
-        }));
+        let formattedRecords: FeeRecord[] = [];
+        if (Array.isArray(response.data.data)) {
+          formattedRecords = response.data.data.map((record: FeeRecord) => ({
+            ...record,
+            paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
+          }));
+        } else if (response.data.data) {
+          const record = response.data.data as FeeRecord;
+          formattedRecords = [{
+            ...record,
+            paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
+          }];
+        }
         setRecords(formattedRecords);
       } else {
-        setError('Failed to fetch fee records: ' + response.data.message);
+        setError('Failed to fetch fee records: ' + (response.data.message || 'Unknown error'));
       }
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching fee records:', err);
-      setError(`Failed to fetch fee records: ${err.message || 'Unknown error'}`);
+      if (err instanceof Error) {
+        setError(`Failed to fetch fee records: ${err.message}`);
+      } else {
+        setError('Failed to fetch fee records: Unknown error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -164,40 +217,6 @@ const FeeCollectionApp: React.FC = () => {
     }
   };
 
-  // Function to update fee amount when category is selected
-  const handleCategoryChange = (categoryName: string) => {
-    // Find the selected category in the fee structure
-    const selectedCategory = feeStructureCategories.find(cat => cat.name === categoryName);
-    
-    if (selectedCategory) {
-      // Update the form with the fee amount for this category
-      setFormData(prev => {
-        const newFeeAmount = selectedCategory.amount;
-        
-        // Calculate new amount paid (remove previous amount, add new amount)
-        const newAmountPaid = prev.amountPaid - previousFeeAmount + newFeeAmount;
-        
-        // Update status based on new amount paid
-        let newStatus: 'Paid' | 'Pending' | 'Partial' = 'Pending';
-        if (newAmountPaid >= prev.totalFees) {
-          newStatus = 'Paid';
-        } else if (newAmountPaid > 0) {
-          newStatus = 'Partial';
-        }
-        
-        setPreviousFeeAmount(newFeeAmount);
-        
-        return {
-          ...prev,
-          feeCategory: categoryName,
-          feeAmount: newFeeAmount,
-          amountPaid: newAmountPaid,
-          status: newStatus
-        };
-      });
-    }
-  };
-
   // Modify existing handleChange to trigger fee structure load when class changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -205,6 +224,10 @@ const FeeCollectionApp: React.FC = () => {
     // If class is changing, fetch the fee structure
     if (name === 'class') {
       fetchFeeStructureForClass(value);
+    }
+    
+    if (name === 'admissionNumber') {
+      fetchStudentDetails(value);
     }
     
     setFormData(prev => {
@@ -232,8 +255,6 @@ const FeeCollectionApp: React.FC = () => {
         if (!prev.amountPaid) {
           updatedData.amountPaid = currentPayment;
         }
-        // Update the previous fee amount for next change
-        setPreviousFeeAmount(currentPayment);
       }
 
       return updatedData;
@@ -258,84 +279,41 @@ const FeeCollectionApp: React.FC = () => {
       feeCategory: '',
       feeCategories: []
     });
-    setPreviousFeeAmount(0); // Reset previous fee amount
     setFeeStructureCategories([]); // Reset fee categories
     setSelectedCategories([]); // Reset selected categories
   };
 
-  // Create a function to handle multiple category selection
-  const handleCategorySelect = (category: FeeCategory, isSelected: boolean) => {
+  // Update handleCategorySelect to work with FeeCategory objects
+  const handleCategorySelect = (category: FeeCategoryType, isSelected: boolean) => {
     if (isSelected) {
-      // Add the category to selected categories
       setSelectedCategories(prev => {
-        const newSelected = [...prev, { 
-          id: category.id, 
-          name: category.name, 
-          amount: category.amount 
-        }];
-        
-        // Calculate new fee amount - sum of all selected categories
+        const newSelected = [...prev, category];
         const newFeeAmount = newSelected.reduce((sum, cat) => sum + cat.amount, 0);
         
-        // Update the form data with new fee amount
-        setFormData(prev => {
-          const newAmountPaid = newFeeAmount;
-          
-          // Determine status based on total fees and amount paid
-          let newStatus: 'Paid' | 'Pending' | 'Partial' = 'Pending';
-          if (newAmountPaid >= prev.totalFees) {
-            newStatus = 'Paid';
-          } else if (newAmountPaid > 0) {
-            newStatus = 'Partial';
-          }
-          
-          // Update form data with new values
-          return {
-            ...prev,
-            feeAmount: newFeeAmount,
-            amountPaid: newAmountPaid,
-            status: newStatus,
-            // Store comma-separated names for backward compatibility
-            feeCategory: newSelected.map(c => c.name).join(', '),
-            // Store array of category names for new functionality
-            feeCategories: newSelected.map(c => c.name)
-          };
-        });
+        // Update form data with new fee amount and categories
+        setFormData(prev => ({
+          ...prev,
+          feeAmount: newFeeAmount,
+          totalFees: newFeeAmount,
+          feeCategory: newSelected.map(c => c.name).join(', '),
+          feeCategories: newSelected.map(c => c.name)
+        }));
         
         return newSelected;
       });
     } else {
-      // Remove the category from selected categories
       setSelectedCategories(prev => {
         const newSelected = prev.filter(c => c.id !== category.id);
-        
-        // Calculate new fee amount
         const newFeeAmount = newSelected.reduce((sum, cat) => sum + cat.amount, 0);
         
-        // Update the form data with new fee amount
-        setFormData(prev => {
-          const newAmountPaid = newFeeAmount;
-          
-          // Determine status based on total fees and amount paid
-          let newStatus: 'Paid' | 'Pending' | 'Partial' = 'Pending';
-          if (newAmountPaid >= prev.totalFees) {
-            newStatus = 'Paid';
-          } else if (newAmountPaid > 0) {
-            newStatus = 'Partial';
-          }
-          
-          // Update form data with new values
-          return {
-            ...prev,
-            feeAmount: newFeeAmount,
-            amountPaid: newAmountPaid,
-            status: newStatus,
-            // Store comma-separated names for backward compatibility
-            feeCategory: newSelected.map(c => c.name).join(', '),
-            // Store array of category names for new functionality
-            feeCategories: newSelected.map(c => c.name)
-          };
-        });
+        // Update form data with new fee amount and categories
+        setFormData(prev => ({
+          ...prev,
+          feeAmount: newFeeAmount,
+          totalFees: newFeeAmount,
+          feeCategory: newSelected.map(c => c.name).join(', '),
+          feeCategories: newSelected.map(c => c.name)
+        }));
         
         return newSelected;
       });
@@ -379,20 +357,22 @@ const FeeCollectionApp: React.FC = () => {
         feeAmount: parseFloat(formData.feeAmount.toString()),
       };
       
-      const response = await axios.post(API_URL, payload);
+      const response = await axios.post<FeeResponse>(API_URL, payload);
       
       // Update list with new record
-      setRecords(prev => [response.data.data, ...prev]);
+      setRecords(prev => Array.isArray(response.data.data)
+        ? [...response.data.data, ...prev]
+        : [response.data.data as FeeRecord, ...prev]
+      );
       resetForm();
       toast.success('Fee record created successfully');
       setIsFormVisible(false);
-    } catch (error) {
-      console.error('Failed to create fee record:', error);
-      
-      // Handle error with proper type checking
-      if (error && typeof error === 'object' && 'response' in error) {
-        const serverError = error.response as { data?: { message?: string } };
-        toast.error(serverError.data?.message || 'Failed to create fee record');
+    } catch (error: unknown) {
+      console.error('Error creating fee record:', error);
+      if (error instanceof AxiosError) {
+        toast.error(`Failed to create fee record: ${error.response?.data?.message || error.message}`);
+      } else if (error instanceof Error) {
+        toast.error(`Failed to create fee record: ${error.message}`);
       } else {
         toast.error('Failed to create fee record');
       }
@@ -444,42 +424,29 @@ const FeeCollectionApp: React.FC = () => {
         schoolId: 1
       };
       
-      // Log the payload for debugging
-      console.log('Updating record with payload:', JSON.stringify(payload, null, 2));
-      
       // Call API to update the record
-      const response = await axios.put(`${API_URL}/${updatedRecord.id}`, payload);
+      const response = await axios.put<FeeResponse>(`${API_URL}/${updatedRecord.id}`, payload);
       
       if (response.data.success) {
         // Update the record in state
-        setRecords(prevRecords => 
-          prevRecords.map(record => 
-            record.id === updatedRecord.id ? response.data.data : record
-          )
-        );
-        
+        const updated = response.data.data as FeeRecord;
+        setRecords(prevRecords => prevRecords.map(record => record.id === updated.id ? updated : record));
         showNotification('Fee record updated successfully!', 'success');
         setIsUpdateModalOpen(false);
         setSelectedRecord(null);
       } else {
-        showNotification(`Failed to update record: ${response.data.message}`, 'error');
+        showNotification(`Failed to update record: ${response.data.message || 'Unknown error'}`, 'error');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating fee record:', err);
       
-      // Enhanced error logging with complete details
-      if (err.response) {
-        console.error('Full server response:', JSON.stringify(err.response.data, null, 2));
-        
-        if (err.response.data.errors && Array.isArray(err.response.data.errors)) {
-          const errorDetails = err.response.data.errors.join(', ');
-          console.log('Validation errors:', errorDetails);
-          showNotification(`Validation errors: ${errorDetails}`, 'error');
-        } else {
-          showNotification(`Server error: ${err.response.data.message || 'Unknown error'}`, 'error');
-        }
+      if (err instanceof AxiosError) {
+        const errorDetails = err.response?.data?.errors?.join(', ') || err.response?.data?.message;
+        showNotification(`Server error: ${errorDetails || 'Unknown error'}`, 'error');
+      } else if (err instanceof Error) {
+        showNotification(`Failed to update fee record: ${err.message}`, 'error');
       } else {
-        showNotification(`Failed to update fee record: ${err.message || 'Unknown error'}`, 'error');
+        showNotification('Failed to update fee record: Unknown error', 'error');
       }
     } finally {
       setIsLoading(false);
@@ -493,7 +460,7 @@ const FeeCollectionApp: React.FC = () => {
         setIsLoading(true);
         
         // Call API to delete the record
-        const response = await axios.delete(`${API_URL}/${id}`);
+        const response = await axios.delete<{ success: boolean; message: string }>(`${API_URL}/${id}`);
         
         if (response.data.success) {
           // Remove the record from local state
@@ -502,9 +469,13 @@ const FeeCollectionApp: React.FC = () => {
         } else {
           showNotification(`Failed to delete record: ${response.data.message}`, 'error');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error deleting fee record:', err);
-        showNotification(`Failed to delete fee record: ${err.message || 'Unknown error'}`, 'error');
+        if (err instanceof Error) {
+          showNotification(`Failed to delete fee record: ${err.message}`, 'error');
+        } else {
+          showNotification('Failed to delete fee record: Unknown error', 'error');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -524,56 +495,57 @@ const FeeCollectionApp: React.FC = () => {
   };
 
   // Add function to fetch student details by admission number
-  const fetchStudentByAdmissionNumber = async (admissionNumber: string) => {
+  const fetchStudentDetails = async (admissionNumber: string) => {
     if (!admissionNumber.trim()) return;
     
     try {
-      setStudentSearchLoading(true);
-      setStudentNotFound(false);
+      setIsLoadingStudent(true);
+      setStudentDetails(null);
       
-      console.log(`Searching for student with admission number: ${admissionNumber}`);
-      const response = await axios.get(`${STUDENT_API_URL}/admission/${admissionNumber}`);
+      const response = await axios.get<StudentResponse>(`${STUDENT_API_URL}/admission/${admissionNumber}`);
       
       if (response.data.success) {
         const student = response.data.data;
         
-        // Map student class name to match our format if needed
-        let className = student.className || '';
-        let fatherName = student.fatherName || '';
-        
-        // If parent info exists and fatherName is empty, try to get it from parentInfo
-        if (!fatherName && student.parentInfo?.fatherName) {
-          fatherName = student.parentInfo.fatherName;
-        }
-        
-        // Update the form with the student information
+        // Create student details object
+        const studentDetailsObj = {
+          fullName: student.fullName || '',
+          fatherName: student.fatherName || '',
+          motherName: student.motherName || '',
+          email: student.email || '',
+          mobileNumber: student.mobileNumber || '',
+          className: student.sessionInfo?.currentClass || student.sessionInfo?.admitClass || '',
+          section: student.sessionInfo?.currentSection || student.sessionInfo?.admitSection || '',
+          rollNumber: student.sessionInfo?.currentRollNo || student.sessionInfo?.admitRollNo || ''
+        };
+
+        setStudentDetails(studentDetailsObj);
+
+        // Update form data with student details
         setFormData(prev => ({
           ...prev,
-          studentName: `${student.firstName} ${student.middleName ? student.middleName + ' ' : ''}${student.lastName}`,
-          fatherName: fatherName,
-          class: className,
-          section: student.section || ''
+          studentName: studentDetailsObj.fullName,
+          fatherName: studentDetailsObj.fatherName,
+          class: studentDetailsObj.className,
+          section: studentDetailsObj.section
         }));
 
-        // Automatically fetch fee structure for the student's class
-        await fetchFeeStructureForClass(className);
-        
-        showNotification('Student information loaded successfully', 'success');
-      } else {
-        setStudentNotFound(true);
-        showNotification('Failed to load student information', 'error');
+        // Fetch fee structure for the student's class
+        if (studentDetailsObj.className) {
+          await fetchFeeStructureForClass(studentDetailsObj.className);
+        }
       }
-    } catch (err: any) {
-      console.error('Error fetching student:', err);
-      setStudentNotFound(true);
-      
-      if (err.response && err.response.status === 404) {
-        showNotification('Student not found with this admission number', 'error');
+    } catch (error: unknown) {
+      console.error('Error fetching student details:', error);
+      if (error instanceof AxiosError) {
+        toast.error(`Failed to fetch student details: ${error.response?.data?.message || error.message}`);
+      } else if (error instanceof Error) {
+        toast.error(`Failed to fetch student details: ${error.message}`);
       } else {
-        showNotification(`Error: ${err.message || 'Failed to fetch student information'}`, 'error');
+        toast.error('Failed to fetch student details');
       }
     } finally {
-      setStudentSearchLoading(false);
+      setIsLoadingStudent(false);
     }
   };
 
@@ -657,44 +629,61 @@ const FeeCollectionApp: React.FC = () => {
         {isFormVisible && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+            animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden mb-8"
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
           >
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold mb-4">Add New Fee Record</h2>
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number</label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      name="admissionNumber"
-                      value={formData.admissionNumber}
-                      onChange={handleChange}
-                      className="w-full p-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fetchStudentByAdmissionNumber(formData.admissionNumber)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-r-md transition-colors"
-                      disabled={studentSearchLoading || !formData.admissionNumber.trim()}
-                    >
-                      {studentSearchLoading ? (
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                      )}
-                    </button>
+            <div className="bg-indigo-50 px-6 py-6 sm:px-8 border-b border-indigo-100">
+              <h2 className="text-lg font-medium text-indigo-800 mb-4">Add New Fee Record</h2>
+              
+              {/* Student Details Section */}
+              {studentDetails && (
+                <div className="mb-6 p-4 bg-white rounded-lg shadow">
+                  <h3 className="text-md font-medium text-gray-700 mb-3">Student Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Full Name</p>
+                      <p className="font-medium">{studentDetails.fullName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Father's Name</p>
+                      <p className="font-medium">{studentDetails.fatherName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Mother's Name</p>
+                      <p className="font-medium">{studentDetails.motherName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Email</p>
+                      <p className="font-medium">{studentDetails.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Mobile Number</p>
+                      <p className="font-medium">{studentDetails.mobileNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Class & Section</p>
+                      <p className="font-medium">{studentDetails.className} - {studentDetails.section}</p>
+                    </div>
                   </div>
-                  {studentNotFound && (
-                    <p className="text-red-500 text-xs mt-1">Student not found with this admission number</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-y-5 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number</label>
+                  <input
+                    required
+                    type="text"
+                    name="admissionNumber"
+                    value={formData.admissionNumber}
+                    onChange={handleChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="e.g. ADM001"
+                  />
+                  {isLoadingStudent && (
+                    <p className="text-sm text-gray-500 mt-1">Loading student details...</p>
                   )}
                 </div>
 
@@ -765,17 +754,17 @@ const FeeCollectionApp: React.FC = () => {
                     ) : feeStructureCategories.length > 0 ? (
                       <div className="max-h-48 overflow-y-auto">
                         {feeStructureCategories.map(category => {
-                          const isSelected = selectedCategories.some(c => c.id === category.id);
+                          const isSelected = selectedCategories.some(c => c.name === category.name);
                           return (
-                            <div key={category.id} className={`flex items-center p-2 mb-1 ${isSelected ? 'bg-blue-50 rounded' : ''}`}>
+                            <div key={category.name} className={`flex items-center p-2 mb-1 ${isSelected ? 'bg-blue-50 rounded' : ''}`}>
                               <input
                                 type="checkbox"
-                                id={`category-${category.id}`}
+                                id={`category-${category.name}`}
                                 checked={isSelected}
                                 onChange={(e) => handleCategorySelect(category, e.target.checked)}
                                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
                               />
-                              <label htmlFor={`category-${category.id}`} className="ml-2 block text-sm text-gray-900 cursor-pointer flex-1">
+                              <label htmlFor={`category-${category.name}`} className="ml-2 block text-sm text-gray-900 cursor-pointer flex-1">
                                 {category.name} 
                                 <span className="text-sm font-medium text-blue-600 ml-2">
                                   (₹{category.amount.toLocaleString()} - {category.frequency})
@@ -808,13 +797,13 @@ const FeeCollectionApp: React.FC = () => {
                       <div className="flex flex-wrap gap-1 mt-1">
                         {selectedCategories.map(category => (
                           <span 
-                            key={category.id} 
+                            key={category.name} 
                             className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                           >
                             {category.name}
                             <button
                               type="button"
-                              onClick={() => handleCategorySelect({ ...category, frequency: 'Monthly' } as FeeCategory, false)}
+                              onClick={() => handleCategorySelect(category, false)}
                               className="ml-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-200 hover:bg-blue-300 focus:outline-none"
                             >
                               <span className="sr-only">Remove {category.name}</span>

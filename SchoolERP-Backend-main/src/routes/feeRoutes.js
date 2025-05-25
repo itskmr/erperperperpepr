@@ -89,10 +89,25 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Fetch student details
+    const student = await prisma.student.findUnique({
+      where: { admissionNo: req.body.admissionNumber },
+      include: {
+        parentInfo: true,
+        sessionInfo: true
+      }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found with the provided admission number'
+      });
+    }
+
     // Store categories in the feeCategory field as JSON string
     let feeCategory = req.body.feeCategory || null;
     if (req.body.feeCategories && Array.isArray(req.body.feeCategories)) {
-      // If we have feeCategories array and no feeCategory string, convert array to string
       if (!feeCategory) {
         feeCategory = req.body.feeCategories.join(', ');
       }
@@ -100,11 +115,11 @@ router.post('/', async (req, res) => {
 
     // Parse date string to Date object
     const feeData = {
-      admissionNumber: req.body.admissionNumber,
-      studentName: req.body.studentName,
-      fatherName: req.body.fatherName,
-      class: req.body.class,
-      section: req.body.section,
+      admissionNumber: student.admissionNo,
+      studentName: student.fullName,
+      fatherName: student.fatherName,
+      class: student.sessionInfo?.currentClass || req.body.class,
+      section: student.sessionInfo?.currentSection || req.body.section,
       totalFees: parseFloat(req.body.totalFees),
       amountPaid: parseFloat(req.body.amountPaid),
       feeAmount: parseFloat(req.body.feeAmount),
@@ -112,8 +127,8 @@ router.post('/', async (req, res) => {
       paymentMode: req.body.paymentMode,
       receiptNumber: req.body.receiptNumber,
       status: req.body.status,
-      feeCategory: feeCategory, // Use the prepared feeCategory value
-      schoolId: req.body.schoolId || 1
+      feeCategory: feeCategory,
+      schoolId: student.schoolId
     };
     
     // Create new fee record
@@ -121,10 +136,20 @@ router.post('/', async (req, res) => {
       data: feeData
     });
     
-    // For the response, add feeCategories if it was in the request
+    // For the response, add feeCategories and student details
     const responseData = {
       ...newFee,
-      feeCategories: req.body.feeCategories || feeCategory?.split(', ') || []
+      feeCategories: req.body.feeCategories || feeCategory?.split(', ') || [],
+      studentDetails: {
+        fullName: student.fullName,
+        fatherName: student.fatherName,
+        motherName: student.motherName,
+        email: student.email,
+        mobileNumber: student.mobileNumber,
+        className: student.sessionInfo?.className,
+        section: student.sessionInfo?.section,
+        rollNumber: student.sessionInfo?.rollNumber
+      }
     };
     
     res.status(201).json({ success: true, data: responseData });
