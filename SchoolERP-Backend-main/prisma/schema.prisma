@@ -770,3 +770,22 @@ enum MaintenanceStatus {
   COMPLETED
   OVERDUE
 }
+
+// Timetable Model
+model Timetable {
+  id            String    @id @default(uuid())
+  classId       String
+  sectionId     String
+  subjectId     String
+  teacherId     String
+  day           String    // Monday, Tuesday, etc.
+  startTime     String
+  endTime       String
+  roomNumber    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([classId, sectionId])
+  @@index([teacherId])
+  @@index([day])
+}

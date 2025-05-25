@@ -24,6 +24,8 @@ import CreateExam from './components/Teacher/Exam'
 // import TCFrom from './components/Schools/TCFrom' 
 import TCList from './components/Schools/TCForm/TCList' 
 
+// import Timetable from './components/Schools/Timetable';
+
 // import { ClassSectionManagement } from './components/Admin/Class'
 // import { ManageTeachers } from './pages/ManageTeachers'
 import { ManageStudent } from './pages/ManageStudents'
@@ -710,6 +712,18 @@ function AppContent({
           }
 
         />
+
+        {/* <Route
+          path="/school/administration/timetable"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <Timetable />
+              </Layout>
+            </ProtectedRoute>
+          }
+        /> */}
+        
 
         {/* Uncomment these routes when the components are available */}
         {/* 

@@ -4,24 +4,24 @@ import {
   School, 
   Settings, 
   LogOut, 
-  FileText, 
+  // FileText, 
   User, 
   Home, 
   Calendar, 
   Users, 
-  Database, 
+  // Database, 
   BarChart2,
-  HelpCircle,
+  // HelpCircle,
   DollarSign,
   Book,
-  Award,
+  // Award,
   Briefcase,
   Bell,
   ChevronLeft,
   ChevronRight,
   Menu,
-  Eye,
-  EyeOff,
+  // Eye,
+  //  EyeOff,
   MessageSquare
 } from "lucide-react";
 
@@ -327,6 +327,12 @@ const SchoolNavbar = {
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/administration/departments")}
               />
+              {/* <NavLink 
+                to="/school/administration/timetable" 
+                label="Timetable" 
+                onClick={() => setIsMobileSidebarOpen(false)}
+                isActive={isPathActive("/school/administration/timetable")}
+              /> */}
             </NavDropdown>
 
 

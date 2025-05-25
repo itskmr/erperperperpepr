@@ -1,5 +1,9 @@
 {
   "dependencies": {
     "bcryptjs": "^3.0.2"
+  },
+  "devDependencies": {
+    "@mui/icons-material": "^7.1.0",
+    "@mui/x-data-grid": "^8.4.0"
   }
 }
