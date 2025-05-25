@@ -52,10 +52,10 @@ export interface Guardian {
   name: string;
   address: string;
   contactNumber: string;
-  email: string;
-  aadhaarNo: string;
-  occupation: string;
-  annualIncome: string;
+  email?: string;
+  aadhaarNo?: string;
+  occupation?: string;
+  annualIncome?: string;
 }
 
 // Define Session type
@@ -82,8 +82,8 @@ export interface Transport {
   stand: string;
   route: string;
   driver: string;
-  pickupLocation: string;
-  dropLocation: string;
+  pickupLocation?: string;
+  dropLocation?: string;
 }
 
 // Define LastEducation type
@@ -113,7 +113,7 @@ export interface Other {
   adoptedChild: 'yes' | 'no';
   siblingAdmissionNo: string;
   transferCase: 'yes' | 'no';
-  livingWith: 'parents' | 'father' | 'mother' | 'guardian' | '';
+  livingWith: string;
   motherTongue: string;
   admissionType: 'new' | 'old';
   udiseNo: string;
@@ -121,42 +121,43 @@ export interface Other {
 
 // Define StudentFormData type - the complete student data structure
 export interface StudentFormData {
-  id?: number | string; // Database ID
+  // Basic Information
   branchName: string;
+  fullName: string;
   admissionNo: string;
   penNo: string;
-  fullName: string;
-  admissionDate: string;
   studentId: string;
   dateOfBirth: string;
   age: string;
-  religion: string;
   gender: string;
   bloodGroup: string;
-  caste: string;
+  nationality: string;
+  religion: string;
   category: string;
-  admitSession: Session;
-  currentSession: Session;
-  className: string;
-  section: string;
-  stream: string;
-  semester: string;
-  rollNumber: string;
-  academic: Academic;
-  previousSchool: string;
+  caste: string;
+  aadhaarNumber: string;
   mobileNumber: string;
   email: string;
   emergencyContact: string;
-  transport: Transport;
+
+  // Session Information
+  admitSession: Session;
+  currentSession: Session;
+
+  // Address Information
   address: Address;
+
+  // Parent Information
   father: Parent;
   mother: Parent;
   guardian: Guardian;
+
+  // Additional Information
+  academic: Academic;
+  transport: Transport;
   documents: Documents;
-  aadhaarNumber: string;
-  nationality: string;
-  other: Other;
   lastEducation: LastEducation;
+  other: Other;
 }
 
 // Define Step interface for the progress indicator

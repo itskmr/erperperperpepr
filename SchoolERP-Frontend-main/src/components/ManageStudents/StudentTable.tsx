@@ -35,9 +35,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
     const searchFields = [
       student.admissionNo,
       student.fullName,
-      student.className,
-      student.section,
-      student.rollNumber,
+      student.currentSession?.class || '',
+      student.currentSession?.section || '',
+      student.currentSession?.rollNo || '',
       student.mobileNumber,
       student.email,
     ];
@@ -162,7 +162,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                     {student.fullName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.className} {student.section}
+                    {student.currentSession?.class} {student.currentSession?.section}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.mobileNumber}

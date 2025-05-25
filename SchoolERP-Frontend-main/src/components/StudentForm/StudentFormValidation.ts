@@ -31,27 +31,49 @@ const VALIDATION_MESSAGES = {
   ALPHANUMERIC: 'Please enter alphanumeric characters only'
 };
 
-// List of required fields in the student form
-const REQUIRED_FIELDS = [
-  'admissionNo', 
-  'fullName', 
-  'admissionDate', 
-  'dateOfBirth', 
-  'gender', 
-  'className', 
-  'mobileNumber',
-  'email',
-  'address.city', 
-  'address.state', 
-  'father.name', 
-  'mother.name',
-  'nationality'
-];
+interface RequiredFields {
+  [key: number]: string[];
+}
+
+export const REQUIRED_FIELDS: RequiredFields = {
+  // Step 1: Personal Information
+  1: [
+    'fullName',
+    'dateOfBirth',
+    'gender',
+    'bloodGroup',
+    'religion',
+    'nationality',
+    'category',
+    'address.city',
+    'address.state',
+    'address.country',
+    'address.pincode',
+    'address.addressLine1'
+  ],
+  // Step 2: Academic Information
+  2: [
+    'admitSession.group',
+    'admitSession.class',
+    'admitSession.section',
+    'admitSession.rollNo',
+    'admitSession.semester',
+    'admitSession.feeGroup',
+    'admitSession.house',
+    'lastEducation.school',
+    'lastEducation.address',
+    'lastEducation.tcDate',
+    'lastEducation.prevClass',
+    'lastEducation.percentage',
+    'lastEducation.attendance',
+    'lastEducation.extraActivity'
+  ]
+};
 
 // Required fields by step
 export const REQUIRED_FIELDS_BY_STEP: Record<number, string[]> = {
   1: ['admissionNo', 'fullName', 'admissionDate', 'dateOfBirth', 'gender', 'nationality'],
-  2: ['className'],
+  2: [], // Remove className requirement
   3: ['mobileNumber', 'email'],
   4: ['address.city', 'address.state'],
   5: ['father.name', 'mother.name'],
@@ -60,13 +82,15 @@ export const REQUIRED_FIELDS_BY_STEP: Record<number, string[]> = {
 };
 
 // Define fields to validate by step
-export const FIELDS_TO_VALIDATE_BY_STEP: Record<number, string[]> = {
+export const FIELDS_TO_VALIDATE_BY_STEP: RequiredFields = {
   1: ['branchName', 'admissionNo', 'penNo', 'fullName', 
       'admissionDate', 'studentId', 'dateOfBirth', 'age', 'religion', 'gender', 
       'bloodGroup', 'caste', 'category', 'nationality', 'aadhaarNumber'],
-  2: ['className', 'section', 'stream', 'semester', 'rollNumber', 'admitSession.class', 
-      'admitSession.section', 'admitSession.rollNo', 'currentSession.class',
-      'academic.registrationNo', 'previousSchool'],
+  2: ['admitSession.class', 
+      'admitSession.section', 
+      'admitSession.rollNo', 
+      'academic.registrationNo', 
+      'previousSchool'],
   3: ['mobileNumber', 'email', 'emergencyContact', 'father.contactNumber', 'father.email',
       'mother.contactNumber', 'mother.email'],
   4: ['address.street', 'address.houseNo', 'address.city', 'address.state', 'address.pinCode',
@@ -88,12 +112,12 @@ export const FIELDS_TO_VALIDATE_BY_STEP: Record<number, string[]> = {
 // Validate a single field
 export const validateField = (name: string, value: string): string | null => {
   // Skip validation for empty optional fields
-  if (value === '' && !REQUIRED_FIELDS.includes(name)) {
+  if (value === '' && !REQUIRED_FIELDS[1].includes(name)) {
     return null;
   }
 
   // Required field validation
-  if (REQUIRED_FIELDS.includes(name) && !value) {
+  if (REQUIRED_FIELDS[1].includes(name) && !value) {
     return VALIDATION_MESSAGES.REQUIRED;
   }
 
@@ -116,6 +140,14 @@ export const validateField = (name: string, value: string): string | null => {
     case 'address.permanentPinCode':
       return VALIDATION_PATTERNS.PINCODE.test(value) ? null : VALIDATION_MESSAGES.INVALID_PINCODE;
     
+    case 'address.city':
+    case 'address.permanentCity':
+      return value.trim().length > 0 ? null : VALIDATION_MESSAGES.REQUIRED;
+    
+    case 'address.state':
+    case 'address.permanentState':
+      return value.trim().length > 0 ? null : VALIDATION_MESSAGES.REQUIRED;
+    
     case 'aadhaarNumber':
     case 'father.aadhaarNo':
     case 'mother.aadhaarNo':
@@ -137,15 +169,6 @@ export const validateField = (name: string, value: string): string | null => {
     
     case 'other.accountNo':
       return VALIDATION_PATTERNS.BANK_ACCOUNT.test(value) ? null : VALIDATION_MESSAGES.INVALID_BANK_ACCOUNT;
-    
-    case 'fullName':
-    case 'father.name':
-    case 'mother.name':
-    case 'guardian.name':
-    case 'religion':
-    case 'caste':
-    case 'category':
-      return VALIDATION_PATTERNS.TEXT_ONLY.test(value) ? null : VALIDATION_MESSAGES.TEXT_ONLY;
     
     default:
       return null;
@@ -177,7 +200,7 @@ export const validateStep = (step: number, formData: StudentFormData): Record<st
  * @returns Boolean indicating if field is required
  */
 export const isRequiredField = (name: string): boolean => {
-  return REQUIRED_FIELDS.includes(name);
+  return REQUIRED_FIELDS[1].includes(name);
 };
 
 /**

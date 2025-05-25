@@ -27,14 +27,9 @@ export const createStudent = async (req, res) => {
       emergencyContact,
       admissionNo,
       studentId,
-      rollNumber,
-      className,
-      section,
       admissionDate,
       previousSchool,
       schoolId = 1, // Default school ID
-      stream,
-      semester,
     } = req.body;
     
     // Extract address fields
@@ -84,27 +79,20 @@ export const createStudent = async (req, res) => {
       annualIncome: req.body['guardian.annualIncome'] || '',
     };
     
-    // Extract session information
-    const admitSession = {
-      group: req.body['admitSession.group'] || '',
-      stream: req.body['admitSession.stream'] || '',
-      class: req.body['admitSession.class'] || '',
-      section: req.body['admitSession.section'] || '',
-      rollNo: req.body['admitSession.rollNo'] || '',
-      semester: req.body['admitSession.semester'] || '',
-      feeGroup: req.body['admitSession.feeGroup'] || '',
-      house: req.body['admitSession.house'] || '',
-    };
-    
-    const currentSession = {
-      group: req.body['currentSession.group'] || '',
-      stream: req.body['currentSession.stream'] || '',
-      class: req.body['currentSession.class'] || '',
-      section: req.body['currentSession.section'] || '',
-      rollNo: req.body['currentSession.rollNo'] || '',
-      semester: req.body['currentSession.semester'] || '',
-      feeGroup: req.body['currentSession.feeGroup'] || '',
-      house: req.body['currentSession.house'] || '',
+    // Extract session information - only for admission session
+    const sessionInfo = {
+      admitGroup: req.body.admitSession.group,
+      admitClass: req.body.admitSession.class,
+      admitSection: req.body.admitSession.section,
+      admitRollNo: req.body.admitSession.rollNo,
+      currentGroup: null,
+      currentClass: null,
+      currentSection: null,
+      currentRollNo: null,
+      stream: null,
+      semester: null,
+      feeGroup: req.body.currentSession.feeGroup,
+      house: req.body.currentSession.house
     };
     
     // Extract transport information
@@ -198,15 +186,10 @@ export const createStudent = async (req, res) => {
           emergencyContact,
           admissionNo: admissionNo || `ADM-${Date.now()}`,
           studentId,
-          rollNumber,
-          className: className || currentSession.class || "1st",
-          section: section || currentSession.section || "",
-          stream: stream || currentSession.stream || "",
-          semester: semester || currentSession.semester || "",
           admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
           previousSchool,
           
-          // Address fields
+          // Address fields - map from nested structure to flat structure
           houseNo: address.houseNo,
           street: address.street,
           city: address.city || "Unknown",
@@ -217,6 +200,7 @@ export const createStudent = async (req, res) => {
           permanentCity: address.permanentCity,
           permanentState: address.permanentState,
           permanentPinCode: address.permanentPinCode,
+          sameAsPresentAddress: req.body['address.sameAsPresentAddress'] || false,
           
           // Parent information - ensure both direct and nested paths are checked
           fatherName: father.name || req.body.fatherName || '',
@@ -227,7 +211,15 @@ export const createStudent = async (req, res) => {
             connect: {
               id: parseInt(schoolId, 10)
             }
+          },
+          
+          // SessionInfo
+          sessionInfo: {
+            create: sessionInfo
           }
+        },
+        include: {
+          sessionInfo: true,
         }
       });
       
@@ -257,38 +249,6 @@ export const createStudent = async (req, res) => {
           guardianAadhaarNo: guardian.aadhaarNo,
           guardianOccupation: guardian.occupation,
           guardianAnnualIncome: guardian.annualIncome,
-          
-          // Connect to student
-          student: {
-            connect: {
-              id: newStudent.id
-            }
-          }
-        }
-      });
-      
-      // Create SessionInfo record
-      await prisma.sessionInfo.create({
-        data: {
-          // Admit session
-          admitGroup: admitSession.group,
-          admitStream: admitSession.stream,
-          admitClass: admitSession.class,
-          admitSection: admitSession.section,
-          admitRollNo: admitSession.rollNo,
-          admitSemester: admitSession.semester,
-          admitFeeGroup: admitSession.feeGroup,
-          admitHouse: admitSession.house,
-          
-          // Current session
-          currentGroup: currentSession.group,
-          currentStream: currentSession.stream,
-          currentClass: currentSession.class,
-          currentSection: currentSession.section,
-          currentRollNo: currentSession.rollNo,
-          currentSemester: currentSession.semester,
-          currentFeeGroup: currentSession.feeGroup,
-          currentHouse: currentSession.house,
           
           // Connect to student
           student: {
@@ -558,10 +518,6 @@ export const updateStudent = async (req, res) => {
           email: studentData.email,
           emergencyContact: studentData.emergencyContact,
           admissionNo: studentData.admissionNo,
-          studentId: studentData.studentId,
-          rollNumber: studentData.rollNumber,
-          className: studentData.className,
-          section: studentData.section,
           admissionDate: studentData.admissionDate,
           previousSchool: studentData.previousSchool,
           

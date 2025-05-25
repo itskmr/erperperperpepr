@@ -104,8 +104,8 @@ model Student {
   branchName       String?
   fullName         String
   admissionNo      String   @unique
-  password         String?  // For student login
-  email            String?  @unique // Email for login
+  email            String   @unique
+  emailPassword    String?  // Password for student email
   penNo            String? // PEN Number field
   studentId        String?
   dateOfBirth      DateTime
@@ -125,15 +125,6 @@ model Student {
   passwordResetToken String?
   passwordResetExpires DateTime?
 
-  // Academic fields
-  rollNumber     String?
-  className      String
-  section        String?
-  stream         String?
-  semester       String?
-  admissionDate  DateTime @default(now())
-  previousSchool String?  @db.Text
-
   // Address fields
   houseNo        String?
   street         String? @db.Text
@@ -150,7 +141,11 @@ model Student {
 
   // Parent information
   fatherName     String
+  fatherEmail    String   @unique
+  fatherEmailPassword String?   // Added password field for father email
   motherName     String
+  motherEmail    String?  // Made optional
+  motherEmailPassword String?   // Made optional
 
   // Relations
   schoolId      Int
@@ -174,7 +169,6 @@ model Student {
   @@index([email])
   @@index([mobileNumber])
   @@index([aadhaarNumber])
-  @@index([className, section])
 }
 
 // Normalized tables to reduce row size
@@ -224,6 +218,7 @@ model SessionInfo {
   admitSemester String?
   admitFeeGroup String?
   admitHouse    String?
+  admitDate     DateTime @default(now())
 
   // Current Session
   currentGroup    String?
@@ -234,6 +229,9 @@ model SessionInfo {
   currentSemester String?
   currentFeeGroup String?
   currentHouse    String?
+
+  // Previous School Information
+  previousSchool String?  @db.Text
 
   // Relation
   studentId String   @unique
