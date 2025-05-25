@@ -18,6 +18,7 @@ import tcformRoutes from "./routes/tcformRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
 import transportRoutes from "./routes/transportRoutes.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
+import schoolRoutes from "./routes/schoolRoutes.js";
 
 // Initialize environment variables
 dotenv.config();
@@ -185,6 +186,9 @@ app.use("/transport", transportRoutes);
 // Add teacher routes
 app.use("/api/teachers", teacherRoutes);
 app.use("/teachers", teacherRoutes);
+
+// Add school routes
+app.use("/api/schools", schoolRoutes);
 
 // Add this before your admin routes registration:
 

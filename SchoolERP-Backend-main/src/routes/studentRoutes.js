@@ -211,11 +211,6 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
 
     // Remove any current session fields if they were sent
     delete data.currentSession;
-    delete data.className;
-    delete data.section;
-    delete data.stream;
-    delete data.semester;
-    delete data.rollNumber;
     
     // Format date fields - with extra error handling
     let dateOfBirth = null;

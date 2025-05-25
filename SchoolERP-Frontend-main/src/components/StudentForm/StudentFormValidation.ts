@@ -83,7 +83,7 @@ export const REQUIRED_FIELDS_BY_STEP: Record<number, string[]> = {
 
 // Define fields to validate by step
 export const FIELDS_TO_VALIDATE_BY_STEP: RequiredFields = {
-  1: ['branchName', 'admissionNo', 'penNo', 'fullName', 
+  1: ['admissionNo', 'penNo', 'fullName', 
       'admissionDate', 'studentId', 'dateOfBirth', 'age', 'religion', 'gender', 
       'bloodGroup', 'caste', 'category', 'nationality', 'aadhaarNumber'],
   2: ['admitSession.class', 

@@ -407,7 +407,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       <div className="space-y-6">
         <h3 className="text-lg font-medium mb-4 border-b pb-2">Student Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderInput('Branch Name', 'branchName', 'text', true)}
+          {renderInput('Branch Name', 'branchName', 'text', false)}
           {renderInput('Admission No', 'admissionNo', 'text', true)}
           {renderInput('PEN No', 'penNo', 'text')}
           {renderInput('Full Name', 'fullName', 'text', true)}

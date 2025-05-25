@@ -1,0 +1,614 @@
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  try {
+    // Create a school first
+    const school = await prisma.school.create({
+      data: {
+        id: 1,
+        schoolName: 'Springfield Elementary School',
+        email: 'school@school.com',
+        password: await bcrypt.hash('123456', 10),
+        code: 'SES001',
+        address: '123 Education Street, Springfield',
+        contact: 5550222123n,
+        phone: '5552220123',
+        principal: 'Seymour Skinner',
+        established: 2020,
+        role: 'SCHOOL',
+        status: 'active',
+        lastLogin: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
+    console.log('Created school:', school);
+
+    // Create teachers
+    const teachers = await Promise.all([
+      prisma.teacher.create({
+        data: {
+          fullName: 'Edna Krabappel',
+          email: 'teacher1@school.com',
+          password: await bcrypt.hash('123456', 10),
+          username: 'edna_k',
+          phone: '555-0124',
+          designation: 'Senior Teacher',
+          education: 'M.Ed in Education',
+          address: '456 Teacher Lane, Springfield',
+          classes: '4,5,6',
+          subjects: JSON.stringify(['Mathematics', 'Science']),
+          sections: JSON.stringify([
+            { class: '4', sections: ['A', 'B'] },
+            { class: '5', sections: ['A'] },
+            { class: '6', sections: ['B'] }
+          ]),
+          isClassIncharge: true,
+          inchargeClass: '4',
+          inchargeSection: 'A',
+          experience: '15',
+          role: 'TEACHER',
+          status: 'active',
+          schoolId: school.id
+        }
+      }),
+      prisma.teacher.create({
+        data: {
+          fullName: 'Elizabeth Hoover',
+          email: 'teacher2@school.com',
+          password: await bcrypt.hash('123456', 10),
+          username: 'elizabeth_h',
+          phone: '555-0125',
+          designation: 'Teacher',
+          education: 'B.Ed in English',
+          address: '789 Educator Street, Springfield',
+          classes: '7,8',
+          subjects: JSON.stringify(['English', 'Literature']),
+          sections: JSON.stringify([
+            { class: '7', sections: ['A', 'B'] },
+            { class: '8', sections: ['A'] }
+          ]),
+          isClassIncharge: false,
+          experience: '8',
+          role: 'TEACHER',
+          status: 'active',
+          schoolId: school.id
+        }
+      })
+    ]);
+
+    console.log('Created teachers:', teachers);
+
+    // Create students with their related information
+    const students = await Promise.all([
+      prisma.student.create({
+        data: {
+          // Student Information
+          fullName: 'Bart Simpson',
+          admissionNo: '1',
+          email: 'student1@school.com',
+          emailPassword: await bcrypt.hash('123456', 10),
+          penNo: 'PEN001',
+          studentId: '1',
+          dateOfBirth: new Date('2010-05-01'),
+          gender: 'Male',
+          bloodGroup: 'O+',
+          nationality: 'American',
+          religion: 'Christian',
+          category: 'General',
+          caste: 'Other',
+          aadhaarNumber: '123456789012',
+          mobileNumber: '9876543210',
+          emergencyContact: '9876543211',
+          loginEnabled: true,
+          lastLogin: new Date(),
+          isVerified: true,
+
+          // Address Information
+          houseNo: '742',
+          street: 'Evergreen Terrace',
+          city: 'Springfield',
+          state: 'IL',
+          pinCode: '62701',
+          permanentHouseNo: '742',
+          permanentStreet: 'Evergreen Terrace',
+          permanentCity: 'Springfield',
+          permanentState: 'IL',
+          permanentPinCode: '62701',
+          sameAsPresentAddress: true,
+
+          // Parent Information
+          fatherName: 'Homer Simpson',
+          fatherEmail: 'father1@school.com',
+          fatherEmailPassword: await bcrypt.hash('123456', 10),
+          motherName: 'Marge Simpson',
+          motherEmail: 'mother1@school.com',
+          motherEmailPassword: await bcrypt.hash('123456', 10),
+
+          // School and Role
+          schoolId: school.id,
+          role: 'STUDENT',
+
+          // Related Information
+          sessionInfo: {
+            create: {
+              admitGroup: 'Science',
+              admitStream: 'General',
+              admitClass: '4',
+              admitSection: 'A',
+              admitRollNo: '1',
+              admitSemester: '1',
+              admitFeeGroup: 'Regular',
+              admitHouse: 'Blue',
+              admitDate: new Date('2023-06-01'),
+              currentGroup: 'Science',
+              currentStream: 'General',
+              currentClass: '4',
+              currentSection: 'A',
+              currentRollNo: '1',
+              currentSemester: '1',
+              currentFeeGroup: 'Regular',
+              currentHouse: 'Blue',
+              previousSchool: 'Springfield Elementary'
+            }
+          },
+          parentInfo: {
+            create: {
+              fatherQualification: 'High School',
+              fatherOccupation: 'Nuclear Safety Inspector',
+              fatherContact: '9876543214',
+              fatherAadhaarNo: '123456789012',
+              fatherAnnualIncome: '50000',
+              fatherIsCampusEmployee: 'no',
+              motherQualification: 'High School',
+              motherOccupation: 'Homemaker',
+              motherContact: '9876543215',
+              motherAadhaarNo: '123456789013',
+              motherAnnualIncome: '0',
+              motherIsCampusEmployee: 'no',
+              guardianName: 'Abe Simpson',
+              guardianAddress: '742 Evergreen Terrace, Springfield',
+              guardianContact: '9876543216',
+              guardianEmail: 'abe.simpson@guardian.com',
+              guardianAadhaarNo: '123456789014',
+              guardianOccupation: 'Retired',
+              guardianAnnualIncome: '20000'
+            }
+          },
+          transportInfo: {
+            create: {
+              transportMode: 'School Bus',
+              transportArea: 'Springfield',
+              transportStand: 'Evergreen Terrace',
+              transportRoute: 'Route 1',
+              transportDriver: 'Otto Mann',
+              pickupLocation: '742 Evergreen Terrace',
+              dropLocation: 'Springfield Elementary School'
+            }
+          },
+          documents: {
+            create: {
+              studentImagePath: '/uploads/students/bart.jpg',
+              fatherImagePath: '/uploads/parents/homer.jpg',
+              motherImagePath: '/uploads/parents/marge.jpg',
+              guardianImagePath: '/uploads/guardians/abe.jpg',
+              signaturePath: '/uploads/signatures/bart.jpg',
+              parentSignaturePath: '/uploads/signatures/homer.jpg',
+              fatherAadharPath: '/uploads/aadhar/homer.jpg',
+              motherAadharPath: '/uploads/aadhar/marge.jpg',
+              birthCertificatePath: '/uploads/certificates/bart_birth.jpg',
+              migrationCertificatePath: '/uploads/certificates/bart_migration.jpg',
+              aadhaarCardPath: '/uploads/aadhar/bart.jpg',
+              affidavitCertificatePath: '/uploads/certificates/bart_affidavit.jpg',
+              incomeCertificatePath: '/uploads/certificates/income.jpg',
+              addressProof1Path: '/uploads/address/proof1.jpg',
+              addressProof2Path: '/uploads/address/proof2.jpg',
+              academicRegistrationNo: 'REG001'
+            }
+          },
+          educationInfo: {
+            create: {
+              lastSchool: 'Springfield Elementary',
+              lastSchoolAddress: '123 Education Street, Springfield',
+              lastTcDate: new Date('2023-05-31'),
+              lastClass: '3',
+              lastPercentage: '85',
+              lastAttendance: '95',
+              lastExtraActivity: 'Sports, Music'
+            }
+          },
+          otherInfo: {
+            create: {
+              belongToBPL: 'no',
+              minority: 'no',
+              disability: 'none',
+              accountNo: '1234567890',
+              bank: 'Springfield Bank',
+              ifscCode: 'SPFB0001234',
+              medium: 'English',
+              lastYearResult: 'Pass',
+              singleParent: 'no',
+              onlyChild: 'no',
+              onlyGirlChild: 'no',
+              adoptedChild: 'no',
+              siblingAdmissionNo: 'SES002',
+              transferCase: 'no',
+              livingWith: 'Parents',
+              motherTongue: 'English',
+              admissionType: 'new',
+              udiseNo: 'UDISE123456'
+            }
+          }
+        }
+      }),
+      prisma.student.create({
+        data: {
+          // Student Information
+          fullName: 'Lisa Simpson',
+          admissionNo: '2',
+          email: 'student2@school.com',
+          emailPassword: await bcrypt.hash('123456', 10),
+          penNo: 'PEN002',
+          studentId: '2',
+          dateOfBirth: new Date('2012-07-15'),
+          gender: 'Female',
+          bloodGroup: 'A+',
+          nationality: 'American',
+          religion: 'Christian',
+          category: 'General',
+          caste: 'Other',
+          aadhaarNumber: '123456789015',
+          mobileNumber: '9876543212',
+          emergencyContact: '9876543213',
+          loginEnabled: true,
+          lastLogin: new Date(),
+          isVerified: true,
+
+          // Address Information
+          houseNo: '742',
+          street: 'Evergreen Terrace',
+          city: 'Springfield',
+          state: 'IL',
+          pinCode: '62701',
+          permanentHouseNo: '742',
+          permanentStreet: 'Evergreen Terrace',
+          permanentCity: 'Springfield',
+          permanentState: 'IL',
+          permanentPinCode: '62701',
+          sameAsPresentAddress: true,
+
+          // Parent Information
+          fatherName: 'Homer Simpson',
+          fatherEmail: 'father2@school.com',
+          fatherEmailPassword: await bcrypt.hash('123456', 10),
+          motherName: 'Marge Simpson',
+          motherEmail: 'mother2@school.com',
+          motherEmailPassword: await bcrypt.hash('123456', 10),
+
+          // School and Role
+          schoolId: school.id,
+          role: 'STUDENT',
+
+          // Related Information
+          sessionInfo: {
+            create: {
+              admitGroup: 'Science',
+              admitStream: 'General',
+              admitClass: '2',
+              admitSection: 'A',
+              admitRollNo: '1',
+              admitSemester: '1',
+              admitFeeGroup: 'Regular',
+              admitHouse: 'Red',
+              admitDate: new Date('2023-06-01'),
+              currentGroup: 'Science',
+              currentStream: 'General',
+              currentClass: '2',
+              currentSection: 'A',
+              currentRollNo: '1',
+              currentSemester: '1',
+              currentFeeGroup: 'Regular',
+              currentHouse: 'Red',
+              previousSchool: 'Springfield Elementary'
+            }
+          },
+          parentInfo: {
+            create: {
+              fatherQualification: 'High School',
+              fatherOccupation: 'Nuclear Safety Inspector',
+              fatherContact: '9876543214',
+              fatherAadhaarNo: '123456789012',
+              fatherAnnualIncome: '50000',
+              fatherIsCampusEmployee: 'no',
+              motherQualification: 'High School',
+              motherOccupation: 'Homemaker',
+              motherContact: '9876543215',
+              motherAadhaarNo: '123456789013',
+              motherAnnualIncome: '0',
+              motherIsCampusEmployee: 'no',
+              guardianName: 'Abe Simpson',
+              guardianAddress: '742 Evergreen Terrace, Springfield',
+              guardianContact: '9876543216',
+              guardianEmail: 'abe.simpson@guardian.com',
+              guardianAadhaarNo: '123456789014',
+              guardianOccupation: 'Retired',
+              guardianAnnualIncome: '20000'
+            }
+          },
+          transportInfo: {
+            create: {
+              transportMode: 'School Bus',
+              transportArea: 'Springfield',
+              transportStand: 'Evergreen Terrace',
+              transportRoute: 'Route 1',
+              transportDriver: 'Otto Mann',
+              pickupLocation: '742 Evergreen Terrace',
+              dropLocation: 'Springfield Elementary School'
+            }
+          },
+          documents: {
+            create: {
+              studentImagePath: '/uploads/students/lisa.jpg',
+              fatherImagePath: '/uploads/parents/homer.jpg',
+              motherImagePath: '/uploads/parents/marge.jpg',
+              guardianImagePath: '/uploads/guardians/abe.jpg',
+              signaturePath: '/uploads/signatures/lisa.jpg',
+              parentSignaturePath: '/uploads/signatures/homer.jpg',
+              fatherAadharPath: '/uploads/aadhar/homer.jpg',
+              motherAadharPath: '/uploads/aadhar/marge.jpg',
+              birthCertificatePath: '/uploads/certificates/lisa_birth.jpg',
+              migrationCertificatePath: '/uploads/certificates/lisa_migration.jpg',
+              aadhaarCardPath: '/uploads/aadhar/lisa.jpg',
+              affidavitCertificatePath: '/uploads/certificates/lisa_affidavit.jpg',
+              incomeCertificatePath: '/uploads/certificates/income.jpg',
+              addressProof1Path: '/uploads/address/proof1.jpg',
+              addressProof2Path: '/uploads/address/proof2.jpg',
+              academicRegistrationNo: 'REG002'
+            }
+          },
+          educationInfo: {
+            create: {
+              lastSchool: 'Springfield Elementary',
+              lastSchoolAddress: '123 Education Street, Springfield',
+              lastTcDate: new Date('2023-05-31'),
+              lastClass: '1',
+              lastPercentage: '95',
+              lastAttendance: '98',
+              lastExtraActivity: 'Music, Debate'
+            }
+          },
+          otherInfo: {
+            create: {
+              belongToBPL: 'no',
+              minority: 'no',
+              disability: 'none',
+              accountNo: '1234567891',
+              bank: 'Springfield Bank',
+              ifscCode: 'SPFB0001234',
+              medium: 'English',
+              lastYearResult: 'Pass',
+              singleParent: 'no',
+              onlyChild: 'no',
+              onlyGirlChild: 'yes',
+              adoptedChild: 'no',
+              siblingAdmissionNo: 'SES001',
+              transferCase: 'no',
+              livingWith: 'Parents',
+              motherTongue: 'English',
+              admissionType: 'new',
+              udiseNo: 'UDISE123457'
+            }
+          }
+        }
+      })
+    ]);
+
+    console.log('Created students:', students);
+
+    // Create transfer certificates
+    const transferCertificates = await Promise.all([
+      prisma.transferCertificate.create({
+        data: {
+          // Student Information
+          admissionNumber: '1',
+          fullName: 'Bart Simpson',
+          fatherName: 'Homer Simpson',
+          motherName: 'Marge Simpson',
+          dateOfBirth: new Date('2010-05-01'),
+          nationality: 'American',
+          category: 'General',
+          dateOfAdmission: new Date('2023-06-01'),
+          
+          // Academic Information
+          currentClass: '4',
+          whetherFailed: 'No',
+          section: 'A',
+          rollNumber: '1',
+          examAppearedIn: 'School',
+          qualifiedForPromotion: 'Yes',
+          
+          // Transfer Details
+          reasonForLeaving: 'FamilyRelocation',
+          dateOfLeaving: new Date('2024-03-15'),
+          lastAttendanceDate: new Date('2024-03-15'),
+          toClass: '5',
+          classInWords: 'Fifth',
+          
+          // Academic Performance
+          maxAttendance: 220,
+          obtainedAttendance: 200,
+          subjectsStudied: 'English, Mathematics, Science, Social Studies, Hindi',
+          
+          // Conduct Information
+          generalConduct: 'Good',
+          behaviorRemarks: 'Well behaved and disciplined student',
+          
+          // Financial Information
+          feesPaidUpTo: new Date('2024-03-15'),
+          tcCharge: 0,
+          feeConcession: 'None',
+          
+          // Activities and Games
+          gamesPlayed: JSON.stringify(['Cricket', 'Football']),
+          extraActivities: JSON.stringify(['Dance', 'Singing']),
+          
+          // School Details
+          schoolId: school.id,
+          tcNumber: 'TC001',
+          tcstatus: 1,
+          studentId: students[0].id
+        }
+      }),
+      prisma.transferCertificate.create({
+        data: {
+          // Student Information
+          admissionNumber: '2',
+          fullName: 'Lisa Simpson',
+          fatherName: 'Homer Simpson',
+          motherName: 'Marge Simpson',
+          dateOfBirth: new Date('2012-05-09'),
+          nationality: 'American',
+          category: 'General',
+          dateOfAdmission: new Date('2023-06-01'),
+          
+          // Academic Information
+          currentClass: '2',
+          whetherFailed: 'No',
+          section: 'A',
+          rollNumber: '1',
+          examAppearedIn: 'School',
+          qualifiedForPromotion: 'Yes',
+          
+          // Transfer Details
+          reasonForLeaving: 'AdmissionInOtherSchool',
+          dateOfLeaving: new Date('2024-03-15'),
+          lastAttendanceDate: new Date('2024-03-15'),
+          toClass: '3',
+          classInWords: 'Third',
+          
+          // Academic Performance
+          maxAttendance: 220,
+          obtainedAttendance: 215,
+          subjectsStudied: 'English, Mathematics, Science, Social Studies, Hindi',
+          
+          // Conduct Information
+          generalConduct: 'Excellent',
+          behaviorRemarks: 'Outstanding academic performance and excellent behavior',
+          
+          // Financial Information
+          feesPaidUpTo: new Date('2024-03-15'),
+          tcCharge: 0,
+          feeConcession: 'None',
+          
+          // Activities and Games
+          gamesPlayed: JSON.stringify(['Chess', 'Swimming']),
+          extraActivities: JSON.stringify(['Debate', 'Quiz']),
+          
+          // School Details
+          schoolId: school.id,
+          tcNumber: 'TC002',
+          tcstatus: 1,
+          studentId: students[1].id
+        }
+      })
+    ]);
+
+    console.log('Created transfer certificates:', transferCertificates);
+
+    // Create registrations for students
+    const bartRegistration = await prisma.registration.create({
+      data: {
+        fullName: 'Bart Simpson',
+        gender: 'male',
+        formNo: 'REG001',
+        dob: '2010-04-01',
+        category: 'General',
+        religion: 'Christianity',
+        registerForClass: 'Class 5',
+        admissionCategory: 'Regular',
+        bloodGroup: 'O+',
+        regnDate: '2024-03-15',
+        testDate: '2024-03-20',
+        transactionNo: 'TRX001',
+        singleParent: false,
+        contactNo: '9876543210',
+        studentEmail: 'student1@school.com',
+        address: '742 Evergreen Terrace',
+        city: 'Springfield',
+        state: 'Illinois',
+        pincode: '62701',
+        studentAadharCardNo: '123456789012',
+        regnCharge: '500',
+        examSubject: 'All',
+        paymentStatus: 'Paid',
+        fatherName: 'Homer Simpson',
+        fatherMobileNo: '9876543214',
+        smsAlert: true,
+        fatherEmail: 'father1@school.com',
+        fatherAadharCardNo: '123456789013',
+        isFatherCampusEmployee: false,
+        motherName: 'Marge Simpson',
+        motherMobileNo: '9876543215',
+        motherAadharCardNo: '123456789014',
+        schoolId: school.id
+      }
+    });
+
+    const lisaRegistration = await prisma.registration.create({
+      data: {
+        fullName: 'Lisa Simpson',
+        gender: 'female',
+        formNo: 'REG002',
+        dob: '2012-05-09',
+        category: 'General',
+        religion: 'Christianity',
+        registerForClass: 'Class 3',
+        admissionCategory: 'Regular',
+        bloodGroup: 'A+',
+        regnDate: '2024-03-15',
+        testDate: '2024-03-20',
+        transactionNo: 'TRX002',
+        singleParent: false,
+        contactNo: '9876543212',
+        studentEmail: 'student2@school.com',
+        address: '742 Evergreen Terrace',
+        city: 'Springfield',
+        state: 'Illinois',
+        pincode: '62701',
+        studentAadharCardNo: '123456789015',
+        regnCharge: '500',
+        examSubject: 'All',
+        paymentStatus: 'Paid',
+        fatherName: 'Homer Simpson',
+        fatherMobileNo: '9876543214',
+        smsAlert: true,
+        fatherEmail: 'father1@school.com',
+        fatherAadharCardNo: '123456789013',
+        isFatherCampusEmployee: false,
+        motherName: 'Marge Simpson',
+        motherMobileNo: '9876543215',
+        motherAadharCardNo: '123456789014',
+        schoolId: school.id
+      }
+    });
+
+    console.log('Database has been seeded. 🌱');
+
+  } catch (error) {
+    console.error('Error seeding database:', error);
+    throw error;
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  }); 

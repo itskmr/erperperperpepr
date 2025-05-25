@@ -103,6 +103,14 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         : s
     );
 
+    // If the class doesn't exist in sections array, add it
+    if (!currentSections.some(s => s.class === classNum)) {
+      updatedSections.push({
+        class: classNum,
+        sections: [section]
+      });
+    }
+
     handleInputChange('sections', updatedSections);
   };
 
@@ -158,6 +166,19 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
           });
         }
         break;
+      case 'password':
+        if (!value || value.trim() === '') {
+          setErrors(prev => ({ ...prev, password: 'Password is required' }));
+        } else if (value.length < 6) {
+          setErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters' }));
+        } else {
+          setErrors(prev => {
+            const newErrors = {...prev};
+            delete newErrors.password;
+            return newErrors;
+          });
+        }
+        break;
       case 'phone':
         const phoneRegex = /^\d{10}$/;
         if (!value || value.trim() === '') {
@@ -200,41 +221,34 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'subjects':
-        // Ensure subjects is always an array
-        if (!Array.isArray(value) || value.length === 0) {
-          setErrors(prev => ({ ...prev, subjects: 'At least one subject is required' }));
-        } else {
-          setErrors(prev => {
-            const newErrors = {...prev};
-            delete newErrors.subjects;
-            return newErrors;
-          });
-        }
+        // Accept any input, store as array, no validation on content
+        setErrors(prev => {
+          const newErrors = {...prev};
+          delete newErrors.subjects;
+          return newErrors;
+        });
         break;
     }
   };
 
   // Handle changed input with validation
-  const handleValidatedChange = (field: keyof Teacher, value: any) => {
-    // Special handling for subjects to ensure it's always an array
-    if (field === 'subjects' && typeof value === 'string') {
-      const subjectsArray = value.split(',').map(s => s.trim()).filter(s => s !== '');
+  const handleValidatedChange = (field: keyof Teacher, value: string) => {
+    if (field === 'subjects') {
+      // Split by comma, trim whitespace, allow any characters
+      const subjectsArray = value.split(',').map(s => s.trim());
       handleInputChange(field, subjectsArray);
     } else {
       handleInputChange(field, value);
     }
-    
     if (touchedFields[field]) {
-      validateField(field, field === 'subjects' && typeof value === 'string' 
-        ? value.split(',').map(s => s.trim()).filter(s => s !== '') 
-        : value);
+      validateField(field, value);
     }
   };
 
   // Validate form before submit
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['fullName', 'email', 'phone', 'designation', 'experience', 'joinDate', 'address', 'education'];
+    const requiredFields = ['fullName', 'email', 'password', 'phone', 'designation', 'experience', 'joinDate', 'address', 'education'];
     
     requiredFields.forEach(field => {
       const value = teacherData[field as keyof Teacher];
@@ -257,11 +271,6 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
       if (!phoneRegex.test(teacherData.phone.replace(/[^0-9]/g, ''))) {
         newErrors.phone = 'Phone number must be 10 digits';
       }
-    }
-
-    // Validate subjects field
-    if (!teacherData.subjects || !Array.isArray(teacherData.subjects) || teacherData.subjects.length === 0) {
-      newErrors.subjects = 'At least one subject is required';
     }
 
     // Validate sections
@@ -308,18 +317,25 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
     setTouchedFields(touched);
     
     if (validateForm()) {
+      console.log('[DEBUG] Teacher data before submission:', teacherData);
+      
       // Convert any remaining string arrays to proper arrays
       if (typeof teacherData.subjects === 'string') {
         const subjectArray = (teacherData.subjects as string).split(',').map((s: string) => s.trim()).filter((s: string) => s !== '');
         handleInputChange('subjects', subjectArray);
         // Small delay to ensure state is updated before submitting
         setTimeout(() => {
+          console.log('[DEBUG] Teacher data after subject array conversion:', teacherData);
           onSubmit();
+          console.log('[DEBUG] Teacher data after submission:', teacherData);
         }, 100);
       } else {
+        console.log('[DEBUG] Teacher data before direct submission:', teacherData);
         onSubmit();
+        console.log('[DEBUG] Teacher data after direct submission:', teacherData);
       }
     } else {
+      console.log('[DEBUG] Form validation failed:', errors);
       setIsSubmitting(false);
     }
   };
@@ -427,6 +443,29 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               {errors.email && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">
                   <AlertCircle className="w-3 h-3 mr-1" /> {errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password*
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="Enter password"
+                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                  errors.password ? 'border-red-500' : 'border-gray-300'
+                }`}
+                value={teacherData.password || ''}
+                onChange={(e) => handleValidatedChange('password', e.target.value)}
+                onBlur={() => validateField('password', teacherData.password)}
+              />
+              {errors.password && (
+                <p className="text-red-500 text-xs mt-1 flex items-center">
+                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.password}
                 </p>
               )}
             </div>
@@ -628,7 +667,6 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               </label>
               <input
                 type="text"
-                required
                 placeholder="e.g. Math, Science, English"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.subjects ? 'border-red-500' : 'border-gray-300'

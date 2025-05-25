@@ -8,7 +8,7 @@ import SearchFilters from './SearchFilter';
 import Pagination from './Pegination';
 import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 // Get current date from localStorage or create new
 const getCurrentDate = () => {
@@ -59,10 +59,6 @@ const TeacherDirectory: React.FC = () => {
     subjects: [],
     sections: [],
   });
-  const [selectedSchoolId, setSelectedSchoolId] = useState(localStorage.getItem('schoolId') || '1');
-
-  // Get the school ID from the state
-  const schoolId = selectedSchoolId;
   const itemsPerPage = 5;
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -110,15 +106,13 @@ const TeacherDirectory: React.FC = () => {
     }
   };
 
-  // Fetch teachers on component mount or when school changes
+  // Fetch teachers on component mount
   useEffect(() => {
-    // Save the selected school ID to localStorage
-    localStorage.setItem('schoolId', selectedSchoolId);
     // Only fetch if search and filter are not active
     if (!searchTerm && classFilter === 'all') {
       fetchTeachers();
     }
-  }, [selectedSchoolId]);
+  }, []);
 
   // Backend search and filter
   const searchTeachers = async () => {
@@ -265,28 +259,22 @@ const TeacherDirectory: React.FC = () => {
 
   // Validate incharge class
   const validateInchargeClass = (value: string): string => {
-    const classes = value.replace(/\s/g, '').split(',');
-    return classes[0] || '';
+    if (!value || value.trim() === '') {
+      return 'Class is required for class incharge';
+    }
+    // Optionally, check if value is in AVAILABLE_CLASSES
+    // if (!AVAILABLE_CLASSES.includes(value)) return 'Invalid class selected';
+    return '';
   };
 
   // Handle input changes for new teacher
-  const handleInputChange = (field: keyof Teacher, value: any) => {
-    if (field === 'inchargeClass') {
-      const formattedValue = validateInchargeClass(value);
-      setNewTeacher((prev) => ({ ...prev, [field]: formattedValue }));
-    } else {
-      setNewTeacher((prev) => ({ ...prev, [field]: value }));
-    }
+  const handleInputChange = (field: keyof Teacher, value: string | string[] | boolean | null) => {
+    setNewTeacher((prev) => ({ ...prev, [field]: value }));
   };
 
   // Handle input changes for editing teacher
-  const handleEditInputChange = (field: keyof Teacher, value: any) => {
-    if (field === 'inchargeClass') {
-      const formattedValue = validateInchargeClass(value);
-      setEditTeacher((prev) => ({ ...prev, [field]: formattedValue }));
-    } else {
-      setEditTeacher((prev) => ({ ...prev, [field]: value }));
-    }
+  const handleEditInputChange = (field: keyof Teacher, value: string | string[] | boolean | null) => {
+    setEditTeacher((prev) => ({ ...prev, [field]: value }));
   };
 
   // Check if incharge position is already taken
@@ -324,58 +312,150 @@ const TeacherDirectory: React.FC = () => {
       }
     }
 
-    // Create the teacher object with all required fields
-    const teacherToAdd = {
-      fullName: newTeacher.fullName || '',
-      email: newTeacher.email || '',
-      password: newTeacher.email?.split('@')[0] || 'password123', // Default password
-      phone: newTeacher.phone || '',
-      designation: newTeacher.designation || 'Teacher',
-      subjects: Array.isArray(newTeacher.subjects) ? newTeacher.subjects : [],
-      classes: typeof newTeacher.classes === 'string' ? newTeacher.classes : '',
-      sections: Array.isArray(newTeacher.sections) ? newTeacher.sections : [],
-      joinDate: newTeacher.joinDate || getCurrentDate(),
-      address: newTeacher.address || '',
-      education: newTeacher.education || '',
-      experience: newTeacher.experience || '',
-      profileImage: newTeacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
-      isClassIncharge: newTeacher.isClassIncharge ?? false,
-      inchargeClass: newTeacher.isClassIncharge ? newTeacher.inchargeClass : null,
-      inchargeSection: newTeacher.isClassIncharge ? newTeacher.inchargeSection : null,
-      schoolId: parseInt(schoolId),
-      status: 'active'
-    };
-
     try {
+      // Get the school ID from localStorage
+      const storedSchoolId = localStorage.getItem('schoolId');
+      console.log('Stored School ID:', storedSchoolId);
+      
+      if (!storedSchoolId) {
+        console.error('School ID not found in localStorage');
+        showToast('error', 'School ID not found. Please try logging in again.');
+        return;
+      }
+
+      let schoolId = parseInt(storedSchoolId);
+      console.log('Parsed School ID:', schoolId);
+
+      // Try to get school, if not found create a default school
+      try {
+        console.log('Attempting to verify school with ID:', schoolId);
+        const schoolResponse = await axios.get(`${API_URL}/schools/${schoolId}`);
+        console.log('School verification response:', schoolResponse.data);
+        
+        if (!schoolResponse.data.success) {
+          console.log('School not found, creating default school');
+          // Create default school if not found
+          const createSchoolResponse = await axios.post(`${API_URL}/schools`, {
+            name: "Default School",
+            address: "Default Address",
+            contactNumber: "1234567890",
+            email: "default@school.com",
+            principalName: "Default Principal"
+          });
+          
+          console.log('Default school creation response:', createSchoolResponse.data);
+          
+          if (createSchoolResponse.data.success) {
+            schoolId = createSchoolResponse.data.data.id;
+            localStorage.setItem('schoolId', schoolId.toString());
+            console.log('New school ID set:', schoolId);
+          } else {
+            console.error('Failed to create school:', createSchoolResponse.data);
+            showToast('error', 'Failed to create school. Please try again.');
+            return;
+          }
+        }
+      } catch (error) {
+        if (error instanceof AxiosError) {
+          if (error.response?.status === 404) {
+            console.log('School not found, creating default school');
+            try {
+              const createSchoolResponse = await axios.post(`${API_URL}/schools`, {
+                name: "Default School",
+                address: "Default Address",
+                contactNumber: "1234567890",
+                email: "default@school.com",
+                principalName: "Default Principal"
+              });
+              
+              console.log('Default school creation response:', createSchoolResponse.data);
+              
+              if (createSchoolResponse.data.success) {
+                schoolId = createSchoolResponse.data.data.id;
+                localStorage.setItem('schoolId', schoolId.toString());
+                console.log('New school ID set:', schoolId);
+              } else {
+                console.error('Failed to create school:', createSchoolResponse.data);
+                showToast('error', 'Failed to create school. Please try again.');
+                return;
+              }
+            } catch (createError) {
+              console.error('Error creating default school:', createError);
+              showToast('error', 'Failed to create default school. Please try again.');
+              return;
+            }
+          } else {
+            console.error('Error verifying school:', {
+              message: error.message,
+              response: error.response?.data,
+              status: error.response?.status
+            });
+            showToast('error', `Failed to verify school: ${error.response?.data?.message || error.message}`);
+            return;
+          }
+        } else {
+          console.error('Unexpected error during school verification:', error);
+          showToast('error', 'An unexpected error occurred while verifying school');
+          return;
+        }
+      }
+
+      // Format sections data properly
+      const formattedSections = Array.isArray(newTeacher.sections) 
+        ? newTeacher.sections.map(section => ({
+            class: section.class,
+            sections: Array.isArray(section.sections) ? section.sections : []
+          }))
+        : [];
+
+      // Create the teacher object with all required fields
+      const teacherToAdd = {
+        fullName: newTeacher.fullName || '',
+        email: newTeacher.email || '',
+        password: newTeacher.password || newTeacher.email?.split('@')[0] || 'password123',
+        phone: newTeacher.phone || '',
+        designation: newTeacher.designation || 'Teacher',
+        subjects: Array.isArray(newTeacher.subjects) ? newTeacher.subjects : [],
+        sections: formattedSections,
+        classes: newTeacher.sections?.map(section => section.class).join(',') || '',
+        joinDate: newTeacher.joinDate || getCurrentDate(),
+        address: newTeacher.address || '',
+        education: newTeacher.education || '',
+        experience: newTeacher.experience || '',
+        profileImage: newTeacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
+        isClassIncharge: newTeacher.isClassIncharge ?? false,
+        inchargeClass: newTeacher.isClassIncharge ? newTeacher.inchargeClass : null,
+        inchargeSection: newTeacher.isClassIncharge ? newTeacher.inchargeSection : null,
+        schoolId: schoolId,
+        status: 'active',
+        username: newTeacher.email?.split('@')[0] || ''
+      };
+
       console.log('Sending teacher data:', teacherToAdd);
       
-      // Set headers explicitly to ensure content type is set properly
-      const config = {
+      const response = await axios.post(`${API_URL}/teachers`, teacherToAdd, {
         headers: {
           'Content-Type': 'application/json',
         }
-      };
-      
-      const response = await axios.post(`${API_URL}/teachers`, teacherToAdd, config);
-      
+      });
+
+      console.log('Teacher creation response:', response.data);
+
       if (response.data.success) {
         setTeachers((prev) => [...prev, response.data.data]);
-        setIsAddModalOpen(false);
-        setNewTeacher({ subjects: [], sections: [] });
         showToast('success', 'Teacher added successfully!');
-        
-        // Refresh the list to ensure we have the latest data
-        fetchTeachers();
+        setIsAddModalOpen(false);
       } else {
+        console.error('Failed to add teacher:', response.data);
         showToast('error', response.data.message || 'Failed to add teacher. Please try again.');
       }
     } catch (error: any) {
-      console.error('Error adding teacher:', error);
-      if (error.response?.data?.message) {
-        showToast('error', error.response.data.message);
-      } else {
-        showToast('error', 'Failed to add teacher. Please try again.');
-      }
+      console.error('Error adding teacher:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      showToast('error', error.response?.data?.message || 'Failed to add teacher. Please try again.');
     }
   };
 
@@ -411,7 +491,7 @@ const TeacherDirectory: React.FC = () => {
         inchargeClass: editTeacher.isClassIncharge ? editTeacher.inchargeClass : null,
         inchargeSection: editTeacher.isClassIncharge ? editTeacher.inchargeSection : null,
         status: editTeacher.status || 'active',
-        schoolId: parseInt(schoolId),
+        schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
       };
 
       console.log('Updating teacher data:', teacherToUpdate);
@@ -527,20 +607,6 @@ const TeacherDirectory: React.FC = () => {
           Teacher Directory
         </h1>
         <div className="flex items-center space-x-4">
-          {/* School Selector - Added for development testing */}
-          <div className="flex items-center">
-            <label htmlFor="schoolSelector" className="mr-2 text-sm text-gray-600">School:</label>
-            <select
-              id="schoolSelector"
-              value={selectedSchoolId}
-              onChange={(e) => setSelectedSchoolId(e.target.value)}
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2"
-            >
-              <option value="1">School 1</option>
-              <option value="2">School 2</option>
-              <option value="3">School 3</option>
-            </select>
-          </div>
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300"
             onClick={handleAddTeacher}

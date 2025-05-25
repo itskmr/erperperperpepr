@@ -30,15 +30,16 @@ model Admin {
 
 model School {
   id          Int          @id @default(autoincrement())
-  fullName    String       @default("Unknown")
+  schoolName  String       @default("Unknown")
   email       String       @unique
   password    String
-  username    String       @unique @default(cuid())
+  // username    String       @unique @default(cuid())
   code        String       @unique @default("SC000")
   address     String       @default("Not Provided")
   contact     BigInt       @default(0)
   phone       String       @default("0123456789") @db.VarChar(15)
   principal   String       @default("Unknown")
+  image_url   String?      @db.Text
   established Int          @default(2000)
   role        Role         @default(SCHOOL)
   status      String       @default("active")

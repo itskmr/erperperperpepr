@@ -1,6 +1,6 @@
 export interface StudentDetails {
-  studentId?: number;
-  schoolId?: number;
+  studentId: string;
+  schoolId: number;
   fullName: string;
   fatherName: string;
   motherName: string;
@@ -8,51 +8,45 @@ export interface StudentDetails {
   category: string;
   dateOfBirth: string;
   dateOfAdmission: string;
-  class?: string;
   section: string;
   admissionNumber: string;
   currentClass: string;
   admitClass: string;
   academicYear: string;
+  rollNo: string;
   lastAttendanceDate: string;
-  lastClass?: string; 
-  tcNo?: string; 
-  school?: string; 
-  behavior: string;
   feesUpToDate: string;
-  reason: string;
   maxAttendance: string;
   obtainedAttendance: string;
-  lastExam: string;
+  subject: string;
   whetherFailed: string;
-  tcCharge: string;
   examIn: string;
   qualified: string;
+  generalConduct: string;
+  dateOfLeaving: string;
+  behavior: string;
+  reason: string;
+  lastExam: string;
+  tcCharge: string;
   toClass: string;
   classInWords: string;
   conduct: string;
   remark: string;
-  behaviorRemarks?: string;
+  behaviorRemarks: string;
   subjectStudied: string;
-  gamesPlayed: string;
-  extraActivity: string;
-  rollNo: string;
-  dateOfLeaving: string;
+  gamesPlayed: string[];
+  extraActivity: string[];
   dateOfIssue: string;
   remarks: string;
-  feesPaidUpTo?: string;
-  subject?: string;
-  generalConduct?: string;
-  schoolDetails:{
+  schoolDetails: {
     schoolName: string;
     address: string;
     recognitionId: string;
     affiliationNo: string;
     contact: string;
     email: string;
-    website: string;
-    imageUrl?: string;
-  }
+    imageUrl: string;
+  };
 }
 
 export interface CertificateDetails {
@@ -95,16 +89,20 @@ export interface CertificateDetails {
     recognitionId: string;
     affiliationNo: string;
     contact: string;
-    email: string;
-    website: string;
+    email: string;  
     imageUrl?: string;
   }
 }
 
-export interface IssuedCertificate extends CertificateDetails {
-  id?: number;
-  admissionNumber: string;
-  tcNo: string;
+export interface IssuedCertificate extends StudentDetails {
+  // Additional fields specific to issued certificates
+  certificateId?: string;
+  issueDate: string;
+  status: string;
+  studentClass: string;
+  feesPaidUpTo: string;
   feesConcessionAvailed: string;
-  dateOfAdmission: string;
+  studentName: string;
+  tcNo: string;
+  leavingDate: string;
 }

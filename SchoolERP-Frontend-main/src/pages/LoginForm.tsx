@@ -134,34 +134,23 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleSubmit = async (submittedFormData: { email: string; password: string }): Promise<void> => {
-    if (!selectedRole) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    setIsLoading(true);
-    
-    // Check if using demo credentials
-    if (useDemo) {
-      const selectedDemoAccount = demoAccounts[selectedRole];
-      if (submittedFormData.email === selectedDemoAccount.email && 
-          submittedFormData.password === selectedDemoAccount.password) {
-        
-        // Simulate loading for better UX
-        setTimeout(() => {
-          // Mock successful login with demo token
-          const mockToken = `demo-token-${selectedRole}-${Date.now()}`;
-          const mockUserData = {
-            id: 1,
-            name: `Demo ${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}`,
-            email: submittedFormData.email
-          };
-          handleLoginSuccess(mockToken, selectedRole, mockUserData);
-          setIsLoading(false);
-        }, 800);
-        return;
-      }
+    if (!validateForm()) {
+      return;
     }
+
+    if (!selectedRole) {
+      setLoginError('Please select a role');
+      return;
+    }
+
+    setIsLoading(true);
+    setLoginError('');
+
+    const submittedFormData = { ...formData };
     
-    // For real authentication with the API
     try {
       console.log(`Authenticating ${selectedRole} with credentials:`, {
         email: submittedFormData.email,
@@ -197,14 +186,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
       }
       
       if (data.success && data.data && data.data.token) {
-        handleLoginSuccess(data.data.token, selectedRole as Role, data.data.user);
+        handleLoginSuccess(data.data.token, selectedRole, data.data.user);
       } else {
         console.error('Invalid response structure:', data);
         setLoginError('Invalid response from server. Missing token or user data.');
       }
     } catch (error) {
       console.error('Login failed:', error);
-      setLoginError('Cannot connect to the server. Try using demo credentials or check network.');
+      setLoginError('Cannot connect to the server. Please check your network connection.');
     } finally {
       setIsLoading(false);
     }
@@ -226,12 +215,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
   const renderDefaultLoginForm = () => {
     return (
       <motion.form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (validateForm()) {
-            handleSubmit(formData);
-          }
-        }}
+        onSubmit={handleSubmit}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.3 }}
