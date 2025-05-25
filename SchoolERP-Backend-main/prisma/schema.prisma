@@ -67,10 +67,10 @@ model Teacher {
   address          String?   @db.Text
   
   // Teaching details
-  classes          String    @db.Text  // Comma-separated classes taught
+  // classes          String    @db.Text  // Comma-separated classes taught
   subjects         String    @db.Text  // JSON string of subjects taught
   sections         String    @db.Text  // JSON string of class and section combinations
-  
+
   // Class incharge details
   isClassIncharge  Boolean   @default(false)
   inchargeClass    String?

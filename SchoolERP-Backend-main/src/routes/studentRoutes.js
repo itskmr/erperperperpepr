@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getStudentByAdmissionNumber, fetchStudentDetails } from '../controllers/tcfromController.js';
+import { getStudentsByCurrentClass } from '../controllers/studentFun/studentController.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -738,5 +739,8 @@ router.put('/:id/session', async (req, res) => {
 // Student lookup endpoints for TC generation
 router.get('/lookup/:admissionNumber', getStudentByAdmissionNumber);
 router.get('/details/:admissionNumber', fetchStudentDetails);
+
+// Add new route for getting students by current class and section
+router.get('/class/:className/section/:section', getStudentsByCurrentClass);
 
 export default router;

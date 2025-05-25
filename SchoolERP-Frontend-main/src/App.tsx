@@ -15,7 +15,7 @@ import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import StudentRegistrationForm from './pages/StudentForm';
-import AuthPage from './pages/AuthPage';
+// import AuthPage from './pages/AuthPage';
 import AccountsPage from './pages/AccountsPage';
 import UserManagement from './pages/UserManagement';
 import UserEdit from './pages/UserEdit';

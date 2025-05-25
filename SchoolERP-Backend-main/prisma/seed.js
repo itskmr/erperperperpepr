@@ -32,15 +32,16 @@ async function main() {
     const teachers = await Promise.all([
       prisma.teacher.create({
         data: {
+          id: 1,
           fullName: 'Edna Krabappel',
           email: 'teacher1@school.com',
           password: await bcrypt.hash('123456', 10),
           username: 'edna_k',
-          phone: '555-0124',
+          phone: '5500000124',
           designation: 'Senior Teacher',
           education: 'M.Ed in Education',
           address: '456 Teacher Lane, Springfield',
-          classes: '4,5,6',
+        //   classes: '4,5,6',
           subjects: JSON.stringify(['Mathematics', 'Science']),
           sections: JSON.stringify([
             { class: '11 (Science)', sections: ['A', 'B'] },
@@ -48,7 +49,7 @@ async function main() {
             { class: '11 (Commerce)', sections: ['B'] }
           ]),
           isClassIncharge: true,
-          inchargeClass: '11 (Science)',
+          inchargeClass: 'Class 11 (Science)',
           inchargeSection: 'B',
           experience: '15',
           role: 'TEACHER',
@@ -58,19 +59,20 @@ async function main() {
       }),
       prisma.teacher.create({
         data: {
+          id: 2,
           fullName: 'Elizabeth Hoover',
           email: 'teacher2@school.com',
           password: await bcrypt.hash('123456', 10),
           username: 'elizabeth_h',
-          phone: '555-0125',
+          phone: '5550000125',
           designation: 'Teacher',
           education: 'B.Ed in English',
           address: '789 Educator Street, Springfield',
-          classes: '11 (Art),11 (Commerce)',
+        //   classes: '11 (Art),11 (Commerce)',
           subjects: JSON.stringify(['English', 'Literature']),
           sections: JSON.stringify([
-            { class: '11 (Art)', sections: ['A', 'B'] },
-            { class: '11 (Commerce)', sections: ['A'] }
+            { class: 'Class 11 (Art)', sections: ['A', 'B'] },
+            { class: 'Class 11 (Commerce)', sections: ['A'] }
           ]),
           isClassIncharge: false,
           experience: '8',
@@ -138,7 +140,7 @@ async function main() {
             create: {
               admitGroup: 'Science',
               admitStream: 'General',
-              admitClass: '4',
+              admitClass: 'Class 4',
               admitSection: 'A',
               admitRollNo: '1',
               admitSemester: '1',
@@ -147,7 +149,7 @@ async function main() {
               admitDate: new Date('2023-06-01'),
               currentGroup: 'Science',
               currentStream: 'General',
-              currentClass: '11 (Science)',
+              currentClass: 'Class 11 (Science)',
               currentSection: 'B',
               currentRollNo: '2',
               currentSemester: '1',
@@ -215,7 +217,7 @@ async function main() {
               lastSchool: 'Springfield Elementary',
               lastSchoolAddress: '123 Education Street, Springfield',
               lastTcDate: new Date('2023-05-31'),
-              lastClass: '3',
+              lastClass: 'Class 3',
               lastPercentage: '85',
               lastAttendance: '95',
               lastExtraActivity: 'Sports, Music'
@@ -298,7 +300,7 @@ async function main() {
             create: {
               admitGroup: 'Science',
               admitStream: 'General',
-              admitClass: '2',
+              admitClass: 'Class 2',
               admitSection: 'A',
               admitRollNo: '1',
               admitSemester: '1',
@@ -307,7 +309,7 @@ async function main() {
               admitDate: new Date('2023-06-01'),
               currentGroup: 'Science',
               currentStream: 'General',
-              currentClass: '11 (Science)',
+              currentClass: 'Class 11 (Science)',
               currentSection: 'B',
               currentRollNo: '4',
               currentSemester: '1',
@@ -375,7 +377,7 @@ async function main() {
               lastSchool: 'Springfield Elementary',
               lastSchoolAddress: '123 Education Street, Springfield',
               lastTcDate: new Date('2023-05-31'),
-              lastClass: '1',
+              lastClass: 'Class 1',
               lastPercentage: '95',
               lastAttendance: '98',
               lastExtraActivity: 'Music, Debate'
@@ -424,7 +426,7 @@ async function main() {
           dateOfAdmission: new Date('2023-06-01'),
           
           // Academic Information
-          currentClass: '11 (Science)',
+          currentClass: 'Class 11 (Science)',
           whetherFailed: 'No',
           section: 'B',
           rollNumber: '2',
@@ -435,7 +437,7 @@ async function main() {
           reasonForLeaving: 'FamilyRelocation',
           dateOfLeaving: new Date('2024-03-15'),
           lastAttendanceDate: new Date('2024-03-15'),
-          toClass: '5',
+          toClass: 'Class 5',
           classInWords: 'Fifth',
           
           // Academic Performance
@@ -476,7 +478,7 @@ async function main() {
           dateOfAdmission: new Date('2023-06-01'),
           
           // Academic Information
-          currentClass: '11 (Science)',
+          currentClass: 'Class 11 (Science)',
           whetherFailed: 'No',
           section: 'B',
           rollNumber: '4',
@@ -487,7 +489,7 @@ async function main() {
           reasonForLeaving: 'AdmissionInOtherSchool',
           dateOfLeaving: new Date('2024-03-15'),
           lastAttendanceDate: new Date('2024-03-15'),
-          toClass: '3',
+          toClass: 'Class 3',
           classInWords: 'Third',
           
           // Academic Performance

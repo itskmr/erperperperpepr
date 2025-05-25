@@ -743,3 +743,72 @@ export const getStudentByAdmissionNo = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get students by current class and section from sessionInfo
+ * @route GET /api/students/class/:className/section/:section
+ * @access Public
+ */
+export const getStudentsByCurrentClass = async (req, res) => {
+  try {
+    const { className, section } = req.params;
+    console.log(`Fetching students for class: ${className}, section: ${section}`);
+
+    const students = await prisma.student.findMany({
+      where: {
+        sessionInfo: {
+          currentClass: className,
+          currentSection: section
+        }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNo: true,
+        fatherName: true,
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true,
+            currentRollNo: true
+          }
+        }
+      },
+      orderBy: {
+        sessionInfo: {
+          currentRollNo: 'asc'
+        }
+      }
+    });
+
+    if (students.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No students found in ${className} - Section ${section}`
+      });
+    }
+
+    // Format student data
+    const formattedStudents = students.map(student => ({
+      id: student.id,
+      fullName: student.fullName,
+      admissionNo: student.admissionNo,
+      section: student.sessionInfo?.currentSection || '',
+      fatherName: student.fatherName || ''
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: "Students retrieved successfully",
+      data: formattedStudents
+    });
+
+  } catch (error) {
+    console.error('Error fetching students by class:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve students',
+      error: error.message
+    });
+  }
+};

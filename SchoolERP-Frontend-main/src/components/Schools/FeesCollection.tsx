@@ -4,6 +4,7 @@ import axios, { AxiosError } from 'axios';
 import UpdateFeeRecord from './UpdateFeeRecord';
 import { getFeeStructureByClassName, getFeeCategories } from '../../services/feeStructureService';
 import { toast } from 'react-hot-toast';
+import { STUDENT_API } from '../../config/api';
 
 // Types
 interface FeeCategoryType {
@@ -42,25 +43,41 @@ interface FeeRecord {
 }
 
 interface StudentResponse {
-  success: boolean;
-  data: {
-    firstName: string;
-    middleName?: string;
-    lastName: string;
-    fullName?: string;
+  id: number;
+  fullName: string;
+  admissionNo: string;
+  section: string;
+  fatherName: string;
+  motherName?: string;
+  email?: string;
+  mobileNumber?: string;
+  sessionInfo?: {
+    currentClass?: string;
+    currentSection?: string;
+    currentRollNo?: string;
+  };
+  success?: boolean;
+  data?: {
+    id: number;
+    fullName: string;
+    admissionNo: string;
+    section: string;
     fatherName: string;
-    motherName: string;
-    email: string;
-    mobileNumber: string;
+    motherName?: string;
+    email?: string;
+    mobileNumber?: string;
     sessionInfo?: {
       currentClass?: string;
       currentSection?: string;
       currentRollNo?: string;
-      admitClass?: string;
-      admitSection?: string;
-      admitRollNo?: string;
     };
   };
+}
+
+interface StudentsApiResponse {
+  success: boolean;
+  message?: string;
+  data: StudentResponse[];
 }
 
 interface FeeResponse {
@@ -69,8 +86,27 @@ interface FeeResponse {
   data: FeeRecord | FeeRecord[];
 }
 
+interface Student {
+  id: string;
+  fullName: string;
+  admissionNo: string;
+  section: string;
+  fatherName: string;
+}
+
+interface FeeCategory {
+  id: string;
+  name: string;
+  amount: number;
+  frequency: string;
+}
+
+interface StudentFeeAmount {
+  studentId: string;
+  amount: number;
+}
+
 const API_URL = 'http://localhost:5000/api/fees';
-const STUDENT_API_URL = 'http://localhost:5000/api/students';
 
 // Standardized class options to match the rest of the system
 const CLASS_OPTIONS = [
@@ -127,7 +163,21 @@ const FeeCollectionApp: React.FC = () => {
 
   // New state for student details
   const [studentDetails, setStudentDetails] = useState<FeeRecord['studentDetails'] | null>(null);
-  const [isLoadingStudent, setIsLoadingStudent] = useState(false);
+
+  // New state for mass fee collection
+  const [selectedClass, setSelectedClass] = useState('');
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isMassFeeFormVisible, setIsMassFeeFormVisible] = useState(false);
+
+  // New state for student fee amounts
+  const [studentFeeAmounts, setStudentFeeAmounts] = useState<StudentFeeAmount[]>([]);
+  const [isFullFeeForAll, setIsFullFeeForAll] = useState(false);
+
+  // New state for view record
+  const [selectedRecordForView, setSelectedRecordForView] = useState<FeeRecord | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Load data from backend
   useEffect(() => {
@@ -148,9 +198,9 @@ const FeeCollectionApp: React.FC = () => {
         let formattedRecords: FeeRecord[] = [];
         if (Array.isArray(response.data.data)) {
           formattedRecords = response.data.data.map((record: FeeRecord) => ({
-            ...record,
-            paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
-          }));
+          ...record,
+          paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
+        }));
         } else if (response.data.data) {
           const record = response.data.data as FeeRecord;
           formattedRecords = [{
@@ -292,11 +342,11 @@ const FeeCollectionApp: React.FC = () => {
         
         // Update form data with new fee amount and categories
         setFormData(prev => ({
-          ...prev,
-          feeAmount: newFeeAmount,
+            ...prev,
+            feeAmount: newFeeAmount,
           totalFees: newFeeAmount,
-          feeCategory: newSelected.map(c => c.name).join(', '),
-          feeCategories: newSelected.map(c => c.name)
+            feeCategory: newSelected.map(c => c.name).join(', '),
+            feeCategories: newSelected.map(c => c.name)
         }));
         
         return newSelected;
@@ -308,11 +358,11 @@ const FeeCollectionApp: React.FC = () => {
         
         // Update form data with new fee amount and categories
         setFormData(prev => ({
-          ...prev,
-          feeAmount: newFeeAmount,
+            ...prev,
+            feeAmount: newFeeAmount,
           totalFees: newFeeAmount,
-          feeCategory: newSelected.map(c => c.name).join(', '),
-          feeCategories: newSelected.map(c => c.name)
+            feeCategory: newSelected.map(c => c.name).join(', '),
+            feeCategories: newSelected.map(c => c.name)
         }));
         
         return newSelected;
@@ -445,7 +495,7 @@ const FeeCollectionApp: React.FC = () => {
         showNotification(`Server error: ${errorDetails || 'Unknown error'}`, 'error');
       } else if (err instanceof Error) {
         showNotification(`Failed to update fee record: ${err.message}`, 'error');
-      } else {
+        } else {
         showNotification('Failed to update fee record: Unknown error', 'error');
       }
     } finally {
@@ -496,56 +546,38 @@ const FeeCollectionApp: React.FC = () => {
 
   // Add function to fetch student details by admission number
   const fetchStudentDetails = async (admissionNumber: string) => {
-    if (!admissionNumber.trim()) return;
-    
     try {
-      setIsLoadingStudent(true);
       setStudentDetails(null);
       
-      const response = await axios.get<StudentResponse>(`${STUDENT_API_URL}/admission/${admissionNumber}`);
+      const response = await axios.get<StudentResponse>(`${STUDENT_API.BASE}/admission/${admissionNumber}`);
       
-      if (response.data.success) {
+      if (response.data.success && response.data.data) {
         const student = response.data.data;
-        
-        // Create student details object
-        const studentDetailsObj = {
+        setStudentDetails({
           fullName: student.fullName || '',
           fatherName: student.fatherName || '',
           motherName: student.motherName || '',
           email: student.email || '',
           mobileNumber: student.mobileNumber || '',
-          className: student.sessionInfo?.currentClass || student.sessionInfo?.admitClass || '',
-          section: student.sessionInfo?.currentSection || student.sessionInfo?.admitSection || '',
-          rollNumber: student.sessionInfo?.currentRollNo || student.sessionInfo?.admitRollNo || ''
-        };
-
-        setStudentDetails(studentDetailsObj);
+          className: student.sessionInfo?.currentClass || '',
+          section: student.sessionInfo?.currentSection || '',
+          rollNumber: student.sessionInfo?.currentRollNo || ''
+        });
 
         // Update form data with student details
         setFormData(prev => ({
           ...prev,
-          studentName: studentDetailsObj.fullName,
-          fatherName: studentDetailsObj.fatherName,
-          class: studentDetailsObj.className,
-          section: studentDetailsObj.section
+          studentName: student.fullName || '',
+          fatherName: student.fatherName || '',
+          class: student.sessionInfo?.currentClass || '',
+          section: student.sessionInfo?.currentSection || ''
         }));
-
-        // Fetch fee structure for the student's class
-        if (studentDetailsObj.className) {
-          await fetchFeeStructureForClass(studentDetailsObj.className);
-        }
-      }
-    } catch (error: unknown) {
-      console.error('Error fetching student details:', error);
-      if (error instanceof AxiosError) {
-        toast.error(`Failed to fetch student details: ${error.response?.data?.message || error.message}`);
-      } else if (error instanceof Error) {
-        toast.error(`Failed to fetch student details: ${error.message}`);
       } else {
-        toast.error('Failed to fetch student details');
+        showNotification('Student not found', 'error');
       }
-    } finally {
-      setIsLoadingStudent(false);
+    } catch (error) {
+      console.error('Error fetching student details:', error);
+      showNotification('Failed to fetch student details', 'error');
     }
   };
 
@@ -581,6 +613,189 @@ const FeeCollectionApp: React.FC = () => {
       : <span className="ml-1">↓</span>;
   };
 
+  // Function to fetch students by class and section
+  const fetchStudentsByClass = async (className: string, section: string) => {
+    if (!className) return;
+    
+    try {
+      setIsLoadingStudents(true);
+      console.log('Fetching students with params:', { className, section });
+      
+      // Encode the class name properly for the URL
+      const encodedClassName = encodeURIComponent(className);
+      const response = await axios.get<StudentsApiResponse>(`${STUDENT_API.BASE}/class/${encodedClassName}/section/${section}`);
+      
+      console.log('API Response:', response.data);
+      
+      if (response.data.success) {
+        // Transform the response data to match our Student interface
+        const students = response.data.data.map((student: StudentResponse) => {
+          const transformedStudent = {
+            id: student.id.toString(),
+            fullName: student.fullName || "",
+            admissionNo: student.admissionNo,
+            section: student.section || '',
+            fatherName: student.fatherName || ''
+          };
+          console.log('Transformed student:', transformedStudent);
+          return transformedStudent;
+        });
+        console.log('Final students array:', students);
+        setClassStudents(students);
+      } else {
+        console.error('API returned success: false', response.data.message);
+        showNotification(response.data.message || 'Failed to fetch students', 'error');
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message
+        });
+        
+        if (error.response?.status === 404) {
+          showNotification('No students found for the selected class and section', 'error');
+        } else if (error.response?.status === 500) {
+          showNotification('Server error while fetching students', 'error');
+        } else {
+          showNotification(error.response?.data?.message || 'Failed to fetch students', 'error');
+        }
+      } else {
+        showNotification('An unexpected error occurred while fetching students', 'error');
+      }
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  // Function to handle class selection for mass fee collection
+  const handleMassFeeClassChange = (className: string) => {
+    setSelectedClass(className);
+    setSelectedStudents([]);
+    fetchFeeStructureForClass(className);
+  };
+
+  // Function to handle section selection for mass fee collection
+  const handleMassFeeSectionChange = (section: string) => {
+    setFormData(prev => ({ ...prev, section }));
+    if (selectedClass) {
+      fetchStudentsByClass(selectedClass, section);
+    }
+  };
+
+  // Function to handle student selection
+  const handleStudentSelection = (studentId: string) => {
+    setSelectedStudents(prev => {
+      const newSelected = prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId];
+      
+      // Reset fee amounts for deselected students
+      if (!newSelected.includes(studentId)) {
+        setStudentFeeAmounts(prev => prev.filter(item => item.studentId !== studentId));
+      }
+      
+      return newSelected;
+    });
+  };
+
+  // Function to handle select all students
+  const handleSelectAllStudents = () => {
+    if (selectedStudents.length === classStudents.length) {
+      setSelectedStudents([]);
+    } else {
+      setSelectedStudents(classStudents.map(student => student.id));
+    }
+  };
+
+  // Add this new function to handle individual fee amounts
+  const handleStudentFeeAmountChange = (studentId: string, amount: number) => {
+    setStudentFeeAmounts(prev => {
+      const existing = prev.find(item => item.studentId === studentId);
+      if (existing) {
+        return prev.map(item => 
+          item.studentId === studentId ? { ...item, amount } : item
+        );
+      }
+      return [...prev, { studentId, amount }];
+    });
+  };
+
+  // Add function to set full fees for all selected students
+  const handleSetFullFeeForAll = () => {
+    const totalAmount = selectedCategories.reduce((sum, cat) => sum + cat.amount, 0);
+    const newAmounts = selectedStudents.map(studentId => ({
+      studentId,
+      amount: totalAmount
+    }));
+    setStudentFeeAmounts(newAmounts);
+    setIsFullFeeForAll(true);
+  };
+
+  // Update handleMassFeeSubmit to use individual fee amounts
+  const handleMassFeeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedStudents.length === 0) {
+      showNotification('Please select at least one student', 'error');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const selectedFeeCategories = feeStructureCategories.filter(cat => 
+        selectedCategories.some((selected: FeeCategory) => selected.id === cat.id)
+      );
+
+      const totalAmount = selectedFeeCategories.reduce((sum: number, cat: FeeCategory) => sum + cat.amount, 0);
+
+      // Create fee records for each selected student with their individual amounts
+      const promises = selectedStudents.map(studentId => {
+        const student = classStudents.find(s => s.id === studentId);
+        if (!student) return null;
+
+        const studentFeeAmount = studentFeeAmounts.find(fee => fee.studentId === studentId);
+        const amount = studentFeeAmount?.amount || totalAmount;
+
+        const payload = {
+          admissionNumber: student.admissionNo,
+          studentName: student.fullName,
+          fatherName: student.fatherName,
+          class: selectedClass,
+          section: formData.section,
+          totalFees: totalAmount,
+          amountPaid: amount,
+          feeAmount: amount,
+          paymentDate: new Date().toISOString().split('T')[0],
+          paymentMode: formData.paymentMode,
+          receiptNumber: formData.receiptNumber,
+          status: amount >= totalAmount ? 'Paid' : amount > 0 ? 'Partial' : 'Pending',
+          feeCategory: selectedFeeCategories.map((c: FeeCategory) => c.name).join(', '),
+          feeCategories: selectedFeeCategories.map((c: FeeCategory) => c.name)
+        };
+
+        return axios.post(API_URL, payload);
+      });
+
+      await Promise.all(promises.filter(Boolean));
+      showNotification('Fee records created successfully', 'success');
+      setIsMassFeeFormVisible(false);
+      fetchFeeRecords();
+    } catch (error) {
+      console.error('Error creating mass fee records:', error);
+      showNotification('Failed to create fee records', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add function to handle view record
+  const handleViewRecord = (record: FeeRecord) => {
+    setSelectedRecordForView(record);
+    setIsViewModalOpen(true);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Notification component */}
@@ -602,6 +817,27 @@ const FeeCollectionApp: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Fee Collection</h1>
+        <div className="flex gap-4">
+          <button
+            onClick={() => setIsMassFeeFormVisible(!isMassFeeFormVisible)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
+          >
+            {isMassFeeFormVisible ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Cancel Mass Fee Collection
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Mass Fee Collection
+              </>
+            )}
+          </button>
         <button
           onClick={() => setIsFormVisible(!isFormVisible)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
@@ -622,7 +858,238 @@ const FeeCollectionApp: React.FC = () => {
             </>
           )}
         </button>
+        </div>
       </div>
+
+      {/* Mass Fee Collection Form */}
+      <AnimatePresence>
+        {isMassFeeFormVisible && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden mb-6"
+          >
+            <div className="bg-green-50 px-6 py-6 sm:px-8 border-b border-green-100 rounded-lg shadow-md">
+              <h2 className="text-lg font-medium text-green-800 mb-4">Mass Fee Collection</h2>
+              <form onSubmit={handleMassFeeSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Class Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Class</label>
+                    <select
+                      value={selectedClass}
+                      onChange={(e) => handleMassFeeClassChange(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select Class</option>
+                      {CLASS_OPTIONS.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Section Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Section</label>
+                    <select
+                      value={formData.section}
+                      onChange={(e) => handleMassFeeSectionChange(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                      disabled={!selectedClass}
+                    >
+                      <option value="">Select Section</option>
+                      {SECTION_OPTIONS.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Fee Structure Display */}
+                {selectedClass && feeStructureCategories.length > 0 && (
+                  <div className="bg-white p-4 rounded-lg">
+                    <h3 className="text-lg font-medium text-gray-800 mb-3">Fee Structure</h3>
+                    <div className="space-y-2">
+                      {feeStructureCategories.map(category => (
+                        <div key={category.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`mass-category-${category.id}`}
+                              checked={selectedCategories.some(c => c.id === category.id)}
+                              onChange={(e) => handleCategorySelect(category, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
+                            />
+                            <label htmlFor={`mass-category-${category.id}`} className="ml-2 text-sm text-gray-900">
+                              {category.name}
+                            </label>
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            ₹{category.amount.toLocaleString()} - {category.frequency}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-medium text-gray-900">Total Amount:</span>
+                        <span className="text-xl font-bold text-blue-600">
+                          ₹{selectedCategories.reduce((sum, cat) => sum + cat.amount, 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Student List */}
+                {selectedClass && formData.section && (
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-medium text-gray-800">Select Students</h3>
+                      <div className="flex gap-2">
+                    <button
+                      type="button"
+                          onClick={handleSelectAllStudents}
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                          {selectedStudents.length === classStudents.length ? 'Deselect All Students' : 'Select All Students'}
+                        </button>
+                        {selectedStudents.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleSetFullFeeForAll}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                            Set Full Fees for All
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {isLoadingStudents ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : classStudents.length > 0 ? (
+                      <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                          <p className="text-sm text-gray-600">
+                            {selectedStudents.length} of {classStudents.length} students selected
+                          </p>
+                        </div>
+                        {classStudents.map(student => {
+                          const studentFeeAmount = studentFeeAmounts.find(fee => fee.studentId === student.id);
+                          const totalAmount = selectedCategories.reduce((sum, cat) => sum + cat.amount, 0);
+                          
+                          return (
+                            <div
+                              key={student.id}
+                              className="flex items-center p-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50"
+                            >
+                              <input
+                                type="checkbox"
+                                id={`student-${student.id}`}
+                                checked={selectedStudents.includes(student.id)}
+                                onChange={() => handleStudentSelection(student.id)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
+                              />
+                              <label htmlFor={`student-${student.id}`} className="ml-3 flex-1 cursor-pointer">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">{student.fullName}</p>
+                                    <p className="text-xs text-gray-500">Admission No: {student.admissionNo}</p>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex flex-col items-end">
+                                      <p className="text-sm text-gray-600">Section {student.section}</p>
+                                      {selectedStudents.includes(student.id) && (
+                                        <div className="mt-2">
+                                          <input
+                                            type="number"
+                                            value={studentFeeAmount?.amount || totalAmount}
+                                            onChange={(e) => handleStudentFeeAmountChange(student.id, Number(e.target.value))}
+                                            className="w-32 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter amount"
+                                            min="0"
+                                            max={totalAmount}
+                                          />
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            Max: ₹{totalAmount.toLocaleString()}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-center text-gray-500 py-4">No students found in this class and section</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Payment Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                    <select
+                      name="paymentMode"
+                      value={formData.paymentMode}
+                      onChange={handleChange}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="Debit Card">Debit Card</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Receipt Number</label>
+                    <input
+                      type="text"
+                      name="receiptNumber"
+                      value={formData.receiptNumber}
+                      onChange={handleChange}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isLoading || selectedStudents.length === 0}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? 'Processing...' : `Collect Fees (${selectedStudents.length} students)`}
+                    </button>
+                  </div>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add new fee form */}
       <AnimatePresence>
@@ -632,9 +1099,9 @@ const FeeCollectionApp: React.FC = () => {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden"
+            className="overflow-hidden mb-6"
           >
-            <div className="bg-indigo-50 px-6 py-6 sm:px-8 border-b border-indigo-100">
+            <div className="bg-indigo-50 px-6 py-6 sm:px-8 border-b border-indigo-100 rounded-lg shadow-md">
               <h2 className="text-lg font-medium text-indigo-800 mb-4">Add New Fee Record</h2>
               
               {/* Student Details Section */}
@@ -645,7 +1112,7 @@ const FeeCollectionApp: React.FC = () => {
                     <div>
                       <p className="text-sm text-gray-600">Full Name</p>
                       <p className="font-medium">{studentDetails.fullName}</p>
-                    </div>
+                </div>
                     <div>
                       <p className="text-sm text-gray-600">Father's Name</p>
                       <p className="font-medium">{studentDetails.fatherName}</p>
@@ -679,12 +1146,10 @@ const FeeCollectionApp: React.FC = () => {
                     name="admissionNumber"
                     value={formData.admissionNumber}
                     onChange={handleChange}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onBlur={() => formData.admissionNumber && fetchStudentDetails(formData.admissionNumber)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="e.g. ADM001"
                   />
-                  {isLoadingStudent && (
-                    <p className="text-sm text-gray-500 mt-1">Loading student details...</p>
-                  )}
                 </div>
 
                 <div>
@@ -1054,8 +1519,19 @@ const FeeCollectionApp: React.FC = () => {
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="flex space-x-2">
                         <button
+                          onClick={() => handleViewRecord(record)}
+                          className="text-gray-600 hover:text-gray-900"
+                          title="View Details"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                        <button
                           onClick={() => handleUpdateClick(record)}
                           className="text-blue-600 hover:text-blue-900"
+                          title="Edit Record"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
@@ -1065,6 +1541,7 @@ const FeeCollectionApp: React.FC = () => {
                         <button
                           onClick={() => handleDeleteRecord(record.id)}
                           className="text-red-600 hover:text-red-900"
+                          title="Delete Record"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -1085,6 +1562,146 @@ const FeeCollectionApp: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* View Modal */}
+      {selectedRecordForView && (
+        <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full ${isViewModalOpen ? 'block' : 'hidden'}`}>
+          <div className="relative top-20 mx-auto p-6 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-lg bg-white">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Fee Record Details</h3>
+                <p className="text-sm text-gray-500 mt-1">Receipt No: {selectedRecordForView.receiptNumber}</p>
+              </div>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="text-gray-400 hover:text-gray-500 focus:outline-none"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Student Information Card */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                  Student Information
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Admission No</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.admissionNumber}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Student Name</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.studentName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Father's Name</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.fatherName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Class</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.class}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Section</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.section}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Payment Information Card */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                  </svg>
+                  Payment Information
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Total Fees</span>
+                    <span className="text-sm font-medium text-gray-900">₹{selectedRecordForView.totalFees.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Amount Paid</span>
+                    <span className="text-sm font-medium text-gray-900">₹{selectedRecordForView.amountPaid.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Fee Amount</span>
+                    <span className="text-sm font-medium text-gray-900">₹{selectedRecordForView.feeAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Payment Date</span>
+                    <span className="text-sm font-medium text-gray-900">{new Date(selectedRecordForView.paymentDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Payment Mode</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.paymentMode}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Status</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      selectedRecordForView.status === 'Paid'
+                        ? 'bg-green-100 text-green-800'
+                        : selectedRecordForView.status === 'Partial'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {selectedRecordForView.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fee Categories Card */}
+              {selectedRecordForView.feeCategories && selectedRecordForView.feeCategories.length > 0 && (
+                <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+                    </svg>
+                    Fee Categories
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRecordForView.feeCategories.map((category, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium"
+                      >
+                        {category}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  handleUpdateClick(selectedRecordForView);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Edit Record
+              </button>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Update modal */}
       {selectedRecord && (
