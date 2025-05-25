@@ -43,13 +43,13 @@ async function main() {
           classes: '4,5,6',
           subjects: JSON.stringify(['Mathematics', 'Science']),
           sections: JSON.stringify([
-            { class: '4', sections: ['A', 'B'] },
-            { class: '5', sections: ['A'] },
-            { class: '6', sections: ['B'] }
+            { class: '11 (Science)', sections: ['A', 'B'] },
+            { class: '11 (Art)', sections: ['A'] },
+            { class: '11 (Commerce)', sections: ['B'] }
           ]),
           isClassIncharge: true,
-          inchargeClass: '4',
-          inchargeSection: 'A',
+          inchargeClass: '11 (Science)',
+          inchargeSection: 'B',
           experience: '15',
           role: 'TEACHER',
           status: 'active',
@@ -66,11 +66,11 @@ async function main() {
           designation: 'Teacher',
           education: 'B.Ed in English',
           address: '789 Educator Street, Springfield',
-          classes: '7,8',
+          classes: '11 (Art),11 (Commerce)',
           subjects: JSON.stringify(['English', 'Literature']),
           sections: JSON.stringify([
-            { class: '7', sections: ['A', 'B'] },
-            { class: '8', sections: ['A'] }
+            { class: '11 (Art)', sections: ['A', 'B'] },
+            { class: '11 (Commerce)', sections: ['A'] }
           ]),
           isClassIncharge: false,
           experience: '8',
@@ -147,9 +147,9 @@ async function main() {
               admitDate: new Date('2023-06-01'),
               currentGroup: 'Science',
               currentStream: 'General',
-              currentClass: '4',
-              currentSection: 'A',
-              currentRollNo: '1',
+              currentClass: '11 (Science)',
+              currentSection: 'B',
+              currentRollNo: '2',
               currentSemester: '1',
               currentFeeGroup: 'Regular',
               currentHouse: 'Blue',
@@ -307,9 +307,9 @@ async function main() {
               admitDate: new Date('2023-06-01'),
               currentGroup: 'Science',
               currentStream: 'General',
-              currentClass: '2',
-              currentSection: 'A',
-              currentRollNo: '1',
+              currentClass: '11 (Science)',
+              currentSection: 'B',
+              currentRollNo: '4',
               currentSemester: '1',
               currentFeeGroup: 'Regular',
               currentHouse: 'Red',
@@ -424,10 +424,10 @@ async function main() {
           dateOfAdmission: new Date('2023-06-01'),
           
           // Academic Information
-          currentClass: '4',
+          currentClass: '11 (Science)',
           whetherFailed: 'No',
-          section: 'A',
-          rollNumber: '1',
+          section: 'B',
+          rollNumber: '2',
           examAppearedIn: 'School',
           qualifiedForPromotion: 'Yes',
           
@@ -476,10 +476,10 @@ async function main() {
           dateOfAdmission: new Date('2023-06-01'),
           
           // Academic Information
-          currentClass: '2',
+          currentClass: '11 (Science)',
           whetherFailed: 'No',
-          section: 'A',
-          rollNumber: '1',
+          section: 'B',
+          rollNumber: '4',
           examAppearedIn: 'School',
           qualifiedForPromotion: 'Yes',
           
@@ -522,13 +522,13 @@ async function main() {
     // Create registrations for students
     const bartRegistration = await prisma.registration.create({
       data: {
-        fullName: 'Bart Simpson',
+        fullName: 'Sim Sim',
         gender: 'male',
         formNo: 'REG001',
         dob: '2010-04-01',
         category: 'General',
         religion: 'Christianity',
-        registerForClass: 'Class 5',
+        registerForClass: 'Class 11 (Art)',
         admissionCategory: 'Regular',
         bloodGroup: 'O+',
         regnDate: '2024-03-15',
@@ -560,13 +560,13 @@ async function main() {
 
     const lisaRegistration = await prisma.registration.create({
       data: {
-        fullName: 'Lisa Simpson',
+        fullName: 'Sim Sim',
         gender: 'female',
         formNo: 'REG002',
         dob: '2012-05-09',
         category: 'General',
         religion: 'Christianity',
-        registerForClass: 'Class 3',
+        registerForClass: 'Class 10',
         admissionCategory: 'Regular',
         bloodGroup: 'A+',
         regnDate: '2024-03-15',

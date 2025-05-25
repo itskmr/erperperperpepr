@@ -82,7 +82,7 @@ const CLASS_OPTIONS = [
 ];
 
 // Section options A to D
-const SECTION_OPTIONS = ['A', 'B', 'C', 'D'];
+const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 const FeeCollectionApp: React.FC = () => {
   // State
@@ -696,6 +696,7 @@ const FeeCollectionApp: React.FC = () => {
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
+                    readOnly={!!studentDetails}
                   />
                 </div>
 
@@ -708,6 +709,7 @@ const FeeCollectionApp: React.FC = () => {
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
+                    readOnly={!!studentDetails}
                   />
                 </div>
 
@@ -725,22 +727,20 @@ const FeeCollectionApp: React.FC = () => {
                       <option key={option} value={option}>{option}</option>
                     ))}
                   </select>
+                  {studentDetails && (
+                    <p className="mt-1 text-sm text-gray-500">Class is auto-filled from student details but can be modified if needed</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-                  <select
+                  <input
+                    type="text"
                     name="section"
                     value={formData.section}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select Section</option>
-                    {SECTION_OPTIONS.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
+                    className="w-full p-2 border border-gray-300 rounded-md bg-gray-50"
+                    readOnly
+                  />
                 </div>
 
                 <div>

@@ -138,6 +138,9 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
   const validateField = (field: keyof Teacher, value: any) => {
     setTouchedFields(prev => ({ ...prev, [field]: true }));
     
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\d{10}$/;
+    
     switch(field) {
       case 'fullName':
         if (!value || value.trim() === '') {
@@ -153,7 +156,6 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'email':
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!value || value.trim() === '') {
           setErrors(prev => ({ ...prev, email: 'Email is required' }));
         } else if (!emailRegex.test(value)) {
@@ -180,7 +182,6 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'phone':
-        const phoneRegex = /^\d{10}$/;
         if (!value || value.trim() === '') {
           setErrors(prev => ({ ...prev, phone: 'Phone is required' }));
         } else if (!phoneRegex.test(value.replace(/[^0-9]/g, ''))) {

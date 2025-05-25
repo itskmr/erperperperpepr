@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { User2, UserPlus } from 'lucide-react';
-import { MOCK_TEACHERS } from './data';
 import { Teacher } from './types';
 import TeacherTable from './TeacherTable';
 import SearchFilters from './SearchFilter';
@@ -88,19 +87,10 @@ const TeacherDirectory: React.FC = () => {
         setError(null);
       } else {
         setError('Failed to fetch teachers');
-        // Only use mock data in development
-        if (process.env.NODE_ENV === 'development') {
-          setTeachers(MOCK_TEACHERS.filter(t => t.schoolId === parseInt(storedSchoolId)));
-        }
       }
     } catch (error: any) {
       console.error('Error fetching teachers:', error);
       setError(`Failed to fetch teachers: ${error.message}`);
-      // Only use mock data in development
-      if (process.env.NODE_ENV === 'development') {
-        const storedSchoolId = localStorage.getItem('schoolId') || '1';
-        setTeachers(MOCK_TEACHERS.filter(t => t.schoolId === parseInt(storedSchoolId)));
-      }
     } finally {
       setLoading(false);
     }
@@ -136,18 +126,10 @@ const TeacherDirectory: React.FC = () => {
         setError(null);
       } else {
         setError('Failed to search teachers');
-        if (process.env.NODE_ENV === 'development') {
-          // Fallback to client-side filtering for development
-          await fetchTeachers();
-        }
       }
     } catch (error: any) {
       console.error('Error searching teachers:', error);
       setError(`Failed to search teachers: ${error.message}`);
-      if (process.env.NODE_ENV === 'development') {
-        // Fallback to client-side filtering for development
-        await fetchTeachers();
-      }
     } finally {
       setLoading(false);
     }
