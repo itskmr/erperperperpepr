@@ -6,7 +6,8 @@ import {
   updateTimetableEntry,
   deleteTimetableEntry,
   getClasses,
-  getSectionsByClass
+  getSectionsByClass,
+  getAllTeachers
 } from '../controllers/timetableController.js';
 
 const router = express.Router();
@@ -31,5 +32,8 @@ router.get('/classes', getClasses);
 
 // Get sections by class
 router.get('/sections/:classId', getSectionsByClass);
+
+// Get all teachers
+router.get('/teachers', getAllTeachers);
 
 export default router; 

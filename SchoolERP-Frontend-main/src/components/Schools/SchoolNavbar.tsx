@@ -327,12 +327,12 @@ const SchoolNavbar = {
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/administration/departments")}
               />
-              {/* <NavLink 
+              <NavLink 
                 to="/school/administration/timetable" 
                 label="Timetable" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/administration/timetable")}
-              /> */}
+              />
             </NavDropdown>
 
 

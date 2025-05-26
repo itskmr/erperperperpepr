@@ -27,7 +27,8 @@ import {
   Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
 } from '@mui/icons-material';
-import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { DataGrid } from '@mui/x-data-grid';
+import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 
 // Types
 interface TimetableEntry {
@@ -46,32 +47,74 @@ interface TimetableEntry {
   teacherName?: string;
 }
 
-interface Class {
-  id: string;
-  name: string;
-}
-
-interface Section {
-  id: string;
-  name: string;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-}
-
 interface Teacher {
   id: string;
   name: string;
 }
 
+// Predefined classes
+const CLASS_OPTIONS = [
+  'Nursery',
+  'LKG',
+  'UKG',
+  'Class 1',
+  'Class 2',
+  'Class 3',
+  'Class 4',
+  'Class 5',
+  'Class 6',
+  'Class 7',
+  'Class 8',
+  'Class 9',
+  'Class 10',
+  'Class 11 (Science)',
+  'Class 11 (Commerce)',
+  'Class 11 (Arts)',
+  'Class 12 (Science)',
+  'Class 12 (Commerce)',
+  'Class 12 (Arts)'
+];
+
+// Predefined sections
+const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E'];
+
+// Predefined subjects
+const SUBJECT_OPTIONS = [
+  'Mathematics',
+  'Science',
+  'English',
+  'Social Studies',
+  'Hindi',
+  'Computer Science',
+  'Physical Education',
+  'Art',
+  'Music',
+  'Economics',
+  'Business Studies',
+  'Accountancy',
+  'History',
+  'Geography',
+  'Political Science',
+  'Sociology',
+  'Psychology',
+  'Biology',
+  'Physics',
+  'Chemistry'
+];
+
+// Predefined days
+const DAY_OPTIONS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday'
+];
+
 const Timetable: React.FC = () => {
   // State
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
@@ -125,24 +168,11 @@ const Timetable: React.FC = () => {
 
   // Handlers
   const handleClassChange = (event: SelectChangeEvent) => {
-    const classId = event.target.value;
-    setSelectedClass(classId);
-    fetchSections(classId);
+    setSelectedClass(event.target.value);
   };
 
   const handleSectionChange = (event: SelectChangeEvent) => {
-    const sectionId = event.target.value;
-    setSelectedSection(sectionId);
-  };
-
-  const fetchSections = async (classId: string) => {
-    try {
-      const response = await fetch(`/api/sections?classId=${classId}`);
-      const data = await response.json();
-      setSections(data);
-    } catch (error) {
-      console.error('Error fetching sections:', error);
-    }
+    setSelectedSection(event.target.value);
   };
 
   const handleViewTimetable = async () => {
@@ -188,20 +218,14 @@ const Timetable: React.FC = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        // Fetch classes
-        const classesResponse = await fetch('/api/classes');
-        const classesData = await classesResponse.json();
-        setClasses(classesData);
-
-        // Fetch subjects
-        const subjectsResponse = await fetch('/api/subjects');
-        const subjectsData = await subjectsResponse.json();
-        setSubjects(subjectsData);
-
-        // Fetch teachers
-        const teachersResponse = await fetch('/api/teachers');
+        // Fetch teachers from the timetable API
+        const teachersResponse = await fetch('/api/timetable/teachers');
         const teachersData = await teachersResponse.json();
-        setTeachers(teachersData);
+        if (teachersData.success) {
+          setTeachers(teachersData.data);
+        } else {
+          console.error('Error fetching teachers:', teachersData.message);
+        }
 
         // Fetch initial timetable
         handleViewTimetable();
@@ -240,9 +264,9 @@ const Timetable: React.FC = () => {
                   onChange={(e) => setClassFilter(e.target.value)}
                 >
                   <MenuItem value="">All Classes</MenuItem>
-                  {classes.map((cls) => (
-                    <MenuItem key={cls.id} value={cls.id}>
-                      {cls.name}
+                  {CLASS_OPTIONS.map((cls) => (
+                    <MenuItem key={cls} value={cls}>
+                      {cls}
                     </MenuItem>
                   ))}
                 </Select>
@@ -256,7 +280,7 @@ const Timetable: React.FC = () => {
                   onChange={(e) => setDayFilter(e.target.value)}
                 >
                   <MenuItem value="">All Days</MenuItem>
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                  {DAY_OPTIONS.map((day) => (
                     <MenuItem key={day} value={day.toLowerCase()}>
                       {day}
                     </MenuItem>
@@ -289,10 +313,15 @@ const Timetable: React.FC = () => {
             <DataGrid
               rows={timetable}
               columns={columns}
-              pageSize={5}
-              rowsPerPageOptions={[5]}
+              initialState={{
+                pagination: {
+                  paginationModel: { pageSize: 5, page: 0 },
+                },
+              }}
+              pageSizeOptions={[5]}
               checkboxSelection
-              disableSelectionOnClick
+              disableRowSelectionOnClick
+              autoHeight
             />
           </Box>
         </CardContent>
@@ -320,9 +349,9 @@ const Timetable: React.FC = () => {
                   value={selectedClass}
                   onChange={handleClassChange}
                 >
-                  {classes.map((cls) => (
-                    <MenuItem key={cls.id} value={cls.id}>
-                      {cls.name}
+                  {CLASS_OPTIONS.map((cls) => (
+                    <MenuItem key={cls} value={cls}>
+                      {cls}
                     </MenuItem>
                   ))}
                 </Select>
@@ -335,9 +364,9 @@ const Timetable: React.FC = () => {
                   value={selectedSection}
                   onChange={handleSectionChange}
                 >
-                  {sections.map((section) => (
-                    <MenuItem key={section.id} value={section.id}>
-                      {section.name}
+                  {SECTION_OPTIONS.map((section) => (
+                    <MenuItem key={section} value={section}>
+                      {section}
                     </MenuItem>
                   ))}
                 </Select>
@@ -350,9 +379,9 @@ const Timetable: React.FC = () => {
                   value={selectedEntry?.subjectId || ''}
                   onChange={(e) => setSelectedEntry({ ...selectedEntry!, subjectId: e.target.value })}
                 >
-                  {subjects.map((subject) => (
-                    <MenuItem key={subject.id} value={subject.id}>
-                      {subject.name}
+                  {SUBJECT_OPTIONS.map((subject) => (
+                    <MenuItem key={subject} value={subject}>
+                      {subject}
                     </MenuItem>
                   ))}
                 </Select>
