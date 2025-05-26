@@ -1,14 +1,13 @@
 import React from 'react';
 import { Teacher } from './types';
-import { Mail, Phone, Eye, Edit, Trash, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Mail, Phone, Eye, Edit, Trash } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface TeacherRowProps {
   teacher: Teacher;
   handleViewProfile: (teacher: Teacher) => void;
   handleEditTeacher: (teacher: Teacher) => void;
-  handleDeleteTeacher: (id: number) => void;
-  handleStatusChange?: (id: number, status: 'active' | 'inactive') => void;
+  handleDeleteTeacher: (teacher: Teacher) => void;
 }
 
 const TeacherRow: React.FC<TeacherRowProps> = ({
@@ -16,7 +15,6 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
   handleViewProfile,
   handleEditTeacher,
   handleDeleteTeacher,
-  handleStatusChange,
 }) => {
   return (
     <motion.tr
@@ -59,7 +57,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
         </div>
       </td>
       <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
-        <div className="text-xs sm:text-sm text-gray-900">{teacher.subjects.join(', ')}</div>
+        <div className="text-xs sm:text-sm text-gray-900">{teacher.subjects?.join(', ')}</div>
       </td>
       <td className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
         <div className="text-xs sm:text-sm text-gray-900">
@@ -69,7 +67,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
       <td className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
         {teacher.isClassIncharge ? (
           <div className="text-xs sm:text-sm text-gray-900">
-            <span className="font-medium">Class {teacher.inchargeClass}</span>
+            <span className="font-medium">{teacher.inchargeClass}</span>
             {teacher.inchargeSection && (
               <span className="ml-2 text-gray-500">
                 (Section {teacher.inchargeSection})
@@ -82,27 +80,6 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
       </td>
       <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-right text-sm font-medium">
         <div className="flex justify-end space-x-1 sm:space-x-2">
-          {handleStatusChange && (
-            <button
-              onClick={() => 
-                handleStatusChange(teacher.id, 
-                  teacher.status === 'active' ? 'inactive' : 'active'
-                )
-              }
-              className={`p-1 ${
-                teacher.status === 'active' 
-                  ? 'text-green-600 hover:text-green-700 hover:bg-green-100' 
-                  : 'text-red-600 hover:text-red-700 hover:bg-red-100'
-              } rounded-full`}
-              title={teacher.status === 'active' ? 'Mark as Inactive' : 'Mark as Active'}
-            >
-              {teacher.status === 'active' ? (
-                <ToggleRight className="h-4 w-4 sm:h-5 sm:w-5" />
-              ) : (
-                <ToggleLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-              )}
-            </button>
-          )}
           <button
             onClick={() => handleViewProfile(teacher)}
             className="p-1 text-blue-600 hover:text-blue-700 hover:bg-indigo-100 rounded-full"
@@ -118,7 +95,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
             <Edit className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
           <button
-            onClick={() => handleDeleteTeacher(teacher.id)}
+            onClick={() => handleDeleteTeacher(teacher)}
             className="p-1 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-full"
             title="Delete"
           >

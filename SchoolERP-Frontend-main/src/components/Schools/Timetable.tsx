@@ -218,14 +218,10 @@ const Timetable: React.FC = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        // Fetch teachers from the timetable API
-        const teachersResponse = await fetch('/api/timetable/teachers');
+        // Fetch teachers
+        const teachersResponse = await fetch('/api/teachers');
         const teachersData = await teachersResponse.json();
-        if (teachersData.success) {
-          setTeachers(teachersData.data);
-        } else {
-          console.error('Error fetching teachers:', teachersData.message);
-        }
+        setTeachers(teachersData);
 
         // Fetch initial timetable
         handleViewTimetable();

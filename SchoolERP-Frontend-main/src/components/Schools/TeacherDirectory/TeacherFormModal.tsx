@@ -1,20 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Teacher } from './types';
-import { motion } from 'framer-motion';
-import { XCircle, AlertCircle } from 'lucide-react';
+import { AlertCircle, XCircle } from 'lucide-react';
 import { AVAILABLE_CLASSES, SECTIONS } from './data';
-
-// Get current date in YYYY-MM-DD format for default value
-const getCurrentDate = () => {
-  const storedDate = localStorage.getItem('currentDate');
-  if (storedDate) {
-    return storedDate;
-  }
-  const today = new Date();
-  const dateString = today.toISOString().split('T')[0];
-  localStorage.setItem('currentDate', dateString);
-  return dateString;
-};
+import { motion } from 'framer-motion';
 
 interface TeacherFormModalProps {
   isOpen: boolean;
@@ -22,9 +10,10 @@ interface TeacherFormModalProps {
   mode: 'add' | 'edit';
   teacherData: Partial<Teacher>;
   setTeacherData: (data: Partial<Teacher>) => void;
-  onSubmit: () => void;
+  onSubmit: (data: Partial<Teacher>) => void;
+  handleInputChange: (field: keyof Teacher, value: unknown) => void;
   validateInchargeClass: (value: string) => string;
-  handleInputChange: (field: keyof Teacher, value: any) => void;
+  handleClassInchargeSelect: (isIncharge: boolean) => void;
 }
 
 const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
@@ -32,51 +21,116 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
   setIsOpen,
   mode,
   teacherData,
+  setTeacherData,
   onSubmit,
   handleInputChange,
-  validateInchargeClass
+  validateInchargeClass,
+  handleClassInchargeSelect
 }) => {
-  const [selectedClass, setSelectedClass] = useState<string>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('basic');
+  const [age, setAge] = useState<number | null>(null);
 
   // Reset state when modal opens or closes
   useEffect(() => {
     if (isOpen) {
-      setSelectedClass(teacherData.inchargeClass || '');
       setErrors({});
-      setTouchedFields({});
       setIsSubmitting(false);
       
-      // Set default date if not already set
-      if (mode === 'add' && !teacherData.joinDate) {
-        handleInputChange('joinDate', getCurrentDate());
+      // Set initial values when modal opens
+      if (mode === 'edit' && teacherData) {
+        // Calculate age if dateOfBirth is provided
+        if (teacherData.dateOfBirth) {
+          const calculatedAge = calculateAge(teacherData.dateOfBirth);
+          setAge(calculatedAge);
+        }
+
+        // Only set initial data if it's different from current data
+        const currentData = {
+          ...teacherData,
+          subjects: Array.isArray(teacherData.subjects) ? teacherData.subjects : [],
+          sections: Array.isArray(teacherData.sections) ? teacherData.sections : [],
+          isClassIncharge: teacherData.isClassIncharge || false,
+          inchargeClass: teacherData.inchargeClass || '',
+          inchargeSection: teacherData.inchargeSection || '',
+          status: teacherData.status || 'active',
+          designation: teacherData.designation || 'Subject Teacher',
+          joining_year: teacherData.joining_year || new Date().toISOString().split('T')[0],
+          address: teacherData.address || '',
+          qualification: teacherData.qualification || '',
+          experience: teacherData.experience || '',
+          profileImage: teacherData.profileImage || '',
+          dateOfBirth: teacherData.dateOfBirth || '',
+          age: teacherData.age || 0,
+          religion: teacherData.religion || '',
+          bloodGroup: teacherData.bloodGroup || '',
+          maritalStatus: teacherData.maritalStatus || '',
+          facebook: teacherData.facebook || '',
+          twitter: teacherData.twitter || '',
+          linkedIn: teacherData.linkedIn || '',
+          joiningSalary: teacherData.joiningSalary || 0,
+          accountHolderName: teacherData.accountHolderName || '',
+          accountNumber: teacherData.accountNumber || '',
+          bankName: teacherData.bankName || '',
+          bankBranch: teacherData.bankBranch || ''
+        };
+
+        // Compare current data with new data to prevent unnecessary updates
+        const hasChanged = Object.keys(currentData).some(key => {
+          const currentValue = currentData[key as keyof typeof currentData];
+          const existingValue = teacherData[key as keyof typeof teacherData];
+          return JSON.stringify(currentValue) !== JSON.stringify(existingValue);
+        });
+
+        if (hasChanged) {
+          setTeacherData(currentData);
+        }
+      } else if (mode === 'add' && !teacherData.joining_year) {
+        handleInputChange('joining_year', new Date().toISOString().split('T')[0]);
       }
     }
-  }, [isOpen, teacherData.inchargeClass, mode, handleInputChange]);
+  }, [isOpen, mode]); // Remove teacherData and setTeacherData from dependencies
 
   if (!isOpen) return null;
 
-  // Handle image upload with validation
+  // Calculate age when date of birth changes
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  // Handle date of birth change
+  const handleDateOfBirthChange = (dateOfBirth: string) => {
+    handleInputChange('dateOfBirth', dateOfBirth);
+    const calculatedAge = calculateAge(dateOfBirth);
+    setAge(calculatedAge);
+  };
+
+  // Handle image upload
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type and size
       if (!file.type.startsWith('image/')) {
         setErrors(prev => ({ ...prev, profileImage: 'Please upload an image file' }));
         return;
       }
-      if (file.size > 2 * 1024 * 1024) { // 2MB max
+      if (file.size > 2 * 1024 * 1024) {
         setErrors(prev => ({ ...prev, profileImage: 'Image must be less than 2MB' }));
         return;
       }
       
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Ensure we're getting a string result for the image
-        const imageResult = reader.result as string;
-        handleInputChange('profileImage', imageResult);
+        handleInputChange('profileImage', reader.result as string);
         setErrors(prev => {
           const newErrors = {...prev};
           delete newErrors.profileImage;
@@ -87,24 +141,22 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
     }
   };
 
-  // Handle section selection for a class
+  // Handle section selection
   const handleSectionSelection = (classNum: string, section: string) => {
-    // Ensure we have a valid sections array
     const currentSections = Array.isArray(teacherData.sections) ? teacherData.sections : [];
     
-    const updatedSections = currentSections.map((s) =>
+    const updatedSections = currentSections.map((s: { class: string; sections: string[] }) =>
       s.class === classNum
         ? {
             ...s,
             sections: s.sections.includes(section)
-              ? s.sections.filter((sec) => sec !== section) // Remove section if already selected
-              : [...s.sections, section], // Add section if not selected
+              ? s.sections.filter((sec: string) => sec !== section)
+              : [...s.sections, section],
           }
         : s
     );
 
-    // If the class doesn't exist in sections array, add it
-    if (!currentSections.some(s => s.class === classNum)) {
+    if (!currentSections.some((s: { class: string }) => s.class === classNum)) {
       updatedSections.push({
         class: classNum,
         sections: [section]
@@ -114,38 +166,34 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
     handleInputChange('sections', updatedSections);
   };
 
-  // When adding a class for the first time
+  // Handle class selection
   const handleClassSelection = (classNum: string, checked: boolean) => {
     const currentSections = Array.isArray(teacherData.sections) ? [...teacherData.sections] : [];
     
     let updatedSections;
     if (checked) {
-      // Make sure class doesn't already exist in the sections array
-      if (!currentSections.some(s => s.class === classNum)) {
+      if (!currentSections.some((s: { class: string }) => s.class === classNum)) {
         updatedSections = [...currentSections, { class: classNum, sections: [] }];
       } else {
         updatedSections = currentSections;
       }
     } else {
-      // Remove the class from sections array
-      updatedSections = currentSections.filter(s => s.class !== classNum);
+      updatedSections = currentSections.filter((s: { class: string }) => s.class !== classNum);
     }
     
     handleInputChange('sections', updatedSections);
   };
 
-  // Validate field on blur
-  const validateField = (field: keyof Teacher, value: any) => {
-    setTouchedFields(prev => ({ ...prev, [field]: true }));
-    
+  // Validate field
+  const validateField = (field: keyof Teacher, value: unknown) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^\d{10}$/;
     
     switch(field) {
       case 'fullName':
-        if (!value || value.trim() === '') {
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
           setErrors(prev => ({ ...prev, fullName: 'Name is required' }));
-        } else if (value.length < 3) {
+        } else if (typeof value === 'string' && value.length < 3) {
           setErrors(prev => ({ ...prev, fullName: 'Name must be at least 3 characters' }));
         } else {
           setErrors(prev => {
@@ -156,9 +204,9 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'email':
-        if (!value || value.trim() === '') {
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
           setErrors(prev => ({ ...prev, email: 'Email is required' }));
-        } else if (!emailRegex.test(value)) {
+        } else if (typeof value === 'string' && !emailRegex.test(value)) {
           setErrors(prev => ({ ...prev, email: 'Invalid email format' }));
         } else {
           setErrors(prev => {
@@ -169,9 +217,9 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'password':
-        if (!value || value.trim() === '') {
+        if (mode === 'add' && (!value || (typeof value === 'string' && value.trim() === ''))) {
           setErrors(prev => ({ ...prev, password: 'Password is required' }));
-        } else if (value.length < 6) {
+        } else if (value && typeof value === 'string' && value.length < 6) {
           setErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters' }));
         } else {
           setErrors(prev => {
@@ -182,9 +230,9 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'phone':
-        if (!value || value.trim() === '') {
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
           setErrors(prev => ({ ...prev, phone: 'Phone is required' }));
-        } else if (!phoneRegex.test(value.replace(/[^0-9]/g, ''))) {
+        } else if (typeof value === 'string' && !phoneRegex.test(value.replace(/[^0-9]/g, ''))) {
           setErrors(prev => ({ ...prev, phone: 'Phone must be 10 digits' }));
         } else {
           setErrors(prev => {
@@ -194,10 +242,21 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
           });
         }
         break;
-      case 'inchargeClass':
-        if (teacherData.isClassIncharge && (!value || value.trim() === '')) {
-          setErrors(prev => ({ ...prev, inchargeClass: 'Class is required for class incharge' }));
+      case 'gender':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          setErrors(prev => ({ ...prev, gender: 'Gender is required' }));
         } else {
+          setErrors(prev => {
+            const newErrors = {...prev};
+            delete newErrors.gender;
+            return newErrors;
+          });
+        }
+        break;
+      case 'inchargeClass':
+        if (teacherData.isClassIncharge && (!value || (typeof value === 'string' && value.trim() === ''))) {
+          setErrors(prev => ({ ...prev, inchargeClass: 'Class is required for class incharge' }));
+        } else if (typeof value === 'string') {
           const validationResult = validateInchargeClass(value);
           if (validationResult) {
             setErrors(prev => ({ ...prev, inchargeClass: validationResult }));
@@ -211,7 +270,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'inchargeSection':
-        if (teacherData.isClassIncharge && (!value || value.trim() === '')) {
+        if (teacherData.isClassIncharge && (!value || (typeof value === 'string' && value.trim() === ''))) {
           setErrors(prev => ({ ...prev, inchargeSection: 'Section is required for class incharge' }));
         } else {
           setErrors(prev => {
@@ -221,36 +280,21 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
           });
         }
         break;
-      case 'subjects':
-        // Accept any input, store as array, no validation on content
-        setErrors(prev => {
-          const newErrors = {...prev};
-          delete newErrors.subjects;
-          return newErrors;
-        });
-        break;
     }
   };
 
-  // Handle changed input with validation
-  const handleValidatedChange = (field: keyof Teacher, value: string) => {
-    if (field === 'subjects') {
-      // Split by comma, trim whitespace, allow any characters
-      const subjectsArray = value.split(',').map(s => s.trim());
-      handleInputChange(field, subjectsArray);
-    } else {
+  // Handle validated change
+  const handleValidatedChange = (field: keyof Teacher, value: unknown) => {
       handleInputChange(field, value);
-    }
-    if (touchedFields[field]) {
       validateField(field, value);
-    }
   };
 
-  // Validate form before submit
+  // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['fullName', 'email', 'password', 'phone', 'designation', 'experience', 'joinDate', 'address', 'education'];
+    const requiredFields = ['fullName', 'email', 'gender', 'phone'];
     
+    // Check required fields
     requiredFields.forEach(field => {
       const value = teacherData[field as keyof Teacher];
       if (!value || (typeof value === 'string' && value.trim() === '')) {
@@ -258,27 +302,17 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
       }
     });
 
-    // Validate email format
-    if (teacherData.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(teacherData.email)) {
-        newErrors.email = 'Please enter a valid email address';
-      }
+    // Check subjects
+    if (!Array.isArray(teacherData.subjects) || teacherData.subjects.length === 0) {
+      newErrors.subjects = 'At least one subject is required';
     }
 
-    // Validate phone number
-    if (teacherData.phone) {
-      const phoneRegex = /^\d{10}$/;
-      if (!phoneRegex.test(teacherData.phone.replace(/[^0-9]/g, ''))) {
-        newErrors.phone = 'Phone number must be 10 digits';
-      }
+    // Check sections
+    if (!Array.isArray(teacherData.sections) || teacherData.sections.length === 0) {
+      newErrors.sections = 'At least one section is required';
     }
 
-    // Validate sections
-    if (!teacherData.sections || !Array.isArray(teacherData.sections)) {
-      handleInputChange('sections', []);
-    }
-
+    // Check class incharge fields only if isClassIncharge is true
     if (teacherData.isClassIncharge) {
       if (!teacherData.inchargeClass) {
         newErrors.inchargeClass = 'Class is required for class incharge';
@@ -298,114 +332,82 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle submit with validation
+  // Handle submit
   const handleSubmit = () => {
-    // Prevent double submissions
     if (isSubmitting) return;
     
     setIsSubmitting(true);
     
-    // Mark all fields as touched
-    const fields = ['fullName', 'email', 'phone', 'designation', 'experience', 'joinDate', 'address', 'education', 'subjects'];
-    if (teacherData.isClassIncharge) {
-      fields.push('inchargeClass', 'inchargeSection');
-    }
-    
-    const touched: Record<string, boolean> = {};
-    fields.forEach(field => {
-      touched[field] = true;
-    });
-    setTouchedFields(touched);
-    
     if (validateForm()) {
-      console.log('[DEBUG] Teacher data before submission:', teacherData);
-      
-      // Convert any remaining string arrays to proper arrays
-      if (typeof teacherData.subjects === 'string') {
-        const subjectArray = (teacherData.subjects as string).split(',').map((s: string) => s.trim()).filter((s: string) => s !== '');
-        handleInputChange('subjects', subjectArray);
-        // Small delay to ensure state is updated before submitting
-        setTimeout(() => {
-          console.log('[DEBUG] Teacher data after subject array conversion:', teacherData);
-          onSubmit();
-          console.log('[DEBUG] Teacher data after submission:', teacherData);
-        }, 100);
+      onSubmit(teacherData);
       } else {
-        console.log('[DEBUG] Teacher data before direct submission:', teacherData);
-        onSubmit();
-        console.log('[DEBUG] Teacher data after direct submission:', teacherData);
-      }
-    } else {
-      console.log('[DEBUG] Form validation failed:', errors);
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <motion.div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <motion.div
-        className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      >
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-xl font-bold text-gray-800">
-            {mode === 'add' ? 'Add New Teacher' : 'Edit Teacher'}
-          </h2>
+  const formContent = (
+    <div className="px-6 py-4">
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="flex space-x-8">
+          {['basic', 'professional', 'personal', 'banking'].map((tab) => (
           <button
-            onClick={() => setIsOpen(false)}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <XCircle className="h-6 w-6" />
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === tab
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)} Information
           </button>
+          ))}
+        </nav>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Left Column */}
-          <div className="space-y-4">
-            {/* Profile Image Upload */}
-            <div>
+      {/* Basic Information Tab */}
+      {activeTab === 'basic' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Profile Image */}
+          <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Profile Image
               </label>
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <img
+                  src={teacherData.profileImage || ''}
+                  alt="Profile Preview"
+                  className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                  onError={(e) => {
+                    e.currentTarget.src = '';
+                  }}
+                />
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleImageUpload}
-                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.profileImage ? 'border-red-500' : 'border-gray-300'
-                }`}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">
+                  Click on the image to upload a new one. Max size: 2MB
+                </p>
               {errors.profileImage && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">
                   <AlertCircle className="w-3 h-3 mr-1" /> {errors.profileImage}
                 </p>
               )}
-              {teacherData.profileImage && (
-                <div className="mt-2">
-                  <img
-                    src={teacherData.profileImage}
-                    alt="Profile Preview"
-                    className="w-20 h-20 rounded-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = 'https://randomuser.me/api/portraits/men/0.jpg';
-                    }}
-                  />
                 </div>
-              )}
+            </div>
             </div>
 
             {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name*
+              Full Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -428,7 +430,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email*
+              Email <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -451,12 +453,12 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password*
+              Password{mode === 'add' ? '*' : ''}
               </label>
               <input
                 type="password"
-                required
-                placeholder="Enter password"
+              required={mode === 'add'}
+              placeholder={mode === 'add' ? 'Enter password' : 'Leave blank to keep current password'}
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -474,12 +476,12 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone*
+              Phone <span className="text-red-500">*</span>
               </label>
               <input
                 type="tel"
                 required
-                placeholder="Enter 10-digit phone number"
+              placeholder="Enter phone number"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.phone ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -494,98 +496,181 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               )}
             </div>
 
-            {/* Designation */}
+          {/* Gender */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Designation*
+              Gender <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+            <select
                 required
-                placeholder="e.g. Teacher, Math Teacher, HOD"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.designation ? 'border-red-500' : 'border-gray-300'
-                }`}
-                value={teacherData.designation || ''}
-                onChange={(e) => handleValidatedChange('designation', e.target.value)}
-                onBlur={() => validateField('designation', teacherData.designation)}
-              />
-              {errors.designation && (
+                errors.gender ? 'border-red-500' : 'border-gray-300'
+              }`}
+              value={teacherData.gender || ''}
+              onChange={(e) => handleValidatedChange('gender', e.target.value)}
+              onBlur={() => validateField('gender', teacherData.gender)}
+            >
+              <option value="">Select Gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+            {errors.gender && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.designation}
+                <AlertCircle className="w-3 h-3 mr-1" /> {errors.gender}
                 </p>
               )}
             </div>
 
+          {/* Designation */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Designation
+            </label>
+            <input
+              type="text"
+              placeholder="Enter designation"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.designation || ''}
+              onChange={(e) => handleInputChange('designation', e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Professional Information Tab */}
+      {activeTab === 'professional' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Qualification */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Qualification
+            </label>
+            <input
+              type="text"
+              value={teacherData.qualification || ''}
+              onChange={(e) => setTeacherData({ ...teacherData, qualification: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter qualification"
+            />
+          </div>
+
             {/* Experience */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Experience*
+              Experience (years)
               </label>
               <input
                 type="text"
-                required
-                placeholder="e.g. 5 years"
-                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.experience ? 'border-red-500' : 'border-gray-300'
-                }`}
+              placeholder="Enter years of experience"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                 value={teacherData.experience || ''}
-                onChange={(e) => handleValidatedChange('experience', e.target.value)}
-                onBlur={() => validateField('experience', teacherData.experience)}
+              onChange={(e) => handleInputChange('experience', e.target.value)}
               />
-              {errors.experience && (
-                <p className="text-red-500 text-xs mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.experience}
-                </p>
-              )}
             </div>
 
             {/* Joining Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Joining Date*
+              Joining Date
               </label>
               <input
                 type="date"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.joining_year || ''}
+              onChange={(e) => handleInputChange('joining_year', e.target.value)}
+            />
+          </div>
+
+          {/* Subjects */}
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Subjects <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
                 required
+              placeholder="Enter subjects (comma separated)"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.joinDate ? 'border-red-500' : 'border-gray-300'
+                errors.subjects ? 'border-red-500' : 'border-gray-300'
                 }`}
-                value={teacherData.joinDate || getCurrentDate()}
-                onChange={(e) => handleValidatedChange('joinDate', e.target.value)}
-                onBlur={() => validateField('joinDate', teacherData.joinDate)}
+              value={Array.isArray(teacherData.subjects) ? teacherData.subjects.join(', ') : ''}
+              onChange={(e) => handleInputChange('subjects', e.target.value.split(',').map(s => s.trim()))}
               />
-              {errors.joinDate && (
+            {errors.subjects && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.joinDate}
+                <AlertCircle className="w-3 h-3 mr-1" /> {errors.subjects}
                 </p>
               )}
             </div>
 
-            {/* Class Incharge */}
-            <div>
+          {/* Class and Section Selection */}
+          <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Class Incharge
+              Classes and Sections <span className="text-red-500">*</span>
               </label>
-              <div className="flex items-center space-x-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {AVAILABLE_CLASSES.map((classNum) => (
+                <div key={classNum} className="border rounded-md p-4">
+                  <label className="flex items-center space-x-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={teacherData.sections?.some((s: { class: string }) => s.class === classNum)}
+                      onChange={(e) => handleClassSelection(classNum, e.target.checked)}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm font-medium">{classNum}</span>
+                  </label>
+                  {teacherData.sections?.some((s: { class: string }) => s.class === classNum) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {SECTIONS.map((section) => (
+                        <label key={section} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={teacherData.sections?.find((s: { class: string; sections: string[] }) => s.class === classNum)?.sections.includes(section)}
+                            onChange={() => handleSectionSelection(classNum, section)}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-sm">Section {section}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {errors.sections && (
+              <p className="text-red-500 text-xs mt-1 flex items-center">
+                <AlertCircle className="w-3 h-3 mr-1" /> {errors.sections}
+              </p>
+            )}
+          </div>
+
+          {/* Class Incharge Details */}
+          <div className="col-span-2 border-t pt-4">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Is Class Incharge?
+              </label>
+              <div className="flex space-x-4">
                 <button
                   type="button"
-                  onClick={() => handleValidatedChange('isClassIncharge', true)}
+                  onClick={() => handleClassInchargeSelect(true)}
                   className={`px-4 py-2 rounded-md ${
                     teacherData.isClassIncharge
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
                   Yes
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleValidatedChange('isClassIncharge', false)}
+                  onClick={() => handleClassInchargeSelect(false)}
                   className={`px-4 py-2 rounded-md ${
                     !teacherData.isClassIncharge
                       ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
                   No
@@ -593,31 +678,24 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               </div>
             </div>
 
-            {/* Incharge Class and Section */}
             {teacherData.isClassIncharge && (
-              <div className="mt-2 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Incharge Class* <span className="text-red-500">*</span>
+                    Incharge Class*
                   </label>
                   <select
                     required
                     className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                       errors.inchargeClass ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    value={selectedClass}
-                    onChange={(e) => {
-                      setSelectedClass(e.target.value);
-                      handleValidatedChange('inchargeClass', e.target.value);
-                      handleValidatedChange('inchargeSection', ''); // Reset section when class changes
-                    }}
-                    onBlur={() => validateField('inchargeClass', selectedClass)}
+                    value={teacherData.inchargeClass || ''}
+                    onChange={(e) => handleValidatedChange('inchargeClass', e.target.value)}
+                    onBlur={() => validateField('inchargeClass', teacherData.inchargeClass)}
                   >
                     <option value="">Select Class</option>
                     {AVAILABLE_CLASSES.map((classNum) => (
-                      <option key={classNum} value={classNum}>
-                        Class {classNum}
-                      </option>
+                      <option key={classNum} value={classNum}>{classNum}</option>
                     ))}
                   </select>
                   {errors.inchargeClass && (
@@ -627,10 +705,9 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
                   )}
                 </div>
 
-                {selectedClass && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Incharge Section* <span className="text-red-500">*</span>
+                    Incharge Section*
                     </label>
                     <select
                       required
@@ -643,9 +720,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
                     >
                       <option value="">Select Section</option>
                       {SECTIONS.map((section) => (
-                        <option key={section} value={section}>
-                          Section {section}
-                        </option>
+                      <option key={section} value={section}>Section {section}</option>
                       ))}
                     </select>
                     {errors.inchargeSection && (
@@ -653,152 +728,338 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
                         <AlertCircle className="w-3 h-3 mr-1" /> {errors.inchargeSection}
                       </p>
                     )}
+                </div>
                   </div>
                 )}
+          </div>
               </div>
             )}
+
+      {/* Personal Information Tab */}
+      {activeTab === 'personal' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Date of Birth */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date of Birth
+            </label>
+            <input
+              type="date"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.dateOfBirth || ''}
+              onChange={(e) => handleDateOfBirthChange(e.target.value)}
+              max={new Date().toISOString().split('T')[0]} // Prevent future dates
+            />
           </div>
 
-          {/* Right Column */}
-          <div className="space-y-4">
-            {/* Subjects */}
+          {/* Age (Read-only) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Subjects* (comma separated)
+              Age
               </label>
               <input
                 type="text"
-                placeholder="e.g. Math, Science, English"
-                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.subjects ? 'border-red-500' : 'border-gray-300'
-                }`}
-                value={Array.isArray(teacherData.subjects) ? teacherData.subjects.join(', ') : ''}
-                onChange={(e) => handleValidatedChange('subjects', e.target.value)}
-                onBlur={() => validateField('subjects', teacherData.subjects)}
-              />
-              {errors.subjects && (
-                <p className="text-red-500 text-xs mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.subjects}
-                </p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                Enter subjects separated by commas (e.g. Math, Science, English)
-              </p>
+              className="w-full p-2 border border-gray-300 rounded-md bg-gray-50"
+              value={age !== null ? `${age} years` : ''}
+              readOnly
+            />
             </div>
 
-            {/* Classes and Sections */}
+          {/* Religion */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Classes and Sections
+              Religion
               </label>
-              {AVAILABLE_CLASSES.map((classNum) => {
-                const classData = Array.isArray(teacherData.sections) && 
-                  teacherData.sections.find((s) => s.class === classNum) || {
-                  class: classNum,
-                  sections: [],
-                };
-                return (
-                  <div key={classNum} className="mb-4">
-                    <div className="flex items-center mb-2">
                       <input
-                        type="checkbox"
-                        checked={Array.isArray(teacherData.sections) && 
-                          teacherData.sections.some((s) => s.class === classNum)}
-                        onChange={(e) => handleClassSelection(classNum, e.target.checked)}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                      <span className="ml-2">Class {classNum}</span>
+              type="text"
+              placeholder="Enter religion"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.religion || ''}
+              onChange={(e) => handleInputChange('religion', e.target.value)}
+            />
                     </div>
-                    {Array.isArray(teacherData.sections) && 
-                      teacherData.sections.some((s) => s.class === classNum) && (
-                      <div className="flex flex-wrap gap-2">
-                        {SECTIONS.map((section) => (
-                          <div key={section} className="flex items-center">
+
+          {/* Blood Group */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Blood Group
+            </label>
+            <select
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.bloodGroup || ''}
+              onChange={(e) => handleInputChange('bloodGroup', e.target.value)}
+            >
+              <option value="">Select Blood Group</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+            </select>
+          </div>
+
+          {/* Marital Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Marital Status
+            </label>
+            <select
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.maritalStatus || ''}
+              onChange={(e) => handleInputChange('maritalStatus', e.target.value)}
+            >
+              <option value="">Select Marital Status</option>
+              <option value="Single">Single</option>
+              <option value="Married">Married</option>
+              <option value="Divorced">Divorced</option>
+              <option value="Widowed">Widowed</option>
+            </select>
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Address
+            </label>
+            <textarea
+              placeholder="Enter address"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.address || ''}
+              onChange={(e) => handleInputChange('address', e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          {/* Social Media Links */}
+          <div className="col-span-2">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Social Media Links</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Facebook</label>
                             <input
-                              type="checkbox"
-                              checked={classData.sections.includes(section)}
-                              onChange={() => handleSectionSelection(classNum, section)}
-                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                            />
-                            <span className="ml-2">Section {section}</span>
+                  type="url"
+                  placeholder="Facebook profile URL"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  value={teacherData.facebook || ''}
+                  onChange={(e) => handleInputChange('facebook', e.target.value)}
+                />
                           </div>
-                        ))}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Twitter</label>
+                <input
+                  type="url"
+                  placeholder="Twitter profile URL"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  value={teacherData.twitter || ''}
+                  onChange={(e) => handleInputChange('twitter', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">LinkedIn</label>
+                <input
+                  type="url"
+                  placeholder="LinkedIn profile URL"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  value={teacherData.linkedIn || ''}
+                  onChange={(e) => handleInputChange('linkedIn', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Documents */}
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Documents
+            </label>
+            <input
+              type="file"
+              multiple
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                const urls = files.map(file => URL.createObjectURL(file));
+                handleInputChange('documents', urls);
+              }}
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Upload relevant documents (certificates, ID proofs, etc.)
+            </p>
+          </div>
                       </div>
                     )}
-                  </div>
-                );
-              })}
+
+      {/* Banking Information Tab */}
+      {activeTab === 'banking' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Joining Salary */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Joining Salary
+            </label>
+            <input
+              type="text"
+              placeholder="Enter joining salary"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.joiningSalary || ''}
+              onChange={(e) => handleInputChange('joiningSalary', e.target.value)}
+            />
+          </div>
+
+          {/* Account Holder Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Account Holder Name
+            </label>
+            <input
+              type="text"
+              placeholder="Enter account holder name"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.accountHolderName || ''}
+              onChange={(e) => handleInputChange('accountHolderName', e.target.value)}
+            />
             </div>
 
-            {/* Address */}
+          {/* Account Number */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Address*
+              Account Number
               </label>
               <input
                 type="text"
-                required
-                placeholder="Enter full address"
-                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.address ? 'border-red-500' : 'border-gray-300'
-                }`}
-                value={teacherData.address || ''}
-                onChange={(e) => handleValidatedChange('address', e.target.value)}
-                onBlur={() => validateField('address', teacherData.address)}
-              />
-              {errors.address && (
-                <p className="text-red-500 text-xs mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.address}
-                </p>
-              )}
+              placeholder="Enter account number"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.accountNumber || ''}
+              onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+            />
             </div>
 
-            {/* Education */}
+          {/* Bank Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Education*
+              Bank Name
               </label>
               <input
                 type="text"
-                required
-                placeholder="e.g. B.Ed, M.Sc"
-                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-                  errors.education ? 'border-red-500' : 'border-gray-300'
-                }`}
-                value={teacherData.education || ''}
-                onChange={(e) => handleValidatedChange('education', e.target.value)}
-                onBlur={() => validateField('education', teacherData.education)}
-              />
-              {errors.education && (
-                <p className="text-red-500 text-xs mt-1 flex items-center">
-                  <AlertCircle className="w-3 h-3 mr-1" /> {errors.education}
-                </p>
-              )}
+              placeholder="Enter bank name"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.bankName || ''}
+              onChange={(e) => handleInputChange('bankName', e.target.value)}
+            />
             </div>
+
+          {/* Bank Branch */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bank Branch
+            </label>
+            <input
+              type="text"
+              placeholder="Enter bank branch"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={teacherData.bankBranch || ''}
+              onChange={(e) => handleInputChange('bankBranch', e.target.value)}
+            />
           </div>
         </div>
+      )}
 
-        <div className="mt-6 flex justify-end space-x-3">
+      {/* Submit Buttons */}
+      <div className="flex justify-end space-x-4 mt-6">
           <button
-            type="button"
             onClick={() => setIsOpen(false)}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             Cancel
           </button>
           <button
-            type="button"
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ${
-              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-          >
-            {isSubmitting ? 'Processing...' : mode === 'add' ? 'Add Teacher' : 'Save Changes'}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {isSubmitting ? 'Saving...' : mode === 'add' ? 'Add Teacher' : 'Update Teacher'}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (mode === 'edit') {
+    return (
+      <motion.div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.9, y: 20 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        >
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-gray-800">
+              Edit Teacher
+            </h2>
+            <div className="flex items-center space-x-4">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => {
+                    const tabs = ['basic', 'professional', 'personal', 'banking'];
+                    const currentIndex = tabs.indexOf(activeTab);
+                    if (currentIndex > 0) {
+                      setActiveTab(tabs[currentIndex - 1]);
+                    }
+                  }}
+                  disabled={activeTab === 'basic'}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    activeTab === 'basic'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => {
+                    const tabs = ['basic', 'professional', 'personal', 'banking'];
+                    const currentIndex = tabs.indexOf(activeTab);
+                    if (currentIndex < tabs.length - 1) {
+                      setActiveTab(tabs[currentIndex + 1]);
+                    }
+                  }}
+                  disabled={activeTab === 'banking'}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    activeTab === 'banking'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                >
+                  Next
           </button>
         </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+          {formContent}
       </motion.div>
     </motion.div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg">
+      {formContent}
+    </div>
   );
 };
 

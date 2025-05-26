@@ -339,45 +339,4 @@ export const getSectionsByClass = async (req, res) => {
       error: error.message
     });
   }
-};
-
-// Get all teachers for timetable
-export const getAllTeachers = async (req, res) => {
-  try {
-    const teachers = await prisma.teacher.findMany({
-      where: {
-        status: 'active'
-      },
-      select: {
-        id: true,
-        fullName: true,
-        subjects: true,
-        classes: true,
-        sections: true
-      },
-      orderBy: {
-        fullName: 'asc'
-      }
-    });
-
-    const formattedTeachers = teachers.map(teacher => ({
-      id: teacher.id,
-      name: teacher.fullName,
-      subjects: JSON.parse(teacher.subjects || '[]'),
-      classes: teacher.classes,
-      sections: JSON.parse(teacher.sections || '[]')
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formattedTeachers
-    });
-  } catch (error) {
-    console.error("Error fetching teachers:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch teachers",
-      error: error.message
-    });
-  }
 }; 
