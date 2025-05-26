@@ -11,12 +11,21 @@ export interface Documents {
   fatherAadhar: File | null;
   motherAadhar: File | null;
   birthCertificate: File | null;
-  migrationCertificate: File | null;
+  transferCertificate: File | null;
+  markSheet: File | null;
   aadhaarCard: File | null;
-  affidavitCertificate: File | null;
-  incomeCertificate: File | null;
-  addressProof1: File | null;
-  addressProof2: File | null;
+  familyId: File | null;
+  fatherSignature: File | null;
+  motherSignature: File | null;
+  guardianSignature: File | null;
+  
+  // Document submission status
+  birthCertificateSubmitted?: boolean;
+  studentAadharSubmitted?: boolean;
+  fatherAadharSubmitted?: boolean;
+  motherAadharSubmitted?: boolean;
+  tcSubmitted?: boolean;
+  marksheetSubmitted?: boolean;
 }
 
 // Define Address type - split into present and permanent
@@ -121,31 +130,75 @@ export interface Other {
 
 // Define StudentFormData type - the complete student data structure
 export interface StudentFormData {
-  // Basic Information
-  branchName: string;
+  // Basic Details
   fullName: string;
   admissionNo: string;
-  penNo: string;
-  studentId: string;
+  email: string;
+  emailPassword?: string;
+  penNo?: string;
+  apaarId: string;  // Apaar ID field
+  studentId?: string;
   dateOfBirth: string;
-  age: string;
+  age?: number;
   gender: string;
-  bloodGroup: string;
-  nationality: string;
-  religion: string;
-  category: string;
-  caste: string;
+  bloodGroup?: string;
+  nationality?: string;
+  religion?: string;
+  category?: string;
+  caste?: string;
   aadhaarNumber: string;
   mobileNumber: string;
-  email: string;
-  emergencyContact: string;
+  emergencyContact?: string;
+  sameAsPresentAddress: boolean;  // Added this field
+
+  // Address Details
+  address: {
+    houseNo: string;
+    street: string;
+    city: string;
+    state: string;
+    pinCode: string;
+    permanentHouseNo: string;
+    permanentStreet: string;
+    permanentCity: string;
+    permanentState: string;
+    permanentPinCode: string;
+    sameAsPresentAddress: boolean;
+  };
+
+  // Transport Details
+  transportMode: 'Bus' | 'Self' | 'Parent' | '';
+  transportArea?: string;
+  transportStand?: string;
+  transportRoute?: string;
+  transportDriver?: string;
+  driverPhone?: string;
+  pickupLocation?: string;
+  dropLocation?: string;
+
+  // Document Uploads
+  documents: {
+    studentImage?: File;
+    fatherImage?: File;
+    motherImage?: File;
+    guardianImage?: File;
+    signature?: File;
+    parentSignature?: File;
+    fatherAadhar?: File;
+    motherAadhar?: File;
+    birthCertificate?: File;
+    transferCertificate?: File;
+    markSheet?: File;
+    aadhaarCard?: File;
+    familyId?: File;  // Family ID document
+    fatherSignature?: File;
+    motherSignature?: File;
+    guardianSignature?: File;
+  };
 
   // Session Information
   admitSession: Session;
   currentSession: Session;
-
-  // Address Information
-  address: Address;
 
   // Parent Information
   father: Parent;
@@ -155,7 +208,6 @@ export interface StudentFormData {
   // Additional Information
   academic: Academic;
   transport: Transport;
-  documents: Documents;
   lastEducation: LastEducation;
   other: Other;
 }

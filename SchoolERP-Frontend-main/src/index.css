@@ -57,3 +57,71 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Form Input Styles */
+.form-input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="date"],
+select,
+textarea {
+  @apply border border-gray-300 rounded-md shadow-sm;
+  @apply focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50;
+  @apply hover:border-gray-400 transition-colors;
+  @apply w-full px-3 py-2;
+}
+
+/* File Input Styles */
+input[type="file"] {
+  @apply border border-gray-300 rounded-md;
+  @apply file:mr-4 file:py-2 file:px-4;
+  @apply file:rounded-l-md file:border-0;
+  @apply file:text-sm file:font-semibold;
+  @apply file:bg-blue-50 file:text-blue-700;
+  @apply hover:file:bg-blue-100;
+  @apply hover:border-gray-400;
+}
+
+/* Checkbox Styles */
+input[type="checkbox"] {
+  @apply rounded border-gray-300;
+  @apply text-blue-600;
+  @apply focus:ring-blue-500;
+  @apply cursor-pointer;
+}
+
+/* Select Styles */
+select {
+  @apply appearance-none;
+  @apply bg-no-repeat bg-right;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+/* Error State Styles */
+.error input,
+.error select,
+.error textarea {
+  @apply border-red-300 bg-red-50;
+  @apply focus:border-red-500 focus:ring-red-200;
+}
+
+/* Success State Styles */
+.success input,
+.success select,
+.success textarea {
+  @apply border-green-300;
+  @apply focus:border-green-500 focus:ring-green-200;
+}
+
+/* Disabled State Styles */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  @apply bg-gray-100 cursor-not-allowed;
+  @apply border-gray-200 text-gray-500;
+}

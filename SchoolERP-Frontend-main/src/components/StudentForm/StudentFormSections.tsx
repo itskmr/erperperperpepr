@@ -1,6 +1,12 @@
 import React from 'react';
 import { StudentFormData, Documents } from './StudentFormTypes';
 
+interface InputProps {
+  type?: 'text' | 'tel' | 'email' | 'password' | 'number' | 'date';
+  pattern?: string;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email';
+}
+
 interface StudentFormSectionsProps {
   currentStep: number;
   formData: StudentFormData;
@@ -25,38 +31,45 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
   handleFileChange
 }) => {
   
-  // Helper function to render input with validation
+  // Helper function to render input with validation and border
   const renderInput = (
     label: string, 
     name: string, 
-    type: string = 'text', 
+    type: InputProps['type'] = 'text', 
     required: boolean = false,
     placeholder: string = '',
-    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void,
+    inputProps?: InputProps
   ) => {
     const error = name.includes('.') 
       ? validationErrors[name] 
       : validationErrors[name as keyof typeof validationErrors];
     
+    // Handle keypress for numeric fields
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (inputProps?.inputMode === 'numeric') {
+        // Allow only numbers and control keys
+        const isNumber = /[0-9]/.test(e.key);
+        const isControl = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key);
+        if (!isNumber && !isControl) {
+          e.preventDefault();
+        }
+      }
+    };
+    
     // Safely get the value from nested path
-    const getValue = (): string => {
+    const getValue = (name: string, data: StudentFormData): string => {
       if (!name.includes('.')) {
-        // For simple properties
-        const val = formData[name as keyof StudentFormData];
+        const val = data[name as keyof StudentFormData];
         return val !== null && val !== undefined ? String(val) : '';
       } else {
-        // For nested properties
         try {
           const parts = name.split('.');
-          let value: Record<string, any> = { ...formData };
-          
-          // Navigate the path
+          let value: any = { ...data };
           for (const part of parts) {
             if (value === null || value === undefined) return '';
             value = value[part];
           }
-          
-          // Return empty string if value is null or undefined
           return value !== null && value !== undefined ? String(value) : '';
         } catch (e) {
           console.error(`Error accessing ${name}:`, e);
@@ -79,12 +92,15 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <input
           type={type}
           name={name}
-          value={getValue()}
+          value={getValue(name, formData)}
           onChange={handleChange}
           onFocus={onFocus || (type === 'date' ? handleDateFocus : undefined)}
+          onKeyPress={handleKeyPress}
           placeholder={placeholder}
-          className={`mt-1 block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all bg-gray-50 ${
-            error ? 'border-red-300 bg-red-50' : 'border-gray-300'
+          pattern={inputProps?.pattern}
+          inputMode={inputProps?.inputMode}
+          className={`mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all bg-gray-50 ${
+            error ? 'border-red-300 bg-red-50' : 'hover:border-gray-400'
           }`}
           required={required}
         />
@@ -106,16 +122,16 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       : validationErrors[name as keyof typeof validationErrors];
     
     // Reuse the same getValue function logic to maintain consistency
-    const getValue = (): string => {
+    const getValue = (name: string, data: StudentFormData): string => {
       if (!name.includes('.')) {
         // For simple properties
-        const val = formData[name as keyof StudentFormData];
+        const val = data[name as keyof StudentFormData];
         return val !== null && val !== undefined ? String(val) : '';
       } else {
         // For nested properties
         try {
           const parts = name.split('.');
-          let value: any = { ...formData };
+          let value: any = { ...data };
           
           // Navigate the path
           for (const part of parts) {
@@ -132,7 +148,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       }
     };
     
-    const currentValue = getValue();
+    const currentValue = getValue(name, formData);
     const placeholderText = placeholder || `Select ${label}`;
     
     return (
@@ -177,16 +193,16 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       : validationErrors[name as keyof typeof validationErrors];
     
     // Reuse the same getValue function logic to maintain consistency
-    const getValue = (): string => {
+    const getValue = (name: string, data: StudentFormData): string => {
       if (!name.includes('.')) {
         // For simple properties
-        const val = formData[name as keyof StudentFormData];
+        const val = data[name as keyof StudentFormData];
         return val !== null && val !== undefined ? String(val) : '';
       } else {
         // For nested properties
         try {
           const parts = name.split('.');
-          let value: any = { ...formData };
+          let value: any = { ...data };
           
           // Navigate the path
           for (const part of parts) {
@@ -208,7 +224,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <span className="text-gray-700 font-medium">{label} {required && <span className="text-red-500">*</span>}</span>
         <textarea
           name={name}
-          value={getValue()}
+          value={getValue(name, formData)}
           onChange={handleChange}
           rows={rows}
           className={`mt-1 block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all bg-gray-50 ${
@@ -224,10 +240,10 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
   // Helper function to render file input with validation
   const renderFileInput = (
     label: string, 
-    name: keyof Documents, 
+    name: keyof Documents & string,
     accept: string = 'image/*'
   ) => {
-    const file = formData.documents[name];
+    const file = formData.documents?.[name] as File | undefined;
     const fileName = file ? file.name : '';
     
     return (
@@ -264,6 +280,20 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       </div>
     );
   };
+
+  // Document Upload Section
+  const renderDocumentCheckbox = (id: string, label: string, name: string) => (
+    <li className="flex items-center gap-2 mb-2">
+      <input 
+        type="checkbox" 
+        id={id} 
+        name={name}
+        onChange={handleChange}
+        className="form-checkbox h-4 w-4 text-blue-600"
+      />
+      <label htmlFor={id} className="text-gray-700">• {label}</label>
+    </li>
+  );
 
   // Session Information Section
   const SessionSection: React.FC<FormSectionProps> = ({ formData, handleChange }) => (
@@ -400,6 +430,54 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     </div>
   );
 
+  // Address Section
+  const AddressSection = () => (
+    <div className="space-y-6">
+      <h3 className="text-lg font-medium text-gray-900">Address Details</h3>
+      
+      {/* Present Address */}
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <h4 className="text-md font-medium text-gray-800 mb-4">Present Address</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {renderInput('House No.', 'houseNo', 'text')}
+          {renderInput('Street/Area', 'street', 'text')}
+          {renderInput('City', 'city', 'text', true)}
+          {renderInput('State', 'state', 'text', true)}
+          {renderInput('Pin Code', 'pinCode', 'text', true, '6 digits')}
+        </div>
+      </div>
+
+      {/* Same as Present Address Checkbox */}
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="sameAsPresentAddress"
+          name="sameAsPresentAddress"
+          checked={formData.sameAsPresentAddress}
+          onChange={handleChange}
+          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <label htmlFor="sameAsPresentAddress" className="text-gray-700">
+          Permanent Address same as Present Address
+        </label>
+      </div>
+
+      {/* Permanent Address */}
+      {!formData.sameAsPresentAddress && (
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <h4 className="text-md font-medium text-gray-800 mb-4">Permanent Address</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {renderInput('House No.', 'permanentHouseNo', 'text')}
+            {renderInput('Street/Area', 'permanentStreet', 'text')}
+            {renderInput('City', 'permanentCity', 'text')}
+            {renderInput('State', 'permanentState', 'text')}
+            {renderInput('Pin Code', 'permanentPinCode', 'text', false, '6 digits')}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // Different form sections based on currentStep
   const formSections: { [key: number]: JSX.Element } = {
     // Step 1: Basic Information
@@ -410,45 +488,28 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           {renderInput('Branch Name', 'branchName', 'text', false)}
           {renderInput('Admission No', 'admissionNo', 'text', true)}
           {renderInput('PEN No', 'penNo', 'text')}
-          {renderInput('Full Name', 'fullName', 'text', true)}
+          {renderInput('Apaar ID', 'apaarId', 'text', true)}
+          {renderInput('Full Name', 'fullName', 'text', true, 'Enter name in BLOCK LETTERS')}
           {renderInput('Admission Date', 'admissionDate', 'date', true)}
           {renderInput('SR No / Student ID', 'studentId')}
-          {renderInput('Date of Birth', 'dateOfBirth', 'date', true, '', (e) => {
-            const date = new Date(e.target.value);
-            if (!isNaN(date.getTime())) {
-              // Calculate age
-              const today = new Date();
-              let age = today.getFullYear() - date.getFullYear();
-              const monthDiff = today.getMonth() - date.getMonth();
-              
-              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate())) {
-                age--;
-              }
-              
-              handleChange({
-                ...e,
-                target: {
-                  ...e.target,
-                  value: date.toISOString().split('T')[0]
-                }
-              });
-              
-              const ageEvent = {
-                target: {
-                  name: 'age',
-                  value: age.toString()
-                }
-              } as React.ChangeEvent<HTMLInputElement>;
-              handleChange(ageEvent);
-            }
-          })}
-          {renderInput('Age', 'age', 'text', false, 'Auto-calculated')}
+          {renderInput('Date of Birth', 'dateOfBirth', 'date', true)}
+          {renderInput('Age', 'age', 'number', false, 'Auto-calculated')}
+          {renderInput('Height (cm)', 'height', 'number', false, '', undefined, { inputMode: 'numeric' })}
+          {renderInput('Weight (kg)', 'weight', 'number', false, '', undefined, { inputMode: 'numeric' })}
           {renderInput('Religion', 'religion')}
           {renderSelect('Gender', 'gender', [
             { value: '', label: 'Select Gender' },
             { value: 'male', label: 'Male' },
-            { value: 'female', label: 'Female' },
-            { value: 'other', label: 'Other' }
+            { value: 'female', label: 'Female' }
+          ], true)}
+          {renderSelect('Category', 'category', [
+            { value: '', label: 'Select Category' },
+            { value: 'SC', label: 'SC' },
+            { value: 'ST', label: 'ST' },
+            { value: 'BC', label: 'BC' },
+            { value: 'OBC', label: 'OBC' },
+            { value: 'GEN', label: 'General' },
+            { value: 'EWS', label: 'EWS' }
           ], true)}
           {renderSelect('Blood Group', 'bloodGroup', [
             { value: '', label: 'Select Blood Group' },
@@ -461,10 +522,17 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             { value: 'O+', label: 'O+' },
             { value: 'O-', label: 'O-' }
           ])}
-          {renderInput('Caste', 'caste')}
-          {renderInput('Category', 'category')}
+          {renderSelect('Belong to BPL', 'belongToBPL', [
+            { value: '', label: 'Select BPL Status' },
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' }
+          ])}
+          {renderInput('Type of Disability', 'disability')}
           {renderInput('Nationality', 'nationality', 'text', true)}
-          {renderInput('Aadhar Number', 'aadhaarNumber')}
+          {renderInput('Aadhar Number', 'aadhaarNumber', 'text', true, '12-digit Aadhaar number', undefined, {
+            pattern: '^[0-9]{12}$',
+            inputMode: 'numeric'
+          })}
         </div>
       </div>
     ),
@@ -594,12 +662,24 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Contact Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Mobile Number', 'mobileNumber', 'tel', true)}
+            {renderInput('Mobile Number', 'mobileNumber', 'tel', true, '10-digit mobile number', undefined, {
+              pattern: '^[0-9]{10}$',
+              inputMode: 'numeric'
+            })}
             {renderInput('Student Email', 'email', 'email', true)}
             {renderInput('Student Email Password', 'emailPassword', 'password', true)}
-            {renderInput('Father\'s Mobile', 'father.contactNumber', 'tel')}
-            {renderInput('Mother\'s Mobile', 'mother.contactNumber', 'tel')}
-            {renderInput('Emergency Contact', 'emergencyContact', 'tel', true)}
+            {renderInput('Father\'s Mobile', 'father.contactNumber', 'tel', true, '10-digit mobile number', undefined, {
+              pattern: '^[0-9]{10}$',
+              inputMode: 'numeric'
+            })}
+            {renderInput('Mother\'s Mobile', 'mother.contactNumber', 'tel', true, '10-digit mobile number', undefined, {
+              pattern: '^[0-9]{10}$',
+              inputMode: 'numeric'
+            })}
+            {renderInput('Emergency Contact', 'emergencyContact', 'tel', true, '10-digit mobile number', undefined, {
+              pattern: '^[0-9]{10}$',
+              inputMode: 'numeric'
+            })}
             {renderInput('Father\'s Email', 'father.email', 'email', true)}
             {renderInput('Father\'s Email Password', 'father.emailPassword', 'password', true)}
             {renderInput('Mother\'s Email', 'mother.email', 'email')}
@@ -676,19 +756,28 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Transport Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderSelect('Transport Mode', 'transport.mode', [
+            {renderSelect('Transport Mode', 'transportMode', [
               { value: '', label: 'Select Mode' },
-              { value: 'school-bus', label: 'School Bus' },
-              { value: 'own', label: 'Own Transport' },
-              { value: 'public', label: 'Public Transport' },
-              { value: 'walking', label: 'Walking' }
+              { value: 'Bus', label: 'School Bus' },
+              { value: 'Self', label: 'Own Transport' },
+              { value: 'Parent', label: 'Parent Drop/Pickup' }
             ])}
-            {renderInput('Area', 'transport.area')}
-            {renderInput('Stand', 'transport.stand')}
-            {renderInput('Route', 'transport.route')}
-            {renderInput('Driver', 'transport.driver')}
-            {renderInput('Pickup Location', 'transport.pickupLocation')}
-            {renderInput('Drop Location', 'transport.dropLocation')}
+            
+            {/* Show these fields only if Bus is selected */}
+            {formData.transportMode === 'Bus' && (
+              <>
+                {renderInput('Area', 'transportArea', 'text', true)}
+                {renderInput('Stand', 'transportStand', 'text', true)}
+                {renderInput('Route', 'transportRoute', 'text', true)}
+                {renderInput('Driver', 'transportDriver', 'text', true)}
+                {renderInput('Driver Phone', 'driverPhone', 'tel', true, '10-digit mobile number', undefined, {
+                  pattern: '^[0-9]{10}$',
+                  inputMode: 'numeric'
+                })}
+                {renderInput('Pickup Location', 'pickupLocation', 'text', true)}
+                {renderInput('Drop Location', 'dropLocation', 'text', true)}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -703,14 +792,21 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             {renderInput('Name', 'father.name', 'text', true)}
             {renderInput('Qualification', 'father.qualification')}
             {renderInput('Occupation', 'father.occupation')}
+            {renderInput('Organization', 'father.organization')}
+            {renderInput('Designation', 'father.designation')}
+            {renderInput('Mobile Number', 'father.contactNumber', 'tel', true, '10-digit mobile number', undefined, {
+              pattern: '^[0-9]{10}$',
+              inputMode: 'numeric'
+            })}
+            {renderInput('Office Contact', 'father.officeContact', 'tel', false, 'Office number with extension')}
             {renderInput('Email', 'father.email', 'email')}
-            {renderInput('Aadhar Card No', 'father.aadhaarNo')}
-            {renderInput('Annual Income', 'father.annualIncome')}
-            {renderSelect('Is Campus Employee', 'father.isCampusEmployee', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderInput('Contact Number', 'father.contactNumber', 'tel')}
+            {renderInput('Aadhar Number', 'father.aadhaarNo', 'text', true, '12-digit Aadhaar number', undefined, {
+              pattern: '^[0-9]{12}$',
+              inputMode: 'numeric'
+            })}
+            {renderInput('Annual Income', 'father.annualIncome', 'number', false, 'Annual income in Rs.', undefined, {
+              inputMode: 'numeric'
+            })}
           </div>
         </div>
         
@@ -721,13 +817,13 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             {renderInput('Qualification', 'mother.qualification')}
             {renderInput('Occupation', 'mother.occupation')}
             {renderInput('Email', 'mother.email', 'email')}
-            {renderInput('Aadhar Card No', 'mother.aadhaarNo')}
-            {renderInput('Annual Income', 'mother.annualIncome')}
-            {renderSelect('Is Campus Employee', 'mother.isCampusEmployee', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderInput('Contact Number', 'mother.contactNumber', 'tel')}
+            {renderInput('Aadhar Number', 'mother.aadhaarNo', 'text', true, '12-digit Aadhaar number', undefined, {
+              pattern: '^[0-9]{12}$',
+              inputMode: 'numeric'
+            })}
+            {renderInput('Annual Income', 'mother.annualIncome', 'number', false, 'Annual income in Rs.', undefined, {
+              inputMode: 'numeric'
+            })}
           </div>
         </div>
         
@@ -750,88 +846,66 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     6: (
       <div className="space-y-8">
         <h3 className="text-lg font-medium mb-4 border-b pb-2">Document Upload</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderFileInput('Student Image', 'studentImage')}
-          {renderFileInput('Father Image', 'fatherImage')}
-          {renderFileInput('Mother Image', 'motherImage')}
-          {renderFileInput('Guardian Image', 'guardianImage')}
-          {renderFileInput('Student Signature', 'signature')}
-          {renderFileInput('Parent Signature', 'parentSignature')}
-          {renderFileInput('Father Aadhar Card', 'fatherAadhar', 'application/pdf,image/*')}
-          {renderFileInput('Mother Aadhar Card', 'motherAadhar', 'application/pdf,image/*')}
-          {renderFileInput('Birth Certificate', 'birthCertificate', 'application/pdf,image/*')}
-          {renderFileInput('Migration Certificate', 'migrationCertificate', 'application/pdf,image/*')}
-          {renderFileInput('Aadhar Card', 'aadhaarCard', 'application/pdf,image/*')}
-          {renderFileInput('Affidavit Certificate', 'affidavitCertificate', 'application/pdf,image/*')}
-          {renderFileInput('Income Certificate', 'incomeCertificate', 'application/pdf,image/*')}
-          {renderFileInput('Address Proof 1', 'addressProof1', 'application/pdf,image/*')}
-          {renderFileInput('Address Proof 2', 'addressProof2', 'application/pdf,image/*')}
+        <div className="grid grid-cols-1 gap-6">
+          
+          
+          {/* File upload fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {renderFileInput('Student Image', 'studentImage')}
+            {renderFileInput('Father Image', 'fatherImage')}
+            {renderFileInput('Mother Image', 'motherImage')}
+            {renderFileInput('Guardian Image', 'guardianImage')}
+            {renderFileInput('Student Signature', 'signature')}
+            {renderFileInput('Parent Signature', 'parentSignature')}
+            {renderFileInput('Birth Certificate', 'birthCertificate', 'application/pdf,image/*')}
+            {renderFileInput('Transfer Certificate', 'transferCertificate', 'application/pdf,image/*')}
+            {renderFileInput('Mark Sheet', 'markSheet', 'application/pdf,image/*')}
+            {renderFileInput('Student Aadhar Card', 'aadhaarCard', 'application/pdf,image/*')}
+            {renderFileInput('Father Aadhar Card', 'fatherAadhar', 'application/pdf,image/*')}
+            {renderFileInput('Mother Aadhar Card', 'motherAadhar', 'application/pdf,image/*')}
+            {renderFileInput('Family ID', 'familyId', 'application/pdf,image/*')}
+          </div>
         </div>
       </div>
     ),
     
-    // Step 7: Other Details
+    // Step 7: Declaration and Office Use
     7: (
       <div className="space-y-8">
         <div className="space-y-6">
-          <h3 className="text-lg font-medium mb-4 border-b pb-2">Other Details</h3>
+          <h3 className="text-lg font-medium mb-4 border-b pb-2">Declaration</h3>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-700">
+              I hereby declare that the above information including Name of the Candidate, Father's, Guardian's, Mother's and Date of Birth furnished by me is correct to the best of my knowledge and belief. I shall abide by the rules of the school.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {renderFileInput('Father\'s Signature', 'fatherSignature')}
+            {renderFileInput('Mother\'s Signature', 'motherSignature')}
+            {renderFileInput('Guardian\'s Signature', 'guardianSignature')}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <h3 className="text-lg font-medium mb-4 border-b pb-2">For Office Use Only</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Aadhar Card No', 'aadhaarNumber')}
-            {renderSelect('Belong to BPL', 'other.belongToBPL', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
+            {renderInput('Admission Number', 'office.admissionNo')}
+            {renderInput('Admission Date', 'office.admissionDate', 'date')}
+            {renderInput('Admitted Class', 'office.admittedClass')}
+            {renderInput('Receipt Number', 'office.receiptNo')}
+            {renderSelect('Payment Mode', 'office.paymentMode', [
+              { value: '', label: 'Select Payment Mode' },
+              { value: 'cash', label: 'Cash' },
+              { value: 'cheque', label: 'Cheque' },
+              { value: 'dd', label: 'Demand Draft' },
+              { value: 'online', label: 'Online Transfer' }
             ])}
-            {renderSelect('Minority', 'other.minority', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderInput('Type of Disability', 'other.disability')}
-            {renderInput('Bank Account No', 'other.accountNo')}
-            {renderInput('Bank', 'other.bank')}
-            {renderInput('IFSC Code', 'other.ifscCode')}
-            {renderSelect('Medium of Instruction', 'other.medium', [
-              { value: '', label: 'Select Medium' },
-              { value: 'english', label: 'English' },
-              { value: 'hindi', label: 'Hindi' },
-              { value: 'other', label: 'Other' }
-            ])}
-            {renderInput('Last Year Result', 'other.lastYearResult')}
-            {renderSelect('Single Parent', 'other.singleParent', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderSelect('Only Child', 'other.onlyChild', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderSelect('Only Girl Child', 'other.onlyGirlChild', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderSelect('Adopted Child', 'other.adoptedChild', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderInput('Sibling Admission No', 'other.siblingAdmissionNo')}
-            {renderSelect('Transfer Case', 'other.transferCase', [
-              { value: 'no', label: 'No' },
-              { value: 'yes', label: 'Yes' }
-            ])}
-            {renderSelect('Living With', 'other.livingWith', [
-              { value: '', label: 'Select' },
-              { value: 'parents', label: 'Both Parents' },
-              { value: 'father', label: 'Father' },
-              { value: 'mother', label: 'Mother' },
-              { value: 'guardian', label: 'Guardian' }
-            ])}
-            {renderInput('Mother Tongue', 'other.motherTongue')}
-            {renderInput('Nationality', 'nationality')}
-            {renderSelect('Admission Type', 'other.admissionType', [
-              { value: 'new', label: 'New' },
-              { value: 'old', label: 'Old' }
-            ])}
-            {renderInput('UDISE NO', 'other.udiseNo')}
+            {renderInput('Paid Amount', 'office.paidAmount', 'number', false, 'Amount in Rs.', undefined, {
+              inputMode: 'numeric'
+            })}
+            {renderInput('Checked By', 'office.checkedBy')}
+            {renderInput('Verified By', 'office.verifiedBy')}
+            {renderInput('Approved By', 'office.approvedBy')}
           </div>
         </div>
       </div>

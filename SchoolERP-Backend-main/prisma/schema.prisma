@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -33,7 +33,7 @@ model School {
   schoolName  String       @default("Unknown")
   email       String       @unique
   password    String
-  // username    String       @unique @default(cuid())
+   username    String       @unique @default(cuid())
   code        String       @unique @default("SC000")
   address     String       @default("Not Provided")
   contact     BigInt       @default(0)
@@ -128,18 +128,24 @@ model Student {
   fullName         String
   admissionNo      String   @unique
   email            String   @unique
+  studentPassword  String   // Password for student login
   emailPassword    String?  // Password for student email
-  penNo            String? // PEN Number field
+  penNo            String?  // PEN Number field
+  aadhaarNumber    String?  // Aadhaar number field
+  apaarId          String?  // Apaar ID field
   studentId        String?
   dateOfBirth      DateTime
-  age              Int? // Calculated age field
+  age              Int?     // Calculated age field
   gender           String
   bloodGroup       String?
   nationality      String?
   religion         String?
   category         String?
   caste            String?
-  aadhaarNumber    String?
+  height           Float?   // Height in cm
+  weight           Float?   // Weight in kg
+  belongToBPL      Boolean  @default(false)
+  disability       String?
   mobileNumber     String
   emergencyContact String?
   loginEnabled     Boolean  @default(false)
@@ -147,6 +153,43 @@ model Student {
   isVerified       Boolean  @default(false)
   passwordResetToken String?
   passwordResetExpires DateTime?
+
+  // Parent Login Credentials
+  fatherLoginId    String?  @unique
+  fatherPassword   String?
+  motherLoginId    String?  @unique
+  motherPassword   String?
+
+  // Document Verification Status
+  documentsVerified Boolean @default(false)
+  birthCertificateSubmitted Boolean @default(false)
+  studentAadharSubmitted    Boolean @default(false)
+  fatherAadharSubmitted     Boolean @default(false)
+  motherAadharSubmitted     Boolean @default(false)
+  tcSubmitted              Boolean @default(false)
+  marksheetSubmitted       Boolean @default(false)
+
+  // Document URLs (stored in cloud storage)
+  studentImageUrl          String?
+  fatherImageUrl          String?
+  motherImageUrl          String?
+  guardianImageUrl        String?
+  signatureUrl            String?
+  parentSignatureUrl      String?
+  birthCertificateUrl     String?
+  transferCertificateUrl  String?
+  markSheetUrl            String?
+  aadhaarCardUrl          String?
+  familyIdUrl             String?
+
+  // Previous School Information
+  previousSchool    PreviousSchool?
+
+  // Siblings Information
+  siblings         Sibling[]
+
+  // Office Use Information
+  officeDetails    OfficeDetails?
 
   // Address fields
   houseNo        String?
@@ -192,6 +235,55 @@ model Student {
   @@index([email])
   @@index([mobileNumber])
   @@index([aadhaarNumber])
+  @@index([fatherLoginId])
+  @@index([motherLoginId])
+}
+
+model PreviousSchool {
+  id            String   @id @default(uuid())
+  schoolName    String
+  class         String
+  tcNumber      String?
+  issueDate     DateTime?
+  subjects      String?  @db.Text
+  board         String?
+  result        String?  // Pass/Fail
+  obtainedMarks Float?
+  maxMarks      Float?
+  percentage    Float?
+  
+  // Relation to Student
+  studentId     String   @unique
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Sibling {
+  id            String   @id @default(uuid())
+  admissionNo   String?
+  name          String
+  class         String?
+  age           Int?
+  
+  // Relation to Student
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model OfficeDetails {
+  id            String   @id @default(uuid())
+  admissionNo   String
+  admissionDate DateTime
+  admittedClass String
+  receiptNo     String?
+  paymentMode   String?
+  paidAmount    Float?
+  checkedBy     String?
+  verifiedBy    String?
+  approvedBy    String?
+  
+  // Relation to Student
+  studentId     String   @unique
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
 // Normalized tables to reduce row size
@@ -289,6 +381,7 @@ model Documents {
   birthCertificatePath     String? @db.Text
   migrationCertificatePath String? @db.Text
   aadhaarCardPath          String? @db.Text
+  familyIdPath            String? @db.Text  // New Family ID document field
   affidavitCertificatePath String? @db.Text
   incomeCertificatePath    String? @db.Text
   addressProof1Path        String? @db.Text

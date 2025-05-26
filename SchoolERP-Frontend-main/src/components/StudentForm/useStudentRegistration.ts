@@ -39,6 +39,8 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     aadhaarNumber: '',
     mobileNumber: '',
     email: '',
+    emailPassword: '',
+    studentPassword: '',
     emergencyContact: '',
     admissionNo: '',
     studentId: '',
@@ -120,21 +122,22 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       dropLocation: ''
     },
     documents: {
-      studentImage: null,
-      fatherImage: null,
-      motherImage: null,
-      guardianImage: null,
-      signature: null,
-      parentSignature: null,
-      fatherAadhar: null,
-      motherAadhar: null,
-      birthCertificate: null,
-      migrationCertificate: null,
-      aadhaarCard: null,
-      affidavitCertificate: null,
-      incomeCertificate: null,
-      addressProof1: null,
-      addressProof2: null
+      studentImage: undefined,
+      fatherImage: undefined,
+      motherImage: undefined,
+      guardianImage: undefined,
+      signature: undefined,
+      parentSignature: undefined,
+      birthCertificate: undefined,
+      transferCertificate: undefined,
+      markSheet: undefined,
+      aadhaarCard: undefined,
+      fatherAadhar: undefined,
+      motherAadhar: undefined,
+      familyId: undefined,
+      fatherSignature: undefined,
+      motherSignature: undefined,
+      guardianSignature: undefined
     },
     lastEducation: {
       school: '',
@@ -280,7 +283,6 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     
     if (hasValidationErrors(allErrors)) {
       setError("Please fix all validation errors before submitting.");
-      // Scroll to top to show the error message
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -297,9 +299,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
         if (key !== 'documents') {
           if (typeof value === 'object' && value !== null) {
             Object.entries(value).forEach(([nestedKey, nestedValue]) => {
-              // Skip the sameAsPresentAddress checkbox as it's only for UI
               if (!(key === 'address' && nestedKey === 'sameAsPresentAddress')) {
-                // Ensure empty strings are sent for empty fields
                 const valueToSend = nestedValue === null || nestedValue === undefined 
                   ? '' 
                   : String(nestedValue);
@@ -307,7 +307,6 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
               }
             });
           } else {
-            // Ensure empty strings are sent for empty fields
             const valueToSend = value === null || value === undefined 
               ? '' 
               : String(value);
@@ -316,55 +315,37 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
         }
       });
       
-      // Add document files
+      // Add document files - without the 'documents.' prefix
       Object.entries(formData.documents).forEach(([key, file]) => {
-        if (file) {
-          formDataToSend.append(`documents.${key}`, file);
+        if (file instanceof File) {
+          formDataToSend.append(key, file);
         }
       });
       
       // Add school ID
-      formDataToSend.append('schoolId', '1');  // Use the appropriate school ID
+      formDataToSend.append('schoolId', '1');
 
       console.log("Sending student data to API");
-      
-      // For debugging: log all form keys being sent
       console.log("Form data keys:", Array.from(formDataToSend.keys()));
       
-      // Make the API call
       const response = await fetch(STUDENT_API.CREATE, {
         method: 'POST',
         body: formDataToSend,
-        // Don't set Content-Type header when sending FormData
       });
 
-      // Parse response even if it's an error
-      const result = await handleApiResponse(response);
-
-      console.log("Server response:", response.status, result);
-
       if (!response.ok) {
-        // Extract detailed error message if available
-        const errorMessage = 
-          result.message || 
-          result.error || 
-          (result.errors && Array.isArray(result.errors) ? 
-            result.errors.map((e: any) => e.msg).join(", ") :
-            `Server error (${response.status}): Failed to register student`);
-        
-        throw new Error(errorMessage);
+        const result = await response.json();
+        throw new Error(result.message || `Server error (${response.status}): Failed to register student`);
       }
 
+      const result = await response.json();
       console.log("Student registered successfully:", result);
       setSuccess(true);
-      
-      // Scroll to top to show success message
       window.scrollTo({ top: 0, behavior: 'smooth' });
       
     } catch (error) {
       console.error("Form submission error:", error);
       setError(error instanceof Error ? error.message : "An error occurred. Please try again.");
-      // Scroll to top to show the error message
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
