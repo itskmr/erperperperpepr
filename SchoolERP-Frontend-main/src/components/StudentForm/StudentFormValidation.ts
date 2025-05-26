@@ -256,13 +256,56 @@ export const hasValidationErrors = (errors: Record<string, string>): boolean => 
  * @returns Object with all validation errors
  */
 export const validateForm = (formData: StudentFormData): Record<string, string> => {
-  let allErrors: Record<string, string> = {};
-  
-  // Validate each step
-  for (let step = 1; step <= 7; step++) {
-    const stepErrors = validateStep(step, formData);
-    allErrors = { ...allErrors, ...stepErrors };
+  const errors: Record<string, string> = {};
+
+  // Basic Details Validation
+  if (!formData.fullName) {
+    errors.fullName = 'Full name is required';
   }
-  
-  return allErrors;
+
+  if (!formData.email) {
+    errors.email = 'Email is required';
+  } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(formData.email)) {
+    errors.email = 'Invalid email address';
+  }
+
+  if (!formData.aadhaarNumber) {
+    errors.aadhaarNumber = 'Aadhaar number is required';
+  } else if (!/^\d{12}$/.test(formData.aadhaarNumber)) {
+    errors.aadhaarNumber = 'Aadhaar number must be exactly 12 digits';
+  }
+
+  if (!formData.apaarId) {
+    errors.apaarId = 'Apaar ID is required';
+  }
+
+  if (!formData.mobileNumber) {
+    errors.mobileNumber = 'Mobile number is required';
+  } else if (!/^\d{10}$/.test(formData.mobileNumber)) {
+    errors.mobileNumber = 'Mobile number must be exactly 10 digits';
+  }
+
+  // Address Validation
+  if (formData.pinCode && !/^\d{6}$/.test(formData.pinCode)) {
+    errors.pinCode = 'Pin code must be exactly 6 digits';
+  }
+
+  // Transport Validation
+  if (formData.transportMode === 'Bus') {
+    if (!formData.transportArea) errors.transportArea = 'Area is required for bus transport';
+    if (!formData.transportStand) errors.transportStand = 'Bus stand is required';
+    if (!formData.transportRoute) errors.transportRoute = 'Bus route is required';
+    if (!formData.transportDriver) errors.transportDriver = 'Driver name is required';
+    if (!formData.driverPhone) {
+      errors.driverPhone = 'Driver phone number is required';
+    } else if (!/^\d{10}$/.test(formData.driverPhone)) {
+      errors.driverPhone = 'Driver phone number must be exactly 10 digits';
+    }
+    if (!formData.pickupLocation) errors.pickupLocation = 'Pickup location is required';
+    if (!formData.dropLocation) errors.dropLocation = 'Drop location is required';
+  }
+
+  // ... rest of your validation rules ...
+
+  return errors;
 }; 

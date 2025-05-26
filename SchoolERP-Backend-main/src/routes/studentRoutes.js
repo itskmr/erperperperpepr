@@ -14,6 +14,26 @@ const prisma = new PrismaClient();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Array of document fields to handle uploads
+const documentFields = [
+  { name: 'studentImage', maxCount: 1 },
+  { name: 'fatherImage', maxCount: 1 },
+  { name: 'motherImage', maxCount: 1 },
+  { name: 'guardianImage', maxCount: 1 },
+  { name: 'signature', maxCount: 1 },
+  { name: 'parentSignature', maxCount: 1 },
+  { name: 'birthCertificate', maxCount: 1 },
+  { name: 'transferCertificate', maxCount: 1 },
+  { name: 'markSheet', maxCount: 1 },
+  { name: 'aadhaarCard', maxCount: 1 },
+  { name: 'fatherAadhar', maxCount: 1 },
+  { name: 'motherAadhar', maxCount: 1 },
+  { name: 'familyId', maxCount: 1 },
+  { name: 'fatherSignature', maxCount: 1 },
+  { name: 'motherSignature', maxCount: 1 },
+  { name: 'guardianSignature', maxCount: 1 }
+];
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -29,7 +49,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // Use admission number + field name + timestamp + original extension
     const admissionNo = req.body.admissionNo || 'unknown';
-    const fieldName = file.fieldname.replace(/documents\./, '');
+    const fieldName = file.fieldname;
     const timestamp = Date.now();
     const ext = path.extname(file.originalname);
     
@@ -48,26 +68,36 @@ const upload = multer({
       cb(new Error('Only images and PDF files are allowed'), false);
     }
   }
-});
+}).fields(documentFields);
 
-// Array of document fields to handle uploads
-const documentFields = [
-  { name: 'documents.studentImage', maxCount: 1 },
-  { name: 'documents.fatherImage', maxCount: 1 },
-  { name: 'documents.motherImage', maxCount: 1 },
-  { name: 'documents.guardianImage', maxCount: 1 },
-  { name: 'documents.signature', maxCount: 1 },
-  { name: 'documents.parentSignature', maxCount: 1 },
-  { name: 'documents.fatherAadhar', maxCount: 1 },
-  { name: 'documents.motherAadhar', maxCount: 1 },
-  { name: 'documents.birthCertificate', maxCount: 1 },
-  { name: 'documents.migrationCertificate', maxCount: 1 },
-  { name: 'documents.aadhaarCard', maxCount: 1 },
-  { name: 'documents.affidavitCertificate', maxCount: 1 },
-  { name: 'documents.incomeCertificate', maxCount: 1 },
-  { name: 'documents.addressProof1', maxCount: 1 },
-  { name: 'documents.addressProof2', maxCount: 1 }
-];
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        success: false,
+        message: `Unexpected field: ${err.field}. Please check the file upload fields.`
+      });
+    } else if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'File size too large. Maximum size is 5MB.'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: `File upload error: ${err.message}`
+    });
+  } else if (err) {
+    console.error('Non-multer error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'An error occurred during file upload'
+    });
+  }
+  next();
+};
 
 // Get all students
 router.get('/', async (req, res) => {
@@ -160,7 +190,7 @@ router.get('/admission/:admissionNo', async (req, res) => {
 });
 
 // Create a new student with all related information
-router.post('/', upload.fields(documentFields), async (req, res) => {
+router.post('/', upload, handleMulterError, async (req, res) => {
   try {
     const data = req.body;
     const files = req.files || {};
@@ -276,17 +306,19 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
       // Create a default school if it doesn't exist
       const defaultSchool = await prisma.school.create({
         data: {
-          fullName: "Default School",
+          schoolName: "Default School",
           email: "default@school.com",
-          password: "default123", // You should change this
+          password: "default123",
           code: "SC001",
           address: "Default Address",
-          contact: 1234567890,
+          phone: "1234567890",
           principal: "Default Principal",
           established: 2000,
           role: "SCHOOL",
           status: "active",
-          username: "default_school"
+          username: "default_school",
+          createdAt: new Date(),
+          updatedAt: new Date()
         }
       });
       schoolId = defaultSchool.id;
@@ -298,46 +330,47 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
         // Basic information
         fullName: data.fullName,
         admissionNo: data.admissionNo,
-        dateOfBirth,
-        age: data.age ? parseInt(data.age) : null,
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+        age: data.age ? parseInt(data.age) : 0,
         gender: data.gender,
-        bloodGroup: data.bloodGroup,
+        bloodGroup: data.bloodGroup || null,
         nationality: data.nationality || 'Indian',
-        religion: data.religion,
-        category: data.category,
-        caste: data.caste,
+        religion: data.religion || null,
+        category: data.category || null,
+        caste: data.caste || null,
         aadhaarNumber: data.aadhaarNumber,
         mobileNumber: data.mobileNumber,
         email: data.email,
-        emailPassword: data.emailPassword,
-        emergencyContact: data.emergencyContact,
-        branchName: data.branchName,
+        emailPassword: data.emailPassword || null,
+        emergencyContact: data.emergencyContact || null,
+        branchName: data.branchName || null,
+        studentPassword: data.emailPassword || '123456', // Default password if not provided
         
         // Address information
-        houseNo: data['address.houseNo'],
-        street: data['address.street'],
-        city: data['address.city'],
-        state: data['address.state'],
-        pinCode: data['address.pinCode'],
-        permanentHouseNo: data['address.permanentHouseNo'],
-        permanentStreet: data['address.permanentStreet'],
-        permanentCity: data['address.permanentCity'],
-        permanentState: data['address.permanentState'],
-        permanentPinCode: data['address.permanentPinCode'],
+        houseNo: data['address.houseNo'] || null,
+        street: data['address.street'] || null,
+        city: data['address.city'] || null,
+        state: data['address.state'] || null,
+        pinCode: data['address.pinCode'] || null,
+        permanentHouseNo: data['address.permanentHouseNo'] || null,
+        permanentStreet: data['address.permanentStreet'] || null,
+        permanentCity: data['address.permanentCity'] || null,
+        permanentState: data['address.permanentState'] || null,
+        permanentPinCode: data['address.permanentPinCode'] || null,
         sameAsPresentAddress: data['address.sameAsPresentAddress'] === 'true',
         
         // Parent information
-        fatherName: data['father.name'],
-        fatherEmail: data['father.email'],
-        fatherEmailPassword: data['father.emailPassword'],
-        motherName: data['mother.name'],
+        fatherName: data['father.name'] || null,
+        fatherEmail: data['father.email'] || null,
+        fatherEmailPassword: data['father.emailPassword'] || null,
+        motherName: data['mother.name'] || null,
         motherEmail: data['mother.email'] || null,
         motherEmailPassword: data['mother.emailPassword'] || null,
         
         // Connect to school
         schoolId: schoolId,
         
-        // Session information - both admission and current session
+        // Session information
         sessionInfo: {
           create: {
             // Admit Session fields
@@ -349,9 +382,9 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
             admitSemester: data['admitSession.semester'] || null,
             admitFeeGroup: data['admitSession.feeGroup'] || null,
             admitHouse: data['admitSession.house'] || null,
-            admitDate: new Date(), // Set current date as admission date
+            admitDate: new Date(),
             
-            // Current session fields - store the values from currentSession
+            // Current session fields
             currentGroup: data['currentSession.group'] || null,
             currentStream: data['currentSession.stream'] || null,
             currentClass: data['currentSession.class'] || null,
@@ -424,7 +457,7 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
           create: {
             lastSchool: data['lastEducation.school'] || null,
             lastSchoolAddress: data['lastEducation.address'] || null,
-            lastTcDate,
+            lastTcDate: data['lastEducation.tcDate'] ? new Date(data['lastEducation.tcDate']) : null,
             lastClass: data['lastEducation.prevClass'] || null,
             lastPercentage: data['lastEducation.percentage'] || null,
             lastAttendance: data['lastEducation.attendance'] || null,
