@@ -99,33 +99,57 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-// Get all students
+// Get all students with filters
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, schoolId = 1 } = req.query;
+    const { 
+      page = 1, 
+      limit = 10, 
+      schoolId = 1,
+      class: className,
+      section,
+      category
+    } = req.query;
+    
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
+    // Build where clause based on filters
+    const where = {
+      schoolId: parseInt(schoolId)
+    };
+
+    // Add category filter if provided
+    if (category) {
+      where.category = category;
+    }
+
+    // Add class and section filters if provided
+    if (className || section) {
+      where.sessionInfo = {
+        is: {
+          ...(className && { currentClass: className }),
+          ...(section && { currentSection: section })
+        }
+      };
+    }
+    
     const students = await prisma.student.findMany({
-      where: {
-        schoolId: parseInt(schoolId)
-      },
+      where,
       skip,
       take: parseInt(limit),
       orderBy: { createdAt: 'desc' },
       include: {
-        parentInfo: true,
-        sessionInfo: true,
-        transportInfo: true,
-        documents: true,
-        educationInfo: true,
-        otherInfo: true
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true
+          }
+        }
       }
     });
     
     // Get total count for pagination
-    const total = await prisma.student.count({
-      where: { schoolId: parseInt(schoolId) }
-    });
+    const total = await prisma.student.count({ where });
     
     res.json({ 
       success: true, 
@@ -541,7 +565,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const student = await prisma.student.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: id.toString() }, // Keep ID as string
       include: {
         parentInfo: true,
         sessionInfo: true,

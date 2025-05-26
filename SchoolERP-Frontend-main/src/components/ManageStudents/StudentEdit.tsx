@@ -1,439 +1,544 @@
-import React, { useState, useEffect } from 'react';
-import { StudentFormData } from '../StudentForm/StudentFormTypes';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { FaTimes } from 'react-icons/fa';
 import { STUDENT_API } from '../../config/api';
 
+interface Student {
+  id: string;
+  admissionNo: string;
+  fullName: string;
+  mobileNumber: string;
+  email: string;
+  gender: string;
+  category: string;
+  apaarId: string;
+  dateOfBirth: string;
+  aadhaarNumber: string;
+  fatherName: string;
+  motherName: string;
+  guardianName: string;
+  guardianRelation: string;
+  guardianMobile: string;
+  presentAddress: string;
+  permanentAddress: string;
+  sameAsPresentAddress: boolean;
+  bloodGroup: string;
+  religion: string;
+  nationality: string;
+  lastSchool: string;
+  tcNumber: string;
+  tcDate: string;
+  admissionDate: string;
+  sessionInfo: {
+    currentClass: string;
+    currentSection: string;
+    rollNumber: string;
+    stream: string;
+    medium: string;
+  };
+}
+
 interface StudentEditProps {
-  student: StudentFormData | null;
-  onClose: () => void;
+  student: Student;
   isOpen: boolean;
+  onClose: () => void;
   onStudentUpdated: () => void;
 }
 
-export const StudentEdit: React.FC<StudentEditProps> = ({
-  student,
-  onClose,
-  isOpen,
-  onStudentUpdated
-}) => {
-  const [formData, setFormData] = useState<StudentFormData | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+const AVAILABLE_CLASSES = [
+  'Nursery',
+  'LKG',
+  'UKG',
+  'Class 1',
+  'Class 2',
+  'Class 3',
+  'Class 4',
+  'Class 5',
+  'Class 6',
+  'Class 7',
+  'Class 8',
+  'Class 9',
+  'Class 10',
+  'Class 11 (Science)',
+  'Class 11 (Commerce)',
+  'Class 11 (Arts)',
+  'Class 12 (Science)',
+  'Class 12 (Commerce)',
+  'Class 12 (Arts)'
+];
 
-  // Initialize form with student data when it changes
-  useEffect(() => {
-    if (student) {
-      setFormData({
-        ...student,
-        admissionDate: student.admissionDate || new Date().toISOString().split('T')[0],
-        dateOfBirth: student.dateOfBirth || '',
-        mobileNumber: student.mobileNumber || '',
-        email: student.email || '',
-        address: {
-          houseNo: student.address?.houseNo || '',
-          street: student.address?.street || '',
-          city: student.address?.city || '',
-          state: student.address?.state || '',
-          pinCode: student.address?.pinCode || '',
-          permanentHouseNo: student.address?.permanentHouseNo || '',
-          permanentStreet: student.address?.permanentStreet || '',
-          permanentCity: student.address?.permanentCity || '',
-          permanentState: student.address?.permanentState || '',
-          permanentPinCode: student.address?.permanentPinCode || '',
-          sameAsPresentAddress: student.address?.sameAsPresentAddress || false
-        },
-        father: {
-          name: student.father?.name || '',
-          qualification: student.father?.qualification || '',
-          occupation: student.father?.occupation || '',
-          email: student.father?.email || '',
-          contactNumber: student.father?.contactNumber || '',
-          aadhaarNo: student.father?.aadhaarNo || '',
-          annualIncome: student.father?.annualIncome || '',
-          isCampusEmployee: student.father?.isCampusEmployee || 'no'
-        },
-        mother: {
-          name: student.mother?.name || '',
-          qualification: student.mother?.qualification || '',
-          occupation: student.mother?.occupation || '',
-          email: student.mother?.email || '',
-          contactNumber: student.mother?.contactNumber || '',
-          aadhaarNo: student.mother?.aadhaarNo || '',
-          annualIncome: student.mother?.annualIncome || '',
-          isCampusEmployee: student.mother?.isCampusEmployee || 'no'
-        },
-        guardian: {
-          name: student.guardian?.name || '',
-          address: student.guardian?.address || '',
-          contactNumber: student.guardian?.contactNumber || ''
-        }
-      });
-    }
-  }, [student]);
+const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-  if (!isOpen || !student || !formData) return null;
+const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onStudentUpdated }) => {
+  const [formData, setFormData] = useState<Student>(student);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
     
-    if (!formData) return;
-    
-    // Handle nested properties
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      const parentKey = parent as keyof StudentFormData;
-      const parentObj = formData[parentKey] as { [key: string]: any };
-      
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         [parent]: {
-          ...parentObj,
+          ...(prev[parent as keyof Student] as Record<string, string>),
           [child]: value
         }
-      });
+      }));
     } else {
-      setFormData({
-        ...formData,
-        [name]: value
-      });
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      }));
     }
   };
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData || !student?.id) return;
-    
-    setIsSubmitting(true);
-    setError(null);
-    setSuccess(null);
+    setLoading(true);
+    setError('');
 
     try {
-      const response = await axios.put(`${STUDENT_API}/${student.id}`, formData);
-      
-      if (response.data.success) {
-        setSuccess('Student information updated successfully');
-        onStudentUpdated();
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      } else {
-        setError(response.data.message || 'Failed to update student information');
+      const response = await fetch(`${STUDENT_API.UPDATE}/${student.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update student');
       }
+
+      onStudentUpdated();
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update student information');
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
+  if (!isOpen) return null;
+
+  const categoryOptions = [
+    { value: 'General', label: 'General' },
+    { value: 'EWS', label: 'Economically Weaker Section (EWS)' },
+    { value: 'OBC', label: 'Other Backward Class (OBC)' },
+    { value: 'BC', label: 'Backward Class (BC)' },
+    { value: 'SC', label: 'Scheduled Caste (SC)' },
+    { value: 'ST', label: 'Scheduled Tribe (ST)' }
+  ];
+
+  const bloodGroupOptions = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const streamOptions = ['Science', 'Commerce', 'Arts', 'General'];
+  const mediumOptions = ['English', 'Hindi'];
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="bg-blue-600 px-6 py-4 rounded-t-lg">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-white">
-              Edit Student: {student.fullName}
-            </h3>
-            <button
-              onClick={onClose}
-              className="text-white hover:text-gray-200 focus:outline-none"
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Edit Student Details</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <FaTimes size={24} />
+          </button>
         </div>
 
-        {/* Alert messages */}
-        {error && (
-          <div className="mx-6 mt-4 bg-red-50 border-l-4 border-red-400 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {success && (
-          <div className="mx-6 mt-4 bg-green-50 border-l-4 border-green-400 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-green-700">{success}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
+          {error && (
+            <div className="bg-red-50 text-red-500 p-4 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Personal Information */}
-            <div className="border rounded-lg p-4">
-              <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Personal Information</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name*</label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    value={formData.fullName || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    value={formData.dateOfBirth || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Basic Information</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Admission No</label>
+                <input
+                  type="text"
+                  name="admissionNo"
+                  value={formData.admissionNo}
+                  className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 cursor-not-allowed"
+                  disabled
+                />
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender*</label>
-                  <select
-                    name="gender"
-                    value={formData.gender || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number*</label>
-                  <input
-                    type="text"
-                    name="mobileNumber"
-                    value={formData.mobileNumber || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Admission Date</label>
+                <input
+                  type="date"
+                  name="admissionDate"
+                  value={formData.admissionDate.split('T')[0]}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
-                  <input
-                    type="text"
-                    name="bloodGroup"
-                    value={formData.bloodGroup || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Full Name</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Date of Birth</label>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  value={formData.dateOfBirth.split('T')[0]}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Blood Group</label>
+                <select
+                  name="bloodGroup"
+                  value={formData.bloodGroup}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Blood Group</option>
+                  {bloodGroupOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Religion</label>
+                <input
+                  type="text"
+                  name="religion"
+                  value={formData.religion}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Nationality</label>
+                <input
+                  type="text"
+                  name="nationality"
+                  value={formData.nationality}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Category</label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {categoryOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
-            
+
             {/* Academic Information */}
-            <div className="border rounded-lg p-4">
-              <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Academic Information</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Admission No*</label>
-                  <input
-                    type="text"
-                    name="admissionNo"
-                    value={formData.admissionNo || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-gray-100"
-                    required
-                    disabled
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Admission number cannot be changed</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class*</label>
-                  <input
-                    type="text"
-                    name="className"
-                    value={formData.className || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Academic Information</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Class</label>
+                <select
+                  name="sessionInfo.currentClass"
+                  value={formData.sessionInfo.currentClass}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Class</option>
+                  {AVAILABLE_CLASSES.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-                  <input
-                    type="text"
-                    name="section"
-                    value={formData.section || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Roll Number</label>
-                  <input
-                    type="text"
-                    name="rollNumber"
-                    value={formData.rollNumber || ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Section</label>
+                <select
+                  name="sessionInfo.currentSection"
+                  value={formData.sessionInfo.currentSection}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Section</option>
+                  {SECTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Roll Number</label>
+                <input
+                  type="text"
+                  name="sessionInfo.rollNumber"
+                  value={formData.sessionInfo.rollNumber}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Stream</label>
+                <select
+                  name="sessionInfo.stream"
+                  value={formData.sessionInfo.stream}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Stream</option>
+                  {streamOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Medium</label>
+                <select
+                  name="sessionInfo.medium"
+                  value={formData.sessionInfo.medium}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Select Medium</option>
+                  {mediumOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Last School</label>
+                <input
+                  type="text"
+                  name="lastSchool"
+                  value={formData.lastSchool}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">TC Number</label>
+                <input
+                  type="text"
+                  name="tcNumber"
+                  value={formData.tcNumber}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">TC Date</label>
+                <input
+                  type="date"
+                  name="tcDate"
+                  value={formData.tcDate.split('T')[0]}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
               </div>
             </div>
-            
-            {/* Parent Information */}
-            <div className="border rounded-lg p-4">
-              <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Parent Information</h4>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Father's Name*</label>
-                <input
-                  type="text"
-                  name="father.name"
-                  value={formData.father?.name || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Father's Contact</label>
-                <input
-                  type="text"
-                  name="father.contactNumber"
-                  value={formData.father?.contactNumber || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mother's Name*</label>
-                <input
-                  type="text"
-                  name="mother.name"
-                  value={formData.mother?.name || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              
+
+            {/* Contact Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Contact Information</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mother's Contact</label>
+                <label className="block text-sm font-medium text-gray-600">Mobile Number</label>
+                <input
+                  type="tel"
+                  name="mobileNumber"
+                  value={formData.mobileNumber}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Present Address</label>
+                <textarea
+                  name="presentAddress"
+                  value={formData.presentAddress}
+                  onChange={handleChange}
+                  rows={3}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">
+                  <input
+                    type="checkbox"
+                    name="sameAsPresentAddress"
+                    checked={formData.sameAsPresentAddress}
+                    onChange={handleChange}
+                    className="mr-2 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                  />
+                  Same as Present Address
+                </label>
+                {!formData.sameAsPresentAddress && (
+                  <textarea
+                    name="permanentAddress"
+                    value={formData.permanentAddress}
+                    onChange={handleChange}
+                    rows={3}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    required
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Parent/Guardian Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Parent/Guardian Information</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Father's Name</label>
                 <input
                   type="text"
-                  name="mother.contactNumber"
-                  value={formData.mother?.contactNumber || ''}
+                  name="fatherName"
+                  value={formData.fatherName}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Mother's Name</label>
+                <input
+                  type="text"
+                  name="motherName"
+                  value={formData.motherName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Guardian's Name</label>
+                <input
+                  type="text"
+                  name="guardianName"
+                  value={formData.guardianName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Guardian's Relation</label>
+                <input
+                  type="text"
+                  name="guardianRelation"
+                  value={formData.guardianRelation}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Guardian's Mobile</label>
+                <input
+                  type="tel"
+                  name="guardianMobile"
+                  value={formData.guardianMobile}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
                 />
               </div>
             </div>
-            
-            {/* Address Information */}
-            <div className="border rounded-lg p-4">
-              <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Address Information</h4>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">City*</label>
-                <input
-                  type="text"
-                  name="address.city"
-                  value={formData.address?.city || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">State*</label>
-                <input
-                  type="text"
-                  name="address.state"
-                  value={formData.address?.state || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-              
+
+            {/* ID Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">ID Information</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pin Code</label>
+                <label className="block text-sm font-medium text-gray-600">APAAR ID</label>
                 <input
                   type="text"
-                  name="address.pinCode"
-                  value={formData.address?.pinCode || ''}
+                  name="apaarId"
+                  value={formData.apaarId}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Aadhaar Number</label>
+                <input
+                  type="text"
+                  name="aadhaarNumber"
+                  value={formData.aadhaarNumber}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
                 />
               </div>
             </div>
           </div>
-          
-          {/* Form actions */}
+
           <div className="mt-6 flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              {isSubmitting ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : 'Save Changes'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>
