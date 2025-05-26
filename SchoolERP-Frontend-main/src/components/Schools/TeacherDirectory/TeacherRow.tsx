@@ -69,7 +69,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
       <td className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
         {teacher.isClassIncharge ? (
           <div className="text-xs sm:text-sm text-gray-900">
-            <span className="font-medium">Class {teacher.inchargeClass}</span>
+            <span className="font-medium">{teacher.inchargeClass}</span>
             {teacher.inchargeSection && (
               <span className="ml-2 text-gray-500">
                 (Section {teacher.inchargeSection})

@@ -122,7 +122,6 @@ router.get('/:id', async (req, res) => {
       phone: teacher.phone,
       designation: teacher.designation || 'Teacher',
       subjects: JSON.parse(teacher.subjects || '[]'),
-      classes: teacher.classes,
       sections: JSON.parse(teacher.sections || '[]'),
       joinDate: teacher.joining_year.toISOString().split('T')[0],
       address: teacher.address || '',
@@ -148,7 +147,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { 
-      fullName, email, password, phone, designation, subjects, classes, 
+      fullName, email, password, phone, designation, subjects, 
       sections, joinDate, address, education, experience, profileImage, 
       isClassIncharge, inchargeClass, inchargeSection, schoolId 
     } = req.body;
@@ -206,7 +205,6 @@ router.post('/', async (req, res) => {
         phone,
         designation: designation || 'Teacher',
         subjects: subjectsJson,
-        classes,
         sections: sectionsJson,
         joining_year: joinDate ? new Date(joinDate) : new Date(),
         address,
@@ -228,7 +226,6 @@ router.post('/', async (req, res) => {
       phone: teacher.phone,
       designation: teacher.designation,
       subjects: JSON.parse(teacher.subjects || '[]'),
-      classes: teacher.classes,
       sections: JSON.parse(teacher.sections || '[]'),
       joinDate: teacher.joining_year.toISOString().split('T')[0],
       address: teacher.address || '',
@@ -255,7 +252,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { 
-      fullName, email, phone, designation, subjects, classes, sections, 
+      fullName, email, phone, designation, subjects, sections, 
       joinDate, address, education, experience, profileImage, 
       isClassIncharge, inchargeClass, inchargeSection, status, schoolId 
     } = req.body;
@@ -321,7 +318,6 @@ router.put('/:id', async (req, res) => {
         phone,
         designation,
         subjects: subjectsJson,
-        classes,
         sections: sectionsJson,
         joining_year: joinDate ? new Date(joinDate) : existingTeacher.joining_year,
         address,
@@ -342,7 +338,6 @@ router.put('/:id', async (req, res) => {
       phone: updatedTeacher.phone,
       designation: updatedTeacher.designation || 'Teacher',
       subjects: JSON.parse(updatedTeacher.subjects || '[]'),
-      classes: updatedTeacher.classes,
       sections: JSON.parse(updatedTeacher.sections || '[]'),
       joinDate: updatedTeacher.joining_year.toISOString().split('T')[0],
       address: updatedTeacher.address || '',

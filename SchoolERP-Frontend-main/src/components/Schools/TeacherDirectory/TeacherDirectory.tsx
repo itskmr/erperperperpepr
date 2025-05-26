@@ -7,7 +7,7 @@ import SearchFilters from './SearchFilter';
 import Pagination from './Pegination';
 import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 
 // Get current date from localStorage or create new
 const getCurrentDate = () => {
@@ -48,7 +48,7 @@ const TeacherDirectory: React.FC = () => {
     address: '',
     education: '',
     experience: '',
-    profileImage: 'https://randomuser.me/api/portraits/men/0.jpg',
+    profileImage: '',
     isClassIncharge: false,
     inchargeClass: null,
     inchargeSection: null,
@@ -205,7 +205,7 @@ const TeacherDirectory: React.FC = () => {
       address: '',
       education: '',
       experience: '',
-      profileImage: 'https://randomuser.me/api/portraits/men/0.jpg',
+      profileImage: '',
       isClassIncharge: false,
       inchargeClass: null,
       inchargeSection: null,
@@ -315,71 +315,11 @@ const TeacherDirectory: React.FC = () => {
         console.log('School verification response:', schoolResponse.data);
         
         if (!schoolResponse.data.success) {
-          console.log('School not found, creating default school');
-          // Create default school if not found
-          const createSchoolResponse = await axios.post(`${API_URL}/schools`, {
-            name: "Default School",
-            address: "Default Address",
-            contactNumber: "1234567890",
-            email: "default@school.com",
-            principalName: "Default Principal"
-          });
-          
-          console.log('Default school creation response:', createSchoolResponse.data);
-          
-          if (createSchoolResponse.data.success) {
-            schoolId = createSchoolResponse.data.data.id;
-            localStorage.setItem('schoolId', schoolId.toString());
-            console.log('New school ID set:', schoolId);
-          } else {
-            console.error('Failed to create school:', createSchoolResponse.data);
-            showToast('error', 'Failed to create school. Please try again.');
-            return;
-          }
+          console.log('School not found');
         }
       } catch (error) {
-        if (error instanceof AxiosError) {
-          if (error.response?.status === 404) {
-            console.log('School not found, creating default school');
-            try {
-              const createSchoolResponse = await axios.post(`${API_URL}/schools`, {
-                name: "Default School",
-                address: "Default Address",
-                contactNumber: "1234567890",
-                email: "default@school.com",
-                principalName: "Default Principal"
-              });
-              
-              console.log('Default school creation response:', createSchoolResponse.data);
-              
-              if (createSchoolResponse.data.success) {
-                schoolId = createSchoolResponse.data.data.id;
-                localStorage.setItem('schoolId', schoolId.toString());
-                console.log('New school ID set:', schoolId);
-              } else {
-                console.error('Failed to create school:', createSchoolResponse.data);
-                showToast('error', 'Failed to create school. Please try again.');
-                return;
-              }
-            } catch (createError) {
-              console.error('Error creating default school:', createError);
-              showToast('error', 'Failed to create default school. Please try again.');
-              return;
-            }
-          } else {
-            console.error('Error verifying school:', {
-              message: error.message,
-              response: error.response?.data,
-              status: error.response?.status
-            });
-            showToast('error', `Failed to verify school: ${error.response?.data?.message || error.message}`);
-            return;
-          }
-        } else {
           console.error('Unexpected error during school verification:', error);
           showToast('error', 'An unexpected error occurred while verifying school');
-          return;
-        }
       }
 
       // Format sections data properly
@@ -404,7 +344,7 @@ const TeacherDirectory: React.FC = () => {
         address: newTeacher.address || '',
         education: newTeacher.education || '',
         experience: newTeacher.experience || '',
-        profileImage: newTeacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
+        profileImage: newTeacher.profileImage || '',
         isClassIncharge: newTeacher.isClassIncharge ?? false,
         inchargeClass: newTeacher.isClassIncharge ? newTeacher.inchargeClass : null,
         inchargeSection: newTeacher.isClassIncharge ? newTeacher.inchargeSection : null,
@@ -468,7 +408,7 @@ const TeacherDirectory: React.FC = () => {
         address: editTeacher.address || '',
         education: editTeacher.education || '',
         experience: editTeacher.experience || '',
-        profileImage: editTeacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
+        profileImage: editTeacher.profileImage || '',
         isClassIncharge: editTeacher.isClassIncharge || false,
         inchargeClass: editTeacher.isClassIncharge ? editTeacher.inchargeClass : null,
         inchargeSection: editTeacher.isClassIncharge ? editTeacher.inchargeSection : null,
