@@ -59,7 +59,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
         </div>
       </td>
       <td className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
-        <div className="text-xs sm:text-sm text-gray-900">{teacher.subjects.join(', ')}</div>
+        <div className="text-xs sm:text-sm text-gray-900">{teacher.subjects?.join(', ')}</div>
       </td>
       <td className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
         <div className="text-xs sm:text-sm text-gray-900">
@@ -85,7 +85,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
           {handleStatusChange && (
             <button
               onClick={() => 
-                handleStatusChange(teacher.id, 
+                handleStatusChange(teacher.id || 0, 
                   teacher.status === 'active' ? 'inactive' : 'active'
                 )
               }
@@ -118,7 +118,7 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
             <Edit className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
           <button
-            onClick={() => handleDeleteTeacher(teacher.id)}
+            onClick={() => handleDeleteTeacher(teacher.id || 0)}
             className="p-1 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-full"
             title="Delete"
           >

@@ -1,7 +1,12 @@
 import React, { useRef } from 'react';
 import { Teacher } from './types';
 import { motion } from 'framer-motion';
-import { Mail, Phone, Calendar, MapPin, XCircle, Printer, Download, BookOpen, GraduationCap, Award } from 'lucide-react';
+import { 
+  Mail, Phone, MapPin, XCircle, Printer, Download, 
+  BookOpen, Award, User2, Briefcase, FileText, Banknote, Clock
+} from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface TeacherProfileModalProps {
   selectedTeacher: Teacher;
@@ -10,37 +15,46 @@ interface TeacherProfileModalProps {
 
 const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
   selectedTeacher,
-  setIsProfileOpen,
+  setIsProfileOpen
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
-  
-  // Close modal when clicking outside
+
   const handleClickOutside = (e: React.MouseEvent) => {
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
       setIsProfileOpen(false);
     }
   };
-  
-  // Print teacher profile
+
   const handlePrint = () => {
-    const printContents = document.getElementById('teacher-profile-content')?.innerHTML;
-    if (printContents) {
-      const originalContents = document.body.innerHTML;
-      document.body.innerHTML = `
-        <div style="padding: 20px; font-family: Arial, sans-serif;">
-          <h1 style="text-align: center; margin-bottom: 20px;">Teacher Profile</h1>
-          ${printContents}
-        </div>
-      `;
-      window.print();
-      document.body.innerHTML = originalContents;
-      window.location.reload();
-    }
+    window.print();
   };
 
-  // Download teacher profile as PDF
-  const handleDownload = () => {
-    alert('PDF download functionality will be implemented with a PDF library');
+  const handleDownload = async () => {
+    try {
+      const content = document.getElementById('teacher-profile-content');
+      if (!content) return;
+
+      const canvas = await html2canvas(content, {
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 30;
+
+      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      pdf.save(`${selectedTeacher.fullName.replace(/\s+/g, '_')}_profile.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
   };
 
   return (
@@ -94,15 +108,15 @@ const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
         {/* Content for printing/display */}
         <div id="teacher-profile-content" className="p-6">
           <div className="flex flex-col md:flex-row gap-6">
-            {/* Left Column - Profile Image */}
+            {/* Left Column - Profile Image and Basic Info */}
             <div className="md:w-1/3 flex flex-col items-center">
               <div className="w-32 h-32 rounded-full overflow-hidden mb-4 border-4 border-indigo-100 shadow-md">
-                <img 
-                  src={selectedTeacher.profileImage || 'https://via.placeholder.com/150?text=No+Image'} 
-                  alt={selectedTeacher.fullName} 
-                  className="w-full h-full object-cover"
+                <img
+                  src={selectedTeacher.profileImage || 'https://placehold.co/150x150/e2e8f0/475569?text=No+Image'}
+                  alt={selectedTeacher.fullName}
+                  className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
                   onError={(e) => {
-                    e.currentTarget.src = 'https://via.placeholder.com/150?text=No+Image';
+                    e.currentTarget.src = 'https://placehold.co/150x150/e2e8f0/475569?text=No+Image';
                   }}
                 />
               </div>
@@ -114,142 +128,219 @@ const TeacherProfileModal: React.FC<TeacherProfileModalProps> = ({
               </p>
               
               {/* Status badge */}
-              <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
-                Active
+              <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                selectedTeacher.status === 'active' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                <span className={`h-2 w-2 rounded-full ${
+                  selectedTeacher.status === 'active' ? 'bg-green-500' : 'bg-red-500'
+                } mr-2`}></span>
+                {selectedTeacher.status || 'Active'}
+              </div>
+
+              {/* Basic Info */}
+              <div className="w-full mt-6 space-y-4">
+                <div className="flex items-center text-gray-600">
+                  <Mail className="h-4 w-4 mr-2 text-blue-600" />
+                  <span className="text-sm">{selectedTeacher.email}</span>
+                </div>
+                <div className="flex items-center text-gray-600">
+                  <Phone className="h-4 w-4 mr-2 text-blue-600" />
+                  <span className="text-sm">{selectedTeacher.phone}</span>
+                </div>
+                <div className="flex items-center text-gray-600">
+                  <User2 className="h-4 w-4 mr-2 text-blue-600" />
+                  <span className="text-sm">{selectedTeacher.username}</span>
+                </div>
+                <div className="flex items-center text-gray-600">
+                  <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                  <span className="text-sm">
+                    Joined: {new Date(selectedTeacher.joining_year || '').toLocaleDateString()}
+                  </span>
+                </div>
               </div>
             </div>
             
             {/* Right Column - Details */}
             <div className="md:w-2/3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Subjects */}
-                <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="flex items-center mb-2">
-                    <BookOpen className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Subjects</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedTeacher.subjects.map((subject, index) => (
-                      <span 
-                        key={index} 
-                        className="inline-block bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-xs border border-blue-100"
-                      >
-                        {subject}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Email */}
-                <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="flex items-center mb-2">
-                    <Mail className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Email</p>
-                  </div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {selectedTeacher.email}
-                  </p>
-                </div>
-                
-                {/* Phone */}
-                <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="flex items-center mb-2">
-                    <Phone className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Phone</p>
-                  </div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {selectedTeacher.phone}
-                  </p>
-                </div>
-                
-                {/* Join Date */}
-                <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="flex items-center mb-2">
-                    <Calendar className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Join Date</p>
-                  </div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {new Date(selectedTeacher.joinDate).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-                
-                {/* Class Incharge Details */}
-                {selectedTeacher.isClassIncharge && (
-                  <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200 col-span-2">
-                    <div className="flex items-center mb-2">
-                      <Award className="h-4 w-4 text-blue-600 mr-2" />
-                      <p className="text-xs text-gray-500 uppercase font-semibold">Class Incharge</p>
+                {/* Professional Information */}
+                <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200 col-span-2">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <Briefcase className="h-4 w-4 mr-2 text-blue-600" />
+                    Professional Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Qualification</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.qualification}</p>
                     </div>
-                    <div className="bg-white p-3 rounded border border-blue-100">
-                      <div className="font-medium text-blue-700">
-                        Class {selectedTeacher.inchargeClass}, Section {selectedTeacher.inchargeSection}
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Experience</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.experience}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Subjects</p>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedTeacher.subjects?.map((subject, index) => (
+                          <span 
+                            key={index} 
+                            className="inline-block bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-xs"
+                          >
+                            {subject}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Teaching Classes & Sections */}
+                {/* Teaching Assignments */}
                 <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200 col-span-2">
-                  <div className="flex items-center mb-2">
-                    <BookOpen className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Teaching Classes & Sections</p>
-                  </div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <BookOpen className="h-4 w-4 mr-2 text-blue-600" />
+                    Teaching Assignments
+                  </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {selectedTeacher.sections.map((item, index) => (
+                    {selectedTeacher.sections?.map((item, index) => (
                       <div key={index} className="bg-white p-3 rounded border border-blue-100">
                         <div className="font-medium text-blue-700">Class {item.class}</div>
                         <div className="text-sm text-gray-600 mt-1">
-                          Sections: {item.sections.map(section => (
-                            <span 
-                              key={section} 
-                              className="inline-block bg-gray-100 px-2 py-1 rounded-full text-xs mr-1 mb-1"
-                            >
-                              {section}
-                            </span>
-                          ))}
+                          Sections: {item.sections.join(', ')}
                         </div>
                       </div>
                     ))}
                   </div>
+                  {selectedTeacher.isClassIncharge && (
+                    <div className="mt-4 bg-blue-50 p-3 rounded-md">
+                      <p className="text-sm font-medium text-blue-800">
+                        Class Incharge: Class {selectedTeacher.inchargeClass}, Section {selectedTeacher.inchargeSection}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {/* Experience */}
+                {/* Personal Information */}
                 <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="flex items-center mb-2">
-                    <Award className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Experience</p>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <User2 className="h-4 w-4 mr-2 text-blue-600" />
+                    Personal Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Date of Birth</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {selectedTeacher.dateOfBirth ? new Date(selectedTeacher.dateOfBirth).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Gender</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.gender}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Blood Group</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.bloodGroup}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Religion</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.religion}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Marital Status</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.maritalStatus}</p>
+                    </div>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {selectedTeacher.experience}
-                  </p>
                 </div>
 
-                {/* Education */}
+                {/* Contact Information */}
                 <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
-                  <div className="flex items-center mb-2">
-                    <GraduationCap className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Education</p>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <MapPin className="h-4 w-4 mr-2 text-blue-600" />
+                    Contact Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Address</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.address}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Social Media</p>
+                      <div className="space-y-1">
+                        {selectedTeacher.facebook && (
+                          <a href={selectedTeacher.facebook} target="_blank" rel="noopener noreferrer" 
+                             className="text-sm text-blue-600 hover:underline block">Facebook</a>
+                        )}
+                        {selectedTeacher.twitter && (
+                          <a href={selectedTeacher.twitter} target="_blank" rel="noopener noreferrer"
+                             className="text-sm text-blue-600 hover:underline block">Twitter</a>
+                        )}
+                        {selectedTeacher.linkedIn && (
+                          <a href={selectedTeacher.linkedIn} target="_blank" rel="noopener noreferrer"
+                             className="text-sm text-blue-600 hover:underline block">LinkedIn</a>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {selectedTeacher.education}
-                  </p>
                 </div>
-                
-                {/* Address */}
+
+                {/* Banking Information */}
                 <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200 col-span-2">
-                  <div className="flex items-center mb-2">
-                    <MapPin className="h-4 w-4 text-blue-600 mr-2" />
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Address</p>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <Banknote className="h-4 w-4 mr-2 text-blue-600" />
+                    Banking Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Account Holder Name</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.accountHolderName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Account Number</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.accountNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Bank Name</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.bankName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Bank Branch</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedTeacher.bankBranch}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Joining Salary</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {selectedTeacher.joiningSalary ? `₹${selectedTeacher.joiningSalary.toLocaleString()}` : 'N/A'}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {selectedTeacher.address}
-                  </p>
                 </div>
+
+                {/* Documents */}
+                {selectedTeacher.documents && selectedTeacher.documents.length > 0 && (
+                  <div className="bg-gray-50 p-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200 col-span-2">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                      <FileText className="h-4 w-4 mr-2 text-blue-600" />
+                      Documents
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {selectedTeacher.documents.map((doc, index) => (
+                        <a
+                          key={index}
+                          href={doc}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-white p-3 rounded border border-blue-100 hover:border-blue-300 transition-colors"
+                        >
+                          <div className="flex items-center">
+                            <FileText className="h-4 w-4 text-blue-600 mr-2" />
+                            <span className="text-sm text-blue-600">Document {index + 1}</span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

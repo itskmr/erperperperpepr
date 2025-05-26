@@ -29,61 +29,101 @@ async function main() {
     console.log('Created school:', school);
 
     // Create teachers
-    const teachers = await Promise.all([
-      prisma.teacher.create({
-        data: {
-          id: 1,
-          fullName: 'Edna Krabappel',
-          email: 'teacher1@school.com',
-          password: await bcrypt.hash('123456', 10),
-          username: 'edna_k',
-          phone: '5500000124',
-          designation: 'Senior Teacher',
-          education: 'M.Ed in Education',
-          address: '456 Teacher Lane, Springfield',
-        //   classes: '4,5,6',
-          subjects: JSON.stringify(['Mathematics', 'Science']),
-          sections: JSON.stringify([
-            { class: '11 (Science)', sections: ['A', 'B'] },
-            { class: '11 (Art)', sections: ['A'] },
-            { class: '11 (Commerce)', sections: ['B'] }
-          ]),
-          isClassIncharge: true,
-          inchargeClass: 'Class 11 (Science)',
-          inchargeSection: 'B',
-          experience: '15',
-          role: 'TEACHER',
-          status: 'active',
-          schoolId: school.id
-        }
-      }),
-      prisma.teacher.create({
-        data: {
-          id: 2,
-          fullName: 'Elizabeth Hoover',
-          email: 'teacher2@school.com',
-          password: await bcrypt.hash('123456', 10),
-          username: 'elizabeth_h',
-          phone: '5550000125',
-          designation: 'Teacher',
-          education: 'B.Ed in English',
-          address: '789 Educator Street, Springfield',
-        //   classes: '11 (Art),11 (Commerce)',
-          subjects: JSON.stringify(['English', 'Literature']),
-          sections: JSON.stringify([
-            { class: 'Class 11 (Art)', sections: ['A', 'B'] },
-            { class: 'Class 11 (Commerce)', sections: ['A'] }
-          ]),
-          isClassIncharge: false,
-          experience: '8',
-          role: 'TEACHER',
-          status: 'active',
-          schoolId: school.id
-        }
-      })
-    ]);
+    const teacher1 = await prisma.teacher.create({
+      data: {
+        fullName: 'Edna Krabappel',
+        email: 'teacher1@school.com',
+        password: await bcrypt.hash('123456', 10),
+        username: 'edna_k',
+        phone: '5500000124',
+        gender: 'Female',
+        dateOfBirth: new Date('1970-05-15'),
+        age: 53,
+        designation: 'Senior Teacher',
+        qualification: 'M.Sc. Mathematics, B.Ed',
+        address: '456 Teacher Lane, Springfield',
+        subjects: JSON.stringify(['Mathematics', 'Science']),
+        sections: JSON.stringify([
+          { class: 'Class 11 (Science)', sections: ['A', 'B'] },
+          { class: 'Class 12 (Science)', sections: ['A'] }
+        ]),
+        joining_year: new Date('2010-01-01'),
+        experience: '15',
+        profileImage: '/uploads/teachers/edna.jpg',
+        isClassIncharge: true,
+        inchargeClass: 'Class 11 (Science)',
+        inchargeSection: 'B',
+        religion: 'Christian',
+        bloodGroup: 'O+',
+        maritalStatus: 'Married',
+        facebook: 'https://facebook.com/edna.krabappel',
+        twitter: 'https://twitter.com/edna_k',
+        linkedIn: 'https://linkedin.com/in/edna-krabappel',
+        documents: JSON.stringify([
+          '/uploads/documents/edna_qualification.pdf',
+          '/uploads/documents/edna_experience.pdf'
+        ]),
+        joiningSalary: 45000,
+        accountHolderName: 'Edna Krabappel',
+        accountNumber: '1234567890',
+        bankName: 'Springfield Bank',
+        bankBranch: 'Downtown Branch',
+        status: 'active',
+        schoolId: school.id,
+        lastLogin: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+    });
 
-    console.log('Created teachers:', teachers);
+    const teacher2 = await prisma.teacher.create({
+      data: {
+        fullName: 'Elizabeth Hoover',
+        email: 'teacher2@school.com',
+        password: await bcrypt.hash('123456', 10),
+        username: 'elizabeth_h',
+        phone: '5550000125',
+        gender: 'Female',
+        dateOfBirth: new Date('1975-08-20'),
+        age: 48,
+        designation: 'Teacher',
+        qualification: 'M.A. English Literature, B.Ed',
+        address: '789 Educator Street, Springfield',
+        subjects: JSON.stringify(['English', 'Literature']),
+        sections: JSON.stringify([
+          { class: 'Class 11 (Art)', sections: ['A', 'B'] },
+          { class: 'Class 11 (Commerce)', sections: ['A'] }
+        ]),
+        joining_year: new Date('2015-01-01'),
+        experience: '8',
+        profileImage: '/uploads/teachers/elizabeth.jpg',
+        isClassIncharge: false,
+        inchargeClass: null,
+        inchargeSection: null,
+        religion: 'Protestant',
+        bloodGroup: 'A+',
+        maritalStatus: 'Single',
+        facebook: 'https://facebook.com/elizabeth.hoover',
+        twitter: 'https://twitter.com/elizabeth_h',
+        linkedIn: 'https://linkedin.com/in/elizabeth-hoover',
+        documents: JSON.stringify([
+          '/uploads/documents/elizabeth_qualification.pdf',
+          '/uploads/documents/elizabeth_experience.pdf'
+        ]),
+        joiningSalary: 40000,
+        accountHolderName: 'Elizabeth Hoover',
+        accountNumber: '0987654321',
+        bankName: 'Springfield Bank',
+        bankBranch: 'Uptown Branch',
+        status: 'active',
+        schoolId: school.id,
+        lastLogin: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+    });
+
+    console.log('Created teachers:', [teacher1, teacher2]);
 
     // Create students with their related information
     const students = await Promise.all([

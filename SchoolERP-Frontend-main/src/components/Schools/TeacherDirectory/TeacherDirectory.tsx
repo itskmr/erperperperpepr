@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { User2, UserPlus } from 'lucide-react';
 import { Teacher } from './types';
@@ -7,22 +7,28 @@ import SearchFilters from './SearchFilter';
 import Pagination from './Pegination';
 import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
-import axios from 'axios';
-
-// Get current date from localStorage or create new
-const getCurrentDate = () => {
-  const storedDate = localStorage.getItem('currentDate');
-  if (storedDate) {
-    return storedDate;
-  }
-  const today = new Date();
-  const dateString = today.toISOString().split('T')[0];
-  localStorage.setItem('currentDate', dateString);
-  return dateString;
-};
+import axios, { AxiosError } from 'axios';
 
 // Update API URL to ensure it's correctly pointing to your backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+interface AddTeacherFormData extends Partial<Teacher> {
+  fullName: string;
+  email: string;
+  phone: string;
+  designation: string;
+  subjects: string[];
+  sections: Array<{ class: string; sections: string[] }>;
+  joining_year: string;
+  address: string;
+  qualification: string;
+  experience: string;
+  profileImage: string;
+  isClassIncharge: boolean;
+  inchargeClass?: string;
+  inchargeSection?: string;
+  status: 'active' | 'inactive';
+}
 
 const TeacherDirectory: React.FC = () => {
   // State management
@@ -34,24 +40,23 @@ const TeacherDirectory: React.FC = () => {
   const [classFilter, setClassFilter] = useState('all');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [newTeacher, setNewTeacher] = useState<Partial<Teacher>>({
+  const [newTeacher, setNewTeacher] = useState<AddTeacherFormData>({
     fullName: '',
     email: '',
     phone: '',
     designation: 'Teacher',
     subjects: [],
     sections: [],
-    classes: '',
-    joinDate: getCurrentDate(),
+    joining_year: new Date().toISOString(),
     address: '',
-    education: '',
+    qualification: '',
     experience: '',
     profileImage: '',
     isClassIncharge: false,
-    inchargeClass: null,
-    inchargeSection: null,
+    inchargeClass: undefined,
+    inchargeSection: undefined,
     status: 'active'
   });
   const [editTeacher, setEditTeacher] = useState<Partial<Teacher>>({
@@ -75,7 +80,7 @@ const TeacherDirectory: React.FC = () => {
   }, []);
 
   // Fetch teachers from API
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       setLoading(true);
       const storedSchoolId = localStorage.getItem('schoolId') || '1';
@@ -88,13 +93,13 @@ const TeacherDirectory: React.FC = () => {
       } else {
         setError('Failed to fetch teachers');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching teachers:', error);
-      setError(`Failed to fetch teachers: ${error.message}`);
+      setError(`Failed to fetch teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading, setTeachers, setError]);
 
   // Fetch teachers on component mount
   useEffect(() => {
@@ -102,10 +107,10 @@ const TeacherDirectory: React.FC = () => {
     if (!searchTerm && classFilter === 'all') {
       fetchTeachers();
     }
-  }, []);
+  }, [searchTerm, classFilter, fetchTeachers]);
 
   // Backend search and filter
-  const searchTeachers = async () => {
+  const searchTeachers = useCallback(async () => {
     try {
       setLoading(true);
       const storedSchoolId = localStorage.getItem('schoolId') || '1';
@@ -127,13 +132,13 @@ const TeacherDirectory: React.FC = () => {
       } else {
         setError('Failed to search teachers');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error searching teachers:', error);
-      setError(`Failed to search teachers: ${error.message}`);
+      setError(`Failed to search teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, classFilter, setLoading, setTeachers, setError]);
 
   // Debounce search to prevent too many API calls
   useEffect(() => {
@@ -146,18 +151,18 @@ const TeacherDirectory: React.FC = () => {
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [searchTerm, classFilter]);
+  }, [searchTerm, classFilter, searchTeachers, fetchTeachers]);
 
   // Filtered teachers based on search and class filter
   const filteredTeachers = teachers.filter((teacher) => {
     const matchesSearch =
-      teacher.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.designation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.subjects.some((subject) => subject.toLowerCase().includes(searchTerm.toLowerCase()));
+      teacher.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.designation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.subjects?.some((subject) => subject.toLowerCase().includes(searchTerm.toLowerCase())) || false;
 
     const matchesClass =
-      classFilter === 'all' || teacher.sections.some((section) => section.class === classFilter);
+      classFilter === 'all' || teacher.sections?.some((section) => section.class === classFilter) || false;
 
     return matchesSearch && matchesClass;
   });
@@ -186,38 +191,232 @@ const TeacherDirectory: React.FC = () => {
   };
 
   // Handle viewing a teacher's profile
-  const handleViewProfile = (teacher: Teacher) => {
-    setSelectedTeacher(teacher);
+  const handleViewProfile = async (teacher: Teacher) => {
+    try {
+      const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      if (response.data.success) {
+        const teacherData = response.data.data;
+        console.log('Teacher Profile Data:', {
+          id: teacherData.id,
+          fullName: teacherData.fullName,
+          email: teacherData.email,
+          phone: teacherData.phone,
+          username: teacherData.username,
+          gender: teacherData.gender,
+          dateOfBirth: teacherData.dateOfBirth,
+          age: teacherData.age,
+          designation: teacherData.designation,
+          qualification: teacherData.qualification,
+          address: teacherData.address,
+          subjects: teacherData.subjects,
+          sections: teacherData.sections,
+          joining_year: teacherData.joining_year,
+          experience: teacherData.experience,
+          profileImage: teacherData.profileImage,
+          isClassIncharge: teacherData.isClassIncharge,
+          inchargeClass: teacherData.inchargeClass,
+          inchargeSection: teacherData.inchargeSection,
+          religion: teacherData.religion,
+          bloodGroup: teacherData.bloodGroup,
+          maritalStatus: teacherData.maritalStatus,
+          facebook: teacherData.facebook,
+          twitter: teacherData.twitter,
+          linkedIn: teacherData.linkedIn,
+          documents: teacherData.documents,
+          joiningSalary: teacherData.joiningSalary,
+          accountHolderName: teacherData.accountHolderName,
+          accountNumber: teacherData.accountNumber,
+          bankName: teacherData.bankName,
+          bankBranch: teacherData.bankBranch,
+          status: teacherData.status,
+          schoolId: teacherData.schoolId,
+          lastLogin: teacherData.lastLogin,
+          createdAt: teacherData.createdAt,
+          updatedAt: teacherData.updatedAt
+        });
+        setSelectedTeacher(teacherData);
     setIsProfileOpen(true);
+      } else {
+        showToast('error', 'Failed to fetch teacher details');
+      }
+    } catch (error) {
+      console.error('Error fetching teacher details:', error);
+      showToast('error', 'Failed to fetch teacher details');
+    }
   };
 
   // Handle adding a new teacher
-  const handleAddTeacher = () => {
-    setNewTeacher({
-      fullName: '',
-      email: '',
-      phone: '',
-      designation: 'Teacher',
-      subjects: [],
-      sections: [],
-      classes: '',
-      joinDate: getCurrentDate(),
-      address: '',
-      education: '',
-      experience: '',
-      profileImage: '',
-      isClassIncharge: false,
-      inchargeClass: null,
-      inchargeSection: null,
-      status: 'active'
-    });
-    setIsAddModalOpen(true);
+  const handleAddTeacher = async (formData: Partial<Teacher>) => {
+    try {
+      // Ensure we have valid form data
+      if (!formData) {
+        toast.error('Invalid form data');
+        return;
+      }
+
+      // Calculate age if dateOfBirth is provided
+      let age: number | undefined;
+      if (formData.dateOfBirth) {
+        const today = new Date();
+        const birthDate = new Date(formData.dateOfBirth);
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+      }
+
+      // Format the data with all fields, using empty strings/arrays for undefined values
+      const formattedData = {
+        // Required fields
+        fullName: formData.fullName || '',
+        email: formData.email || '',
+        gender: formData.gender || '',
+        phone: formData.phone || '',
+        subjects: Array.isArray(formData.subjects) ? formData.subjects : [],
+        sections: Array.isArray(formData.sections) ? formData.sections : [],
+        
+        // Optional fields with default values
+        designation: formData.designation || 'Subject Teacher',
+        joining_year: formData.joining_year || new Date().toISOString().split('T')[0],
+        address: formData.address || '',
+        qualification: formData.qualification || '',
+        experience: formData.experience || '0',
+        profileImage: formData.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
+        isClassIncharge: formData.isClassIncharge || false,
+        inchargeClass: formData.isClassIncharge ? formData.inchargeClass : null,
+        inchargeSection: formData.isClassIncharge ? formData.inchargeSection : null,
+        status: formData.status || 'active',
+        schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
+        documents: [],
+        password: '123456', // Default password for new teachers
+        
+        // Personal information with default values
+        dateOfBirth: formData.dateOfBirth || '',
+        age: age || 0,
+        religion: formData.religion || '',
+        bloodGroup: formData.bloodGroup || '',
+        maritalStatus: formData.maritalStatus || '',
+        facebook: formData.facebook || '',
+        twitter: formData.twitter || '',
+        linkedIn: formData.linkedIn || '',
+        
+        // Banking information with default values
+        joiningSalary: formData.joiningSalary || 0,
+        accountHolderName: formData.accountHolderName || '',
+        accountNumber: formData.accountNumber || '',
+        bankName: formData.bankName || '',
+        bankBranch: formData.bankBranch || ''
+      };
+
+      // Validate required fields before sending
+      type RequiredField = keyof Pick<Teacher, 'fullName' | 'email' | 'gender' | 'phone' | 'subjects' | 'sections'>;
+      const requiredFields: RequiredField[] = ['fullName', 'email', 'gender', 'phone', 'subjects', 'sections'];
+      const missingFields = requiredFields.filter(field => {
+        const value = formData[field];
+        if (field === 'subjects' || field === 'sections') {
+          return !value || !Array.isArray(value) || value.length === 0;
+        }
+        return !value;
+      });
+
+      if (missingFields.length > 0) {
+        toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      console.log('Sending teacher data:', formattedData);
+
+      const response = await axios.post(`${API_URL}/teachers`, formattedData);
+      
+      if (response.data.success) {
+        toast.success('Teacher added successfully');
+        setIsAddFormOpen(false);
+        fetchTeachers(); // Refresh the teacher list
+      } else {
+        toast.error(response.data.message || 'Failed to add teacher');
+      }
+    } catch (error) {
+      console.error('Error adding teacher:', error);
+      if (axios.isAxiosError(error)) {
+        const errorMessage = error.response?.data?.message || 'Error adding teacher';
+        console.error('Server error details:', error.response?.data);
+        toast.error(errorMessage);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    }
   };
 
   // Handle editing a teacher
-  const handleEditTeacher = (teacher: Teacher) => {
-    setEditTeacher(teacher);
+  const handleEditTeacher = async (teacher: Teacher) => {
+    try {
+      // Fetch the complete teacher data
+      const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      
+      if (response.data.success) {
+        const teacherData = response.data.data;
+        
+        // Format the data to ensure all fields are properly set
+        const formattedTeacherData = {
+          id: teacherData.id,
+          fullName: teacherData.fullName || '',
+          email: teacherData.email || '',
+          gender: teacherData.gender || '',
+          phone: teacherData.phone || '',
+          subjects: Array.isArray(teacherData.subjects) ? teacherData.subjects : [],
+          sections: Array.isArray(teacherData.sections) ? teacherData.sections : [],
+          designation: teacherData.designation || 'Subject Teacher',
+          joining_year: teacherData.joining_year || '', // Use joining_year directly instead of joinDate
+          address: teacherData.address || '',
+          qualification: teacherData.qualification || '', // Use qualification directly instead of education
+          experience: teacherData.experience || '',
+          profileImage: teacherData.profileImage || '',
+          isClassIncharge: teacherData.isClassIncharge || false,
+          inchargeClass: teacherData.inchargeClass || '',
+          inchargeSection: teacherData.inchargeSection || '',
+          status: teacherData.status || 'active',
+          schoolId: teacherData.schoolId,
+          username: teacherData.username || '',
+          
+          // Personal information
+          dateOfBirth: teacherData.dateOfBirth || '',
+          age: teacherData.age || 0,
+          religion: teacherData.religion || '',
+          bloodGroup: teacherData.bloodGroup || '',
+          maritalStatus: teacherData.maritalStatus || '',
+          facebook: teacherData.facebook || '',
+          twitter: teacherData.twitter || '',
+          linkedIn: teacherData.linkedIn || '',
+          
+          // Banking information
+          joiningSalary: teacherData.joiningSalary || 0,
+          accountHolderName: teacherData.accountHolderName || '',
+          accountNumber: teacherData.accountNumber || '',
+          bankName: teacherData.bankName || '',
+          bankBranch: teacherData.bankBranch || ''
+        };
+
+        console.log('Setting edit teacher data:', formattedTeacherData);
+        
+        // Set the edit teacher data
+        setEditTeacher(formattedTeacherData);
+        
+        // Ensure the modal is opened after data is set
+        setTimeout(() => {
     setIsEditModalOpen(true);
+        }, 0);
+      } else {
+        toast.error('Failed to fetch teacher details');
+      }
+    } catch (error) {
+      console.error('Error fetching teacher details:', error);
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to fetch teacher details');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    }
   };
 
   // Handle deleting a teacher
@@ -232,9 +431,9 @@ const TeacherDirectory: React.FC = () => {
         } else {
           showToast('error', response.data.message || 'Failed to delete teacher. Please try again.');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error deleting teacher:', error);
-        showToast('error', error.response?.data?.message || 'Failed to delete teacher. Please try again.');
+        showToast('error', error instanceof Error ? error.message : 'Unknown error');
       }
     }
   };
@@ -250,13 +449,17 @@ const TeacherDirectory: React.FC = () => {
   };
 
   // Handle input changes for new teacher
-  const handleInputChange = (field: keyof Teacher, value: string | string[] | boolean | null) => {
+  const handleInputChange = (field: keyof Teacher, value: unknown) => {
+    if (typeof value === 'string' || typeof value === 'boolean' || Array.isArray(value) || value === null) {
     setNewTeacher((prev) => ({ ...prev, [field]: value }));
+    }
   };
 
   // Handle input changes for editing teacher
-  const handleEditInputChange = (field: keyof Teacher, value: string | string[] | boolean | null) => {
+  const handleEditInputChange = (field: keyof Teacher, value: unknown) => {
+    if (typeof value === 'string' || typeof value === 'boolean' || Array.isArray(value) || value === null) {
     setEditTeacher((prev) => ({ ...prev, [field]: value }));
+    }
   };
 
   // Check if incharge position is already taken
@@ -281,111 +484,48 @@ const TeacherDirectory: React.FC = () => {
     return false;
   };
 
-  // Handle form submission for adding a teacher
-  const handleSubmit = async () => {
-    if (newTeacher.isClassIncharge) {
-      if (!newTeacher.inchargeClass || !newTeacher.inchargeSection) {
-        showToast('error', 'Please select both incharge class and section');
-        return;
-      }
+  // Handle class incharge selection
+  const handleClassInchargeSelect = (isIncharge: boolean) => {
+    setNewTeacher(prev => ({
+      ...prev,
+      isClassIncharge: isIncharge,
+      inchargeClass: isIncharge ? prev.inchargeClass : undefined,
+      inchargeSection: isIncharge ? prev.inchargeSection : undefined
+    }));
+  };
 
-      if (checkInchargePosition(newTeacher.inchargeClass, newTeacher.inchargeSection)) {
-        return;
-      }
-    }
-
-    try {
-      // Get the school ID from localStorage
-      const storedSchoolId = localStorage.getItem('schoolId');
-      console.log('Stored School ID:', storedSchoolId);
-      
-      if (!storedSchoolId) {
-        console.error('School ID not found in localStorage');
-        showToast('error', 'School ID not found. Please try logging in again.');
-        return;
-      }
-
-      let schoolId = parseInt(storedSchoolId);
-      console.log('Parsed School ID:', schoolId);
-
-      // Try to get school, if not found create a default school
-      try {
-        console.log('Attempting to verify school with ID:', schoolId);
-        const schoolResponse = await axios.get(`${API_URL}/schools/${schoolId}`);
-        console.log('School verification response:', schoolResponse.data);
-        
-        if (!schoolResponse.data.success) {
-          console.log('School not found');
-        }
-      } catch (error) {
-          console.error('Unexpected error during school verification:', error);
-          showToast('error', 'An unexpected error occurred while verifying school');
-      }
-
-      // Format sections data properly
-      const formattedSections = Array.isArray(newTeacher.sections) 
-        ? newTeacher.sections.map(section => ({
-            class: section.class,
-            sections: Array.isArray(section.sections) ? section.sections : []
-          }))
-        : [];
-
-      // Create the teacher object with all required fields
-      const teacherToAdd = {
-        fullName: newTeacher.fullName || '',
-        email: newTeacher.email || '',
-        password: newTeacher.password || newTeacher.email?.split('@')[0] || 'password123',
-        phone: newTeacher.phone || '',
-        designation: newTeacher.designation || 'Teacher',
-        subjects: Array.isArray(newTeacher.subjects) ? newTeacher.subjects : [],
-        sections: formattedSections,
-        classes: newTeacher.sections?.map(section => section.class).join(',') || '',
-        joinDate: newTeacher.joinDate || getCurrentDate(),
-        address: newTeacher.address || '',
-        education: newTeacher.education || '',
-        experience: newTeacher.experience || '',
-        profileImage: newTeacher.profileImage || '',
-        isClassIncharge: newTeacher.isClassIncharge ?? false,
-        inchargeClass: newTeacher.isClassIncharge ? newTeacher.inchargeClass : null,
-        inchargeSection: newTeacher.isClassIncharge ? newTeacher.inchargeSection : null,
-        schoolId: schoolId,
-        status: 'active',
-        username: newTeacher.email?.split('@')[0] || ''
-      };
-
-      console.log('Sending teacher data:', teacherToAdd);
-      
-      const response = await axios.post(`${API_URL}/teachers`, teacherToAdd, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      console.log('Teacher creation response:', response.data);
-
-      if (response.data.success) {
-        setTeachers((prev) => [...prev, response.data.data]);
-        showToast('success', 'Teacher added successfully!');
-        setIsAddModalOpen(false);
-      } else {
-        console.error('Failed to add teacher:', response.data);
-        showToast('error', response.data.message || 'Failed to add teacher. Please try again.');
-      }
-    } catch (error: any) {
-      console.error('Error adding teacher:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      showToast('error', error.response?.data?.message || 'Failed to add teacher. Please try again.');
-    }
+  // Handle edit class incharge selection
+  const handleEditClassInchargeSelect = (isIncharge: boolean) => {
+    setEditTeacher(prev => ({
+      ...prev,
+      isClassIncharge: isIncharge,
+      inchargeClass: isIncharge ? prev.inchargeClass : undefined,
+      inchargeSection: isIncharge ? prev.inchargeSection : undefined
+    }));
   };
 
   // Handle form submission for editing a teacher
   const handleEditSubmit = async () => {
+    try {
+      // Validate required fields
+      type RequiredField = keyof Pick<Teacher, 'fullName' | 'email' | 'gender' | 'phone' | 'subjects' | 'sections'>;
+      const requiredFields: RequiredField[] = ['fullName', 'email', 'gender', 'phone', 'subjects', 'sections'];
+      const missingFields = requiredFields.filter(field => {
+        const value = editTeacher[field];
+        if (field === 'subjects' || field === 'sections') {
+          return !value || !Array.isArray(value) || value.length === 0;
+        }
+        return !value;
+      });
+
+      if (missingFields.length > 0) {
+        toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
     if (editTeacher.isClassIncharge) {
       if (!editTeacher.inchargeClass || !editTeacher.inchargeSection) {
-        showToast('error', 'Please select both incharge class and section');
+          toast.error('Please select both incharge class and section');
         return;
       }
 
@@ -394,38 +534,50 @@ const TeacherDirectory: React.FC = () => {
       }
     }
 
-    try {
-      // Create the teacher update object
+      // Create the teacher update object with only provided fields
       const teacherToUpdate = {
+        // Required fields
         fullName: editTeacher.fullName,
         email: editTeacher.email,
+        gender: editTeacher.gender,
         phone: editTeacher.phone,
-        designation: editTeacher.designation || 'Teacher',
-        subjects: Array.isArray(editTeacher.subjects) ? editTeacher.subjects : [],
-        classes: typeof editTeacher.classes === 'string' ? editTeacher.classes : '',
-        sections: Array.isArray(editTeacher.sections) ? editTeacher.sections : [],
-        joinDate: editTeacher.joinDate || getCurrentDate(),
-        address: editTeacher.address || '',
-        education: editTeacher.education || '',
-        experience: editTeacher.experience || '',
-        profileImage: editTeacher.profileImage || '',
-        isClassIncharge: editTeacher.isClassIncharge || false,
-        inchargeClass: editTeacher.isClassIncharge ? editTeacher.inchargeClass : null,
-        inchargeSection: editTeacher.isClassIncharge ? editTeacher.inchargeSection : null,
-        status: editTeacher.status || 'active',
+        subjects: editTeacher.subjects,
+        sections: editTeacher.sections,
+        
+        // Optional fields - only include if provided
+        ...(editTeacher.designation && { designation: editTeacher.designation }),
+        ...(editTeacher.joining_year && { joining_year: editTeacher.joining_year }),
+        ...(editTeacher.address && { address: editTeacher.address }),
+        ...(editTeacher.qualification && { qualification: editTeacher.qualification }),
+        ...(editTeacher.experience && { experience: editTeacher.experience }),
+        ...(editTeacher.profileImage && { profileImage: editTeacher.profileImage }),
+        ...(editTeacher.isClassIncharge && { 
+          isClassIncharge: editTeacher.isClassIncharge,
+          inchargeClass: editTeacher.inchargeClass,
+          inchargeSection: editTeacher.inchargeSection
+        }),
+        ...(editTeacher.status && { status: editTeacher.status }),
         schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
+        
+        // Optional personal information - only include if provided
+        ...(editTeacher.religion && { religion: editTeacher.religion }),
+        ...(editTeacher.bloodGroup && { bloodGroup: editTeacher.bloodGroup }),
+        ...(editTeacher.maritalStatus && { maritalStatus: editTeacher.maritalStatus }),
+        ...(editTeacher.facebook && { facebook: editTeacher.facebook }),
+        ...(editTeacher.twitter && { twitter: editTeacher.twitter }),
+        ...(editTeacher.linkedIn && { linkedIn: editTeacher.linkedIn }),
+        
+        // Optional banking information - only include if provided
+        ...(editTeacher.joiningSalary && { joiningSalary: editTeacher.joiningSalary }),
+        ...(editTeacher.accountHolderName && { accountHolderName: editTeacher.accountHolderName }),
+        ...(editTeacher.accountNumber && { accountNumber: editTeacher.accountNumber }),
+        ...(editTeacher.bankName && { bankName: editTeacher.bankName }),
+        ...(editTeacher.bankBranch && { bankBranch: editTeacher.bankBranch })
       };
 
       console.log('Updating teacher data:', teacherToUpdate);
       
-      // Set headers explicitly to ensure content type is set properly
-      const config = {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      };
-
-      const response = await axios.put(`${API_URL}/teachers/${editTeacher.id}`, teacherToUpdate, config);
+      const response = await axios.put(`${API_URL}/teachers/${editTeacher.id}`, teacherToUpdate);
       
       if (response.data.success) {
         const updatedTeachers = teachers.map((teacher) =>
@@ -440,9 +592,9 @@ const TeacherDirectory: React.FC = () => {
       } else {
         showToast('error', response.data.message || 'Failed to update teacher. Please try again.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating teacher:', error);
-      if (error.response?.data?.message) {
+      if (error instanceof AxiosError && error.response?.data?.message) {
         showToast('error', error.response.data.message);
       } else {
         showToast('error', 'Failed to update teacher. Please try again.');
@@ -455,19 +607,19 @@ const TeacherDirectory: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false);
-        setIsAddModalOpen(false);
+        setIsAddFormOpen(false);
         setIsEditModalOpen(false);
       }
     };
 
-    if (isProfileOpen || isAddModalOpen || isEditModalOpen) {
+    if (isProfileOpen || isAddFormOpen || isEditModalOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileOpen, isAddModalOpen, isEditModalOpen]);
+  }, [isProfileOpen, isAddFormOpen, isEditModalOpen]);
 
   // Reset current page when filters change
   useEffect(() => {
@@ -510,7 +662,7 @@ const TeacherDirectory: React.FC = () => {
       })
       .catch(error => {
         console.error('Error updating teacher status:', error);
-        if (error.response?.data?.message) {
+        if (error instanceof AxiosError && error.response?.data?.message) {
           showToast('error', error.response.data.message);
         } else {
           showToast('error', `Failed to update status`);
@@ -531,13 +683,30 @@ const TeacherDirectory: React.FC = () => {
         <div className="flex items-center space-x-4">
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300"
-            onClick={handleAddTeacher}
+            onClick={() => setIsAddFormOpen(!isAddFormOpen)}
           >
             <UserPlus className="h-4 w-4 mr-2" />
-            Add New Teacher
+            {isAddFormOpen ? 'Cancel' : 'Add New Teacher'}
           </button>
         </div>
       </div>
+
+      {/* Add Teacher Form Dropdown */}
+      {isAddFormOpen && (
+        <div className="mb-6 border rounded-lg shadow-lg">
+          <TeacherFormModal
+            isOpen={true}
+            setIsOpen={setIsAddFormOpen}
+            mode="add"
+            teacherData={newTeacher}
+            setTeacherData={(data) => setNewTeacher(data as AddTeacherFormData)}
+            onSubmit={handleAddTeacher}
+            validateInchargeClass={validateInchargeClass}
+            handleInputChange={handleInputChange}
+            handleClassInchargeSelect={handleClassInchargeSelect}
+          />
+        </div>
+      )}
 
       {/* Search and Filters */}
       <SearchFilters
@@ -591,20 +760,6 @@ const TeacherDirectory: React.FC = () => {
         />
       )}
 
-      {/* Add Teacher Modal */}
-      {isAddModalOpen && (
-        <TeacherFormModal
-          isOpen={isAddModalOpen}
-          setIsOpen={setIsAddModalOpen}
-          mode="add"
-          teacherData={newTeacher}
-          setTeacherData={setNewTeacher}
-          onSubmit={handleSubmit}
-          validateInchargeClass={validateInchargeClass}
-          handleInputChange={handleInputChange}
-        />
-      )}
-
       {/* Edit Teacher Modal */}
       {isEditModalOpen && editTeacher && (
         <TeacherFormModal
@@ -616,6 +771,7 @@ const TeacherDirectory: React.FC = () => {
           onSubmit={handleEditSubmit}
           validateInchargeClass={validateInchargeClass}
           handleInputChange={handleEditInputChange}
+          handleClassInchargeSelect={handleEditClassInchargeSelect}
         />
       )}
     </div>

@@ -5,6 +5,20 @@ import bcrypt from 'bcrypt';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth) => {
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
+
 // GET all teachers for a school
 router.get('/school/:schoolId', async (req, res) => {
   try {
@@ -120,20 +134,35 @@ router.get('/:id', async (req, res) => {
       fullName: teacher.fullName,
       email: teacher.email,
       phone: teacher.phone,
+      gender: teacher.gender,
+      dateOfBirth: teacher.dateOfBirth ? teacher.dateOfBirth.toISOString().split('T')[0] : null,
+      age: teacher.age,
       designation: teacher.designation || 'Teacher',
+      qualification: teacher.qualification || '',
+      address: teacher.address || '',
       subjects: JSON.parse(teacher.subjects || '[]'),
       sections: JSON.parse(teacher.sections || '[]'),
-      joinDate: teacher.joining_year.toISOString().split('T')[0],
-      address: teacher.address || '',
-      education: teacher.education || '',
-      experience: teacher.experience,
+      joining_year: teacher.joining_year ? teacher.joining_year.toISOString().split('T')[0] : null,
+      experience: teacher.experience || '',
       profileImage: teacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
-      isClassIncharge: teacher.isClassIncharge,
-      inchargeClass: teacher.inchargeClass,
-      inchargeSection: teacher.inchargeSection,
-      status: teacher.status,
+      isClassIncharge: teacher.isClassIncharge || false,
+      inchargeClass: teacher.inchargeClass || '',
+      inchargeSection: teacher.inchargeSection || '',
+      status: teacher.status || 'active',
       schoolId: teacher.schoolId,
-      username: teacher.username
+      username: teacher.username || '',
+      religion: teacher.religion || '',
+      bloodGroup: teacher.bloodGroup || '',
+      maritalStatus: teacher.maritalStatus || '',
+      facebook: teacher.facebook || '',
+      twitter: teacher.twitter || '',
+      linkedIn: teacher.linkedIn || '',
+      joiningSalary: teacher.joiningSalary || 0,
+      accountHolderName: teacher.accountHolderName || '',
+      accountNumber: teacher.accountNumber || '',
+      bankName: teacher.bankName || '',
+      bankBranch: teacher.bankBranch || '',
+      documents: teacher.documents ? JSON.parse(teacher.documents) : []
     };
 
     res.status(200).json({ success: true, data: formattedTeacher });
@@ -146,104 +175,113 @@ router.get('/:id', async (req, res) => {
 // CREATE a new teacher
 router.post('/', async (req, res) => {
   try {
-    const { 
-      fullName, email, password, phone, designation, subjects, 
-      sections, joinDate, address, education, experience, profileImage, 
-      isClassIncharge, inchargeClass, inchargeSection, schoolId 
+    const {
+      fullName,
+      email,
+      password,
+      phone,
+      gender,
+      dateOfBirth,
+      designation,
+      qualification,
+      address,
+      subjects,
+      sections,
+      religion,
+      bloodGroup,
+      maritalStatus,
+      facebook,
+      twitter,
+      linkedIn,
+      documents,
+      joiningSalary,
+      accountHolderName,
+      accountNumber,
+      bankName,
+      bankBranch,
+      isClassIncharge,
+      inchargeClass,
+      inchargeSection,
+      schoolId
     } = req.body;
 
     // Validate required fields
-    if (!fullName || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Name and email are required fields' 
+    if (!fullName || !email || !password || !phone || !gender || !schoolId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
       });
     }
 
-    // Check if email already exists
+    // Check if teacher with same email exists
     const existingTeacher = await prisma.teacher.findUnique({
-      where: { email },
+      where: { email }
     });
 
     if (existingTeacher) {
-      return res.status(400).json({ success: false, message: 'Teacher with this email already exists' });
-    }
-
-    // Check if class incharge position is already taken
-    if (isClassIncharge && inchargeClass && inchargeSection) {
-      const existingIncharge = await prisma.teacher.findFirst({
-        where: {
-          schoolId: parseInt(schoolId),
-          isClassIncharge: true,
-          inchargeClass,
-          inchargeSection,
-        },
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher with this email already exists'
       });
-
-      if (existingIncharge) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `${existingIncharge.fullName} is already incharge of Class ${inchargeClass} Section ${inchargeSection}` 
-        });
-      }
     }
 
-    // Ensure sections is JSON-serializable
-    const sectionsJson = typeof sections === 'string' ? sections : JSON.stringify(sections);
-    const subjectsJson = typeof subjects === 'string' ? subjects : JSON.stringify(subjects);
+    // Calculate age if date of birth is provided
+    const age = dateOfBirth ? calculateAge(dateOfBirth) : null;
 
-    // Create the teacher
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const username = email.split('@')[0];
-
+    // Create new teacher
     const teacher = await prisma.teacher.create({
       data: {
         fullName,
         email,
-        password: hashedPassword,
-        username,
+        password: await bcrypt.hash(password, 10),
         phone,
-        designation: designation || 'Teacher',
-        subjects: subjectsJson,
-        sections: sectionsJson,
-        joining_year: joinDate ? new Date(joinDate) : new Date(),
+        gender,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        age,
+        designation,
+        qualification,
         address,
-        education,
-        experience,
-        profileImage,
+        subjects: JSON.stringify(subjects || []),
+        sections: JSON.stringify(sections || []),
+        religion,
+        bloodGroup,
+        maritalStatus,
+        facebook,
+        twitter,
+        linkedIn,
+        documents: JSON.stringify(documents || []),
+        joiningSalary: joiningSalary ? parseFloat(joiningSalary) : null,
+        accountHolderName,
+        accountNumber,
+        bankName,
+        bankBranch,
         isClassIncharge: isClassIncharge || false,
-        inchargeClass: isClassIncharge ? inchargeClass : null,
-        inchargeSection: isClassIncharge ? inchargeSection : null,
-        schoolId: parseInt(schoolId),
-        status: 'active',
-      },
+        inchargeClass,
+        inchargeSection,
+        schoolId: parseInt(schoolId)
+      }
     });
 
+    // Format the response
     const formattedTeacher = {
-      id: teacher.id,
-      fullName: teacher.fullName,
-      email: teacher.email,
-      phone: teacher.phone,
-      designation: teacher.designation,
-      subjects: JSON.parse(teacher.subjects || '[]'),
-      sections: JSON.parse(teacher.sections || '[]'),
-      joinDate: teacher.joining_year.toISOString().split('T')[0],
-      address: teacher.address || '',
-      education: teacher.education || '',
-      experience: teacher.experience,
-      profileImage: teacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
-      isClassIncharge: teacher.isClassIncharge,
-      inchargeClass: teacher.inchargeClass,
-      inchargeSection: teacher.inchargeSection,
-      status: teacher.status,
-      schoolId: teacher.schoolId,
-      username: teacher.username
+      ...teacher,
+      subjects: JSON.parse(teacher.subjects),
+      sections: JSON.parse(teacher.sections),
+      documents: teacher.documents ? JSON.parse(teacher.documents) : null
     };
 
-    res.status(201).json({ success: true, data: formattedTeacher, message: 'Teacher created successfully' });
+    res.status(201).json({
+      success: true,
+      message: 'Teacher created successfully',
+      data: formattedTeacher
+    });
   } catch (error) {
     console.error('Error creating teacher:', error);
-    res.status(500).json({ success: false, message: 'Failed to create teacher', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error creating teacher',
+      error: error.message
+    });
   }
 });
 
@@ -251,115 +289,129 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      fullName, email, phone, designation, subjects, sections, 
-      joinDate, address, education, experience, profileImage, 
-      isClassIncharge, inchargeClass, inchargeSection, status, schoolId 
+    const {
+      fullName,
+      email,
+      password,
+      phone,
+      gender,
+      dateOfBirth,
+      designation,
+      qualification,
+      address,
+      subjects,
+      sections,
+      religion,
+      bloodGroup,
+      maritalStatus,
+      facebook,
+      twitter,
+      linkedIn,
+      documents,
+      joiningSalary,
+      accountHolderName,
+      accountNumber,
+      bankName,
+      bankBranch,
+      isClassIncharge,
+      inchargeClass,
+      inchargeSection,
+      schoolId
     } = req.body;
 
     // Validate required fields
-    if (!fullName || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Name and email are required fields' 
+    if (!fullName || !email || !phone || !gender || !schoolId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
       });
     }
 
     // Check if teacher exists
     const existingTeacher = await prisma.teacher.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseInt(id) }
     });
 
     if (!existingTeacher) {
-      return res.status(404).json({ success: false, message: 'Teacher not found' });
-    }
-
-    // Check if email is already in use
-    if (email !== existingTeacher.email) {
-      const emailExists = await prisma.teacher.findUnique({
-        where: { email },
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
       });
-
-      if (emailExists) {
-        return res.status(400).json({ success: false, message: 'Email is already in use' });
-      }
     }
 
-    // Check if class incharge position is already taken
-    if (isClassIncharge && inchargeClass && inchargeSection) {
-      const existingIncharge = await prisma.teacher.findFirst({
-        where: {
-          id: { not: parseInt(id) },
-          schoolId: parseInt(schoolId),
-          isClassIncharge: true,
-          inchargeClass,
-          inchargeSection,
-        },
+    // Check if email is already taken by another teacher
+    const emailExists = await prisma.teacher.findFirst({
+      where: {
+        email,
+        id: { not: parseInt(id) }
+      }
+    });
+
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already taken by another teacher'
       });
-
-      if (existingIncharge) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `${existingIncharge.fullName} is already incharge of Class ${inchargeClass} Section ${inchargeSection}` 
-        });
-      }
     }
 
-    // Ensure sections is JSON-serializable
-    const sectionsJson = typeof sections === 'string' ? sections : JSON.stringify(sections);
-    const subjectsJson = typeof subjects === 'string' ? subjects : JSON.stringify(subjects);
+    // Calculate age if date of birth is provided
+    const age = dateOfBirth ? calculateAge(dateOfBirth) : null;
 
-    // Update the teacher
+    // Update teacher
     const updatedTeacher = await prisma.teacher.update({
       where: { id: parseInt(id) },
       data: {
         fullName,
         email,
+        password: password ? await bcrypt.hash(password, 10) : undefined,
         phone,
+        gender,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        age,
         designation,
-        subjects: subjectsJson,
-        sections: sectionsJson,
-        joining_year: joinDate ? new Date(joinDate) : existingTeacher.joining_year,
+        qualification,
         address,
-        education,
-        experience,
-        profileImage,
-        isClassIncharge: isClassIncharge || false,
-        inchargeClass: isClassIncharge ? inchargeClass : null,
-        inchargeSection: isClassIncharge ? inchargeSection : null,
-        status,
-      },
+        subjects: subjects ? JSON.stringify(subjects) : undefined,
+        sections: sections ? JSON.stringify(sections) : undefined,
+        religion,
+        bloodGroup,
+        maritalStatus,
+        facebook,
+        twitter,
+        linkedIn,
+        documents: documents ? JSON.stringify(documents) : undefined,
+        joiningSalary: joiningSalary ? parseFloat(joiningSalary) : undefined,
+        accountHolderName,
+        accountNumber,
+        bankName,
+        bankBranch,
+        isClassIncharge: isClassIncharge !== undefined ? isClassIncharge : undefined,
+        inchargeClass,
+        inchargeSection,
+        schoolId: parseInt(schoolId)
+      }
     });
 
+    // Format the response
     const formattedTeacher = {
-      id: updatedTeacher.id,
-      fullName: updatedTeacher.fullName,
-      email: updatedTeacher.email,
-      phone: updatedTeacher.phone,
-      designation: updatedTeacher.designation || 'Teacher',
-      subjects: JSON.parse(updatedTeacher.subjects || '[]'),
-      sections: JSON.parse(updatedTeacher.sections || '[]'),
-      joinDate: updatedTeacher.joining_year.toISOString().split('T')[0],
-      address: updatedTeacher.address || '',
-      education: updatedTeacher.education || '',
-      experience: updatedTeacher.experience,
-      profileImage: updatedTeacher.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
-      isClassIncharge: updatedTeacher.isClassIncharge,
-      inchargeClass: updatedTeacher.inchargeClass,
-      inchargeSection: updatedTeacher.inchargeSection,
-      status: updatedTeacher.status,
-      schoolId: updatedTeacher.schoolId,
-      username: updatedTeacher.username
+      ...updatedTeacher,
+      subjects: JSON.parse(updatedTeacher.subjects),
+      sections: JSON.parse(updatedTeacher.sections),
+      documents: updatedTeacher.documents ? JSON.parse(updatedTeacher.documents) : null
     };
 
-    res.status(200).json({ 
-      success: true, 
-      data: formattedTeacher, 
-      message: 'Teacher updated successfully' 
+    res.json({
+      success: true,
+      message: 'Teacher updated successfully',
+      data: formattedTeacher
     });
   } catch (error) {
     console.error('Error updating teacher:', error);
-    res.status(500).json({ success: false, message: 'Failed to update teacher', error: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error updating teacher',
+      error: error.message
+    });
   }
 });
 

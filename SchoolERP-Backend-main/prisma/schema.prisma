@@ -60,14 +60,16 @@ model Teacher {
   password         String
   username         String    @unique @default(cuid())
   phone            String    @default("0123456789") @db.VarChar(15)
+  gender           String    // Required field
+  dateOfBirth      DateTime? // Added date of birth field
+  age              Int?      // Added age field
   
   // Professional details
   designation      String    @default("Teacher")
-  education        String?   @db.Text
+  qualification    String?   @db.Text  // Changed from education
   address          String?   @db.Text
   
   // Teaching details
-  // classes          String    @db.Text  // Comma-separated classes taught
   subjects         String    @db.Text  // JSON string of subjects taught
   sections         String    @db.Text  // JSON string of class and section combinations
 
@@ -80,6 +82,26 @@ model Teacher {
   profileImage     String?   @db.Text
   joining_year     DateTime  @default(now())
   experience       String    @default("0")
+  
+  // New personal details
+  religion         String?
+  bloodGroup       String?
+  maritalStatus    String?
+  
+  // Social media links
+  facebook         String?
+  twitter          String?
+  linkedIn         String?
+  
+  // Documents
+  documents        String?   @db.Text  // JSON string of document URLs
+  
+  // Salary and bank details
+  joiningSalary    Float?
+  accountHolderName String?
+  accountNumber    String?
+  bankName         String?
+  bankBranch       String?
   
   // Status fields
   role             Role      @default(TEACHER)
