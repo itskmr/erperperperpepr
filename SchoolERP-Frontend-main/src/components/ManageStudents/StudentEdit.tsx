@@ -186,7 +186,7 @@ const BPL_OPTIONS = ['Yes', 'No'];
 
 const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onStudentUpdated }) => {
   const [formData, setFormData] = useState<Student>({
-    ...student,
+        ...student,
     dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
     tcDate: student.tcDate ? new Date(student.tcDate).toISOString().split('T')[0] : '',
     admissionDate: student.admissionDate ? new Date(student.admissionDate).toISOString().split('T')[0] : '',
@@ -336,8 +336,8 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
         throw new Error(result.message || 'Failed to update student');
       }
 
-      onStudentUpdated();
-      onClose();
+        onStudentUpdated();
+          onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -354,15 +354,15 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
           <h2 className="text-xl font-semibold">Edit Student Details</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <FaTimes size={24} />
-          </button>
+            </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
-          {error && (
+        {error && (
             <div className="bg-red-50 text-red-500 p-4 rounded-lg mb-6">
               {error}
-            </div>
-          )}
+          </div>
+        )}
 
           <div className="space-y-8">
             {/* Student Information */}
@@ -378,7 +378,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300"
                   />
-                </div>
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Admission No</label>
                   <input
@@ -388,7 +388,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100"
                     disabled
                   />
-                </div>
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">PEN No</label>
                   <input
@@ -398,7 +398,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300"
                   />
-                </div>
+            </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">APAAR ID</label>
                   <input
@@ -408,7 +408,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300"
                   />
-                </div>
+          </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Full Name</label>
                   <input
@@ -451,7 +451,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     className="mt-1 block w-full rounded-md border-gray-300"
                     readOnly
                   />
-                </div>
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Height (cm)</label>
                   <input
@@ -560,7 +560,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     className="mt-1 block w-full rounded-md border-gray-300"
                     required
                   />
-                </div>
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Aadhaar Number</label>
                   <input
@@ -629,7 +629,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     placeholder="10-digit mobile number"
                     required
                   />
-                </div>
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Father's Mobile</label>
                   <input
@@ -642,7 +642,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     maxLength={10}
                     placeholder="10-digit mobile number"
                   />
-                </div>
+            </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Mother's Mobile</label>
                   <input
@@ -709,11 +709,11 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-600">House/Flat No.</label>
-                      <input
-                        type="text"
+                  <input
+                    type="text"
                         name="presentAddress.houseNo"
                         value={formData.presentAddress.houseNo}
-                        onChange={handleChange}
+                    onChange={handleChange}
                         className="mt-1 block w-full rounded-md border-gray-300"
                       />
                     </div>
@@ -735,10 +735,10 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                         value={formData.presentAddress.city}
                         onChange={handleChange}
                         className="mt-1 block w-full rounded-md border-gray-300"
-                        required
-                      />
-                    </div>
-                    <div>
+                    required
+                  />
+                </div>
+                <div>
                       <label className="block text-sm font-medium text-gray-600">State</label>
                       <select
                         name="presentAddress.state"
@@ -755,20 +755,20 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600">PIN Code</label>
-                      <input
-                        type="text"
+                  <input
+                    type="text"
                         name="presentAddress.pinCode"
                         value={formData.presentAddress.pinCode}
-                        onChange={handleChange}
+                    onChange={handleChange}
                         className="mt-1 block w-full rounded-md border-gray-300"
                         pattern="[0-9]{6}"
                         maxLength={6}
-                        required
-                      />
+                    required
+                  />
                     </div>
-                  </div>
                 </div>
-                
+              </div>
+              
                 {/* Same as Present Address Checkbox */}
                 <div className="flex items-center">
                   <input
@@ -785,20 +785,20 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
 
                 {/* Permanent Address */}
                 {!formData.sameAsPresentAddress && (
-                  <div>
+                <div>
                     <h4 className="text-md font-medium mb-2">Permanent Address</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-600">House/Flat No.</label>
-                        <input
-                          type="text"
+                  <input
+                    type="text"
                           name="permanentAddress.houseNo"
                           value={formData.permanentAddress.houseNo}
-                          onChange={handleChange}
+                    onChange={handleChange}
                           className="mt-1 block w-full rounded-md border-gray-300"
-                        />
-                      </div>
-                      <div>
+                  />
+                </div>
+                <div>
                         <label className="block text-sm font-medium text-gray-600">Street/Area</label>
                         <textarea
                           name="permanentAddress.street"
@@ -810,14 +810,14 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-600">City</label>
-                        <input
-                          type="text"
+                  <input
+                    type="text"
                           name="permanentAddress.city"
                           value={formData.permanentAddress.city}
-                          onChange={handleChange}
+                    onChange={handleChange}
                           className="mt-1 block w-full rounded-md border-gray-300"
-                        />
-                      </div>
+                  />
+                </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-600">State</label>
                         <select
@@ -831,7 +831,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                             <option key={state} value={state}>{state}</option>
                           ))}
                         </select>
-                      </div>
+              </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-600">PIN Code</label>
                         <input
@@ -843,13 +843,13 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                           pattern="[0-9]{6}"
                           maxLength={6}
                         />
-                      </div>
+            </div>
                     </div>
                   </div>
                 )}
               </div>
             </section>
-
+            
             {/* Parent Information */}
             <section>
               <h3 className="text-lg font-semibold border-b pb-2 mb-4">Parent Information</h3>
@@ -860,22 +860,22 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Name</label>
-                    <input
-                      type="text"
+                <input
+                  type="text"
                       name="fatherDetails.name"
                       value={formData.fatherDetails.name}
-                      onChange={handleChange}
+                  onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
-                      required
-                    />
-                  </div>
+                  required
+                />
+              </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Qualification</label>
-                    <input
-                      type="text"
+                <input
+                  type="text"
                       name="fatherDetails.qualification"
                       value={formData.fatherDetails.qualification}
-                      onChange={handleChange}
+                  onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
                     />
                   </div>
@@ -969,21 +969,21 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                   </div>
                 </div>
               </div>
-
+              
               {/* Mother's Details */}
               <div className="mb-6">
                 <h4 className="text-md font-medium mb-2">Mother's Details</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Name</label>
-                    <input
-                      type="text"
+                <input
+                  type="text"
                       name="motherDetails.name"
                       value={formData.motherDetails.name}
-                      onChange={handleChange}
+                  onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
-                      required
-                    />
+                  required
+                />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Qualification</label>
@@ -1041,21 +1041,21 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                   </div>
                 </div>
               </div>
-
+              
               {/* Guardian's Details */}
               <div>
                 <h4 className="text-md font-medium mb-2">Guardian's Details</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Name</label>
-                    <input
-                      type="text"
+                <input
+                  type="text"
                       name="guardianDetails.name"
                       value={formData.guardianDetails.name}
-                      onChange={handleChange}
+                  onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
-                    />
-                  </div>
+                />
+              </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Address</label>
                     <textarea
@@ -1065,7 +1065,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                       rows={2}
                       className="mt-1 block w-full rounded-md border-gray-300"
                     />
-                  </div>
+            </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Mobile</label>
                     <input
@@ -1135,11 +1135,11 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Group</label>
-                    <input
-                      type="text"
+                <input
+                  type="text"
                       name="admitSession.group"
                       value={formData.admitSession.group}
-                      onChange={handleChange}
+                  onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
                     />
                   </div>
@@ -1164,7 +1164,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                       value={formData.admitSession.class}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
-                      required
+                  required
                     >
                       <option value="">Select Class</option>
                       {AVAILABLE_CLASSES.map(className => (
@@ -1233,18 +1233,18 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                   </div>
                 </div>
               </div>
-
+              
               {/* Current Session */}
               <div>
                 <h4 className="text-md font-medium mb-2">Current Session</h4>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Group</label>
-                    <input
-                      type="text"
+                <input
+                  type="text"
                       name="currentSession.group"
                       value={formData.currentSession.group}
-                      onChange={handleChange}
+                  onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
                     />
                   </div>
@@ -1269,7 +1269,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                       value={formData.currentSession.class}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
-                      required
+                  required
                     >
                       <option value="">Select Class</option>
                       {AVAILABLE_CLASSES.map(className => (
@@ -1300,8 +1300,8 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                       value={formData.currentSession.rollNo}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300"
-                    />
-                  </div>
+                />
+              </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Semester</label>
                     <select
@@ -1344,16 +1344,16 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
             <section>
               <h3 className="text-lg font-semibold border-b pb-2 mb-4">Previous Education</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+              <div>
                   <label className="block text-sm font-medium text-gray-600">Previous School</label>
-                  <input
-                    type="text"
+                <input
+                  type="text"
                     name="previousEducation.school"
                     value={formData.previousEducation.school}
-                    onChange={handleChange}
+                  onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300"
-                  />
-                </div>
+                />
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">School Address</label>
                   <textarea
@@ -1363,7 +1363,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     rows={2}
                     className="mt-1 block w-full rounded-md border-gray-300"
                   />
-                </div>
+            </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">TC Date</label>
                   <input
@@ -1373,7 +1373,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                     onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300"
                   />
-                </div>
+          </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600">Previous Class</label>
                   <input
