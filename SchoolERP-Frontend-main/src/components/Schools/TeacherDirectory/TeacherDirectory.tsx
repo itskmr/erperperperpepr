@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { User2, UserPlus } from 'lucide-react';
+import { User2, UserPlus, Download, FileText, AlertTriangle } from 'lucide-react';
 import { Teacher } from './types';
 import TeacherTable from './TeacherTable';
 import SearchFilters from './SearchFilter';
@@ -8,6 +8,8 @@ import Pagination from './Pegination';
 import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
 import axios, { AxiosError } from 'axios';
+import jsPDF from 'jspdf';
+// import autoTable from 'jspdf-autotable';
 
 // Update API URL to ensure it's correctly pointing to your backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -65,6 +67,8 @@ const TeacherDirectory: React.FC = () => {
   });
   const itemsPerPage = 5;
   const modalRef = useRef<HTMLDivElement>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
 
   // Configure axios defaults for better error handling
   useEffect(() => {
@@ -193,48 +197,54 @@ const TeacherDirectory: React.FC = () => {
   // Handle viewing a teacher's profile
   const handleViewProfile = async (teacher: Teacher) => {
     try {
+      // Fetch the complete teacher data
       const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      
       if (response.data.success) {
         const teacherData = response.data.data;
-        console.log('Teacher Profile Data:', {
+        
+        // Format the data to ensure all fields are properly set
+        const formattedTeacherData = {
           id: teacherData.id,
-          fullName: teacherData.fullName,
-          email: teacherData.email,
-          phone: teacherData.phone,
-          username: teacherData.username,
-          gender: teacherData.gender,
-          dateOfBirth: teacherData.dateOfBirth,
-          age: teacherData.age,
-          designation: teacherData.designation,
-          qualification: teacherData.qualification,
-          address: teacherData.address,
-          subjects: teacherData.subjects,
-          sections: teacherData.sections,
-          joining_year: teacherData.joining_year,
-          experience: teacherData.experience,
-          profileImage: teacherData.profileImage,
-          isClassIncharge: teacherData.isClassIncharge,
-          inchargeClass: teacherData.inchargeClass,
-          inchargeSection: teacherData.inchargeSection,
-          religion: teacherData.religion,
-          bloodGroup: teacherData.bloodGroup,
-          maritalStatus: teacherData.maritalStatus,
-          facebook: teacherData.facebook,
-          twitter: teacherData.twitter,
-          linkedIn: teacherData.linkedIn,
-          documents: teacherData.documents,
-          joiningSalary: teacherData.joiningSalary,
-          accountHolderName: teacherData.accountHolderName,
-          accountNumber: teacherData.accountNumber,
-          bankName: teacherData.bankName,
-          bankBranch: teacherData.bankBranch,
-          status: teacherData.status,
+          fullName: teacherData.fullName || '',
+          email: teacherData.email || '',
+          phone: teacherData.phone || '',
+          username: teacherData.username || '',
+          gender: teacherData.gender || '',
+          dateOfBirth: teacherData.dateOfBirth || '',
+          age: teacherData.age || 0,
+          designation: teacherData.designation || 'Teacher',
+          qualification: teacherData.qualification || teacherData.education || '',
+          address: teacherData.address || '',
+          subjects: Array.isArray(teacherData.subjects) ? teacherData.subjects : [],
+          sections: Array.isArray(teacherData.sections) ? teacherData.sections : [],
+          joining_year: teacherData.joining_year || teacherData.joinDate || '',
+          experience: teacherData.experience || '',
+          profileImage: teacherData.profileImage || '',
+          isClassIncharge: teacherData.isClassIncharge || false,
+          inchargeClass: teacherData.inchargeClass || '',
+          inchargeSection: teacherData.inchargeSection || '',
+          religion: teacherData.religion || '',
+          bloodGroup: teacherData.bloodGroup || '',
+          maritalStatus: teacherData.maritalStatus || '',
+          facebook: teacherData.facebook || '',
+          twitter: teacherData.twitter || '',
+          linkedIn: teacherData.linkedIn || '',
+          documents: teacherData.documents || [],
+          joiningSalary: teacherData.joiningSalary || 0,
+          accountHolderName: teacherData.accountHolderName || '',
+          accountNumber: teacherData.accountNumber || '',
+          bankName: teacherData.bankName || '',
+          bankBranch: teacherData.bankBranch || '',
+          status: teacherData.status || 'active',
           schoolId: teacherData.schoolId,
-          lastLogin: teacherData.lastLogin,
-          createdAt: teacherData.createdAt,
-          updatedAt: teacherData.updatedAt
-        });
-        setSelectedTeacher(teacherData);
+          lastLogin: teacherData.lastLogin || '',
+          createdAt: teacherData.createdAt || '',
+          updatedAt: teacherData.updatedAt || ''
+        };
+
+        console.log('Teacher Profile Data:', formattedTeacherData);
+        setSelectedTeacher(formattedTeacherData);
     setIsProfileOpen(true);
       } else {
         showToast('error', 'Failed to fetch teacher details');
@@ -420,21 +430,29 @@ const TeacherDirectory: React.FC = () => {
   };
 
   // Handle deleting a teacher
-  const handleDeleteTeacher = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this teacher?')) {
-      try {
-        const response = await axios.delete(`${API_URL}/teachers/${id}`);
-        
-        if (response.data.success) {
-          setTeachers((prev) => prev.filter((teacher) => teacher.id !== id));
-          showToast('success', 'Teacher deleted successfully!');
-        } else {
-          showToast('error', response.data.message || 'Failed to delete teacher. Please try again.');
-        }
-      } catch (error: unknown) {
-        console.error('Error deleting teacher:', error);
-        showToast('error', error instanceof Error ? error.message : 'Unknown error');
+  const handleDeleteTeacher = (teacher: Teacher) => {
+    setTeacherToDelete(teacher);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!teacherToDelete) return;
+
+    try {
+      const response = await axios.delete(`${API_URL}/teachers/${teacherToDelete.id}`);
+      
+      if (response.data.success) {
+        setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherToDelete.id));
+        showToast('success', 'Teacher deleted successfully!');
+      } else {
+        showToast('error', response.data.message || 'Failed to delete teacher. Please try again.');
       }
+    } catch (error: unknown) {
+      console.error('Error deleting teacher:', error);
+      showToast('error', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setTeacherToDelete(null);
     }
   };
 
@@ -627,47 +645,284 @@ const TeacherDirectory: React.FC = () => {
   }, [searchTerm, classFilter]);
 
   // Handle status change for a teacher
-  const handleStatusChange = (teacherId: number, newStatus: 'active' | 'inactive') => {
-    const teacherToUpdate = teachers.find(t => t.id === teacherId);
-    if (!teacherToUpdate) return;
-    
-    setEditTeacher({
-      ...teacherToUpdate,
-      status: newStatus
-    });
-    
-    // Auto-save the status change
-    const updatedTeacher = {
-      ...teacherToUpdate,
-      status: newStatus
-    };
-    
-    // Set headers explicitly to ensure content type is set properly
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    };
-    
-    axios.put(`${API_URL}/teachers/${teacherId}`, updatedTeacher, config)
-      .then(response => {
-        if (response.data.success) {
-          setTeachers(prev => prev.map(t => 
-            t.id === teacherId ? { ...t, status: newStatus } : t
-          ));
-          showToast('success', `Teacher marked as ${newStatus}`);
-        } else {
-          showToast('error', response.data.message || `Failed to update status`);
+
+
+  // Add export functions
+  const handleExportCSV = () => {
+    try {
+      // Prepare headers for CSV
+      const headers = [
+        'ID',
+        'Full Name',
+        'Email',
+        'Phone',
+        'Gender',
+        'Date of Birth',
+        'Age',
+        'Designation',
+        'Qualification',
+        'Address',
+        'Subjects',
+        'Classes and Sections',
+        'Joining Date',
+        'Experience',
+        'Profile Image',
+        'Is Class Incharge',
+        'Incharge Class',
+        'Incharge Section',
+        'Status',
+        'Religion',
+        'Blood Group',
+        'Marital Status',
+        'Facebook',
+        'Twitter',
+        'LinkedIn',
+        'Joining Salary',
+        'Account Holder Name',
+        'Account Number',
+        'Bank Name',
+        'Bank Branch',
+        'School ID',
+        'Username',
+        'Last Login',
+        'Created At',
+        'Updated At'
+      ];
+
+      // Prepare data rows with all fields
+      const csvData = teachers.map(teacher => {
+        // Format sections data
+        const formattedSections = Array.isArray(teacher.sections) 
+          ? teacher.sections.map(section => {
+              const classNum = section.class || '';
+              const sections = Array.isArray(section.sections) ? section.sections.join(',') : '';
+              return `${classNum}-${sections}`;
+            }).join('; ')
+          : '';
+
+        // Format subjects data
+        const formattedSubjects = Array.isArray(teacher.subjects) 
+          ? teacher.subjects.join(', ')
+          : '';
+
+        // Format dates
+        const formatDate = (date: string | undefined) => {
+          if (!date) return '';
+          try {
+            return new Date(date).toLocaleDateString();
+          } catch {
+            return date;
+          }
+        };
+
+        return [
+          String(teacher.id || ''),
+          teacher.fullName || '',
+          teacher.email || '',
+          teacher.phone || '',
+          teacher.gender || '',
+          formatDate(teacher.dateOfBirth),
+          String(teacher.age || ''),
+          teacher.designation || '',
+          teacher.qualification || '',
+          teacher.address || '',
+          formattedSubjects,
+          formattedSections,
+          formatDate(teacher.joining_year),
+          teacher.experience || '',
+          teacher.profileImage || '',
+          teacher.isClassIncharge ? 'Yes' : 'No',
+          teacher.inchargeClass || '',
+          teacher.inchargeSection || '',
+          teacher.status || '',
+          teacher.religion || '',
+          teacher.bloodGroup || '',
+          teacher.maritalStatus || '',
+          teacher.facebook || '',
+          teacher.twitter || '',
+          teacher.linkedIn || '',
+          String(teacher.joiningSalary || 0),
+          teacher.accountHolderName || '',
+          teacher.accountNumber || '',
+          teacher.bankName || '',
+          teacher.bankBranch || '',
+          String(teacher.schoolId || ''),
+          teacher.username || '',
+          formatDate(teacher.lastLogin),
+          formatDate(teacher.createdAt),
+          formatDate(teacher.updatedAt)
+        ];
+      });
+
+      // Combine headers and data with proper CSV formatting
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => row.map(cell => {
+          // Handle special characters and ensure proper CSV formatting
+          const cellStr = String(cell || '');
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return `"${cellStr.replace(/"/g, '""')}"`;
+          }
+          return `"${cellStr}"`;
+        }).join(','))
+      ].join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `teachers_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast('success', 'Teachers data exported successfully');
+    } catch (error) {
+      console.error('Error exporting teachers to CSV:', error);
+      showToast('error', 'Failed to export teachers data to CSV');
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title and header
+      doc.setFontSize(20);
+      doc.setTextColor(41, 128, 185); // Blue color
+      doc.text('Teachers Directory', 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100); // Gray color
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28);
+
+      let yPosition = 40;
+      const pageWidth = doc.internal.pageSize.width;
+      const margin = 14;
+      const contentWidth = pageWidth - (margin * 2);
+
+      // Process each teacher
+      teachers.forEach((teacher, index) => {
+        // Check if we need a new page
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
         }
-      })
-      .catch(error => {
-        console.error('Error updating teacher status:', error);
-        if (error instanceof AxiosError && error.response?.data?.message) {
-          showToast('error', error.response.data.message);
-        } else {
-          showToast('error', `Failed to update status`);
+
+        // Teacher header
+        doc.setFontSize(14);
+        doc.setTextColor(41, 128, 185);
+        doc.text(`${teacher.fullName}`, margin, yPosition);
+        
+        yPosition += 8;
+
+        // Basic Information
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Basic Information:', margin, yPosition);
+        yPosition += 6;
+
+        doc.setFontSize(9);
+        doc.setTextColor(60);
+        
+        // Calculate age if dateOfBirth is available
+        let ageDisplay = 'N/A';
+        if (teacher.dateOfBirth) {
+          const today = new Date();
+          const birthDate = new Date(teacher.dateOfBirth);
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+          ageDisplay = `${age} years`;
+        } else if (teacher.age) {
+          ageDisplay = `${teacher.age} years`;
+        }
+
+        // Create two columns for basic info
+        const basicInfo = [
+          ['Email', teacher.email || 'N/A'],
+          ['Phone', teacher.phone || 'N/A'],
+          ['Gender', teacher.gender || 'N/A'],
+          ['Age', ageDisplay],
+          ['Designation', teacher.designation || 'N/A'],
+          ['Qualification', teacher.qualification || 'N/A'],
+          ['Experience', teacher.experience ? `${teacher.experience} years` : 'N/A'],
+          ['Status', teacher.status || 'N/A']
+        ];
+
+        // Draw basic info in two columns
+        basicInfo.forEach(([label, value], i) => {
+          const x = margin + (i % 2) * (contentWidth / 2);
+          const y = yPosition + Math.floor(i / 2) * 6;
+          doc.text(`${label}: ${value}`, x, y);
+        });
+
+        yPosition += Math.ceil(basicInfo.length / 2) * 6 + 8;
+
+        // Teaching Details
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Teaching Details:', margin, yPosition);
+        yPosition += 6;
+
+        doc.setFontSize(9);
+        doc.setTextColor(60);
+
+        // Format subjects
+        const subjects = Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : 'N/A';
+        doc.text(`Subjects: ${subjects}`, margin, yPosition);
+        yPosition += 6;
+
+        // Format sections
+        const sections = Array.isArray(teacher.sections) 
+          ? teacher.sections.map(s => `${s.class}-${s.sections.join(',')}`).join('; ')
+          : 'N/A';
+        doc.text(`Classes & Sections: ${sections}`, margin, yPosition);
+        yPosition += 6;
+
+        // Class Incharge details if applicable
+        if (teacher.isClassIncharge) {
+          doc.text(`Class Incharge: ${teacher.inchargeClass} - ${teacher.inchargeSection}`, margin, yPosition);
+          yPosition += 6;
+        }
+
+        // Add joining date
+        const joiningDate = teacher.joining_year ? new Date(teacher.joining_year).toLocaleDateString() : 'N/A';
+        doc.text(`Joining Date: ${joiningDate}`, margin, yPosition);
+        yPosition += 12;
+
+        // Add a separator line between teachers
+        if (index < teachers.length - 1) {
+          doc.setDrawColor(200);
+          doc.line(margin, yPosition, pageWidth - margin, yPosition);
+          yPosition += 8;
         }
       });
+
+      // Add page numbers
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text(
+          `Page ${i} of ${totalPages}`,
+          pageWidth - margin - 30,
+          doc.internal.pageSize.height - 10
+        );
+      }
+
+      // Save the PDF
+      doc.save(`teachers_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast('success', 'Teachers data exported to PDF successfully');
+    } catch (error) {
+      console.error('Error exporting teachers to PDF:', error);
+      showToast('error', 'Failed to export teachers data to PDF');
+    }
   };
 
   return (
@@ -680,9 +935,27 @@ const TeacherDirectory: React.FC = () => {
           <User2 className="h-6 w-6 mr-2 text-blue-600" /> 
           Teacher Directory
         </h1>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2">
           <button
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300"
+              onClick={handleExportCSV}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
+              title="Export to CSV"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
+              title="Export to PDF"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Export PDF
+            </button>
+          </div>
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
             onClick={() => setIsAddFormOpen(!isAddFormOpen)}
           >
             <UserPlus className="h-4 w-4 mr-2" />
@@ -734,7 +1007,6 @@ const TeacherDirectory: React.FC = () => {
               handleViewProfile={handleViewProfile}
               handleEditTeacher={handleEditTeacher}
               handleDeleteTeacher={handleDeleteTeacher}
-              handleStatusChange={handleStatusChange}
             />
           </div>
 
@@ -773,6 +1045,40 @@ const TeacherDirectory: React.FC = () => {
           handleInputChange={handleEditInputChange}
           handleClassInchargeSelect={handleEditClassInchargeSelect}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && teacherToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4" ref={modalRef}>
+            <div className="flex items-center justify-center mb-4">
+              <AlertTriangle className="h-12 w-12 text-red-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+              Delete Teacher
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              Are you sure you want to delete {teacherToDelete.fullName}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setTeacherToDelete(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors duration-200"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
