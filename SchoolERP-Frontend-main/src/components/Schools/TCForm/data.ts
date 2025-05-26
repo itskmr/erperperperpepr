@@ -1,5 +1,58 @@
 import { IssuedCertificate, StudentDetails } from './types';
 
+// Add interfaces for API responses
+interface TCAPIResponse {
+  id: string;
+  schoolId: number;
+  fullName: string;
+  fatherName: string;
+  motherName: string;
+  nationality: string;
+  category: string;
+  dateOfBirth: string;
+  admissionNo: string;
+  sessionInfo?: {
+    currentClass?: string;
+    admitClass?: string;
+    currentSection?: string;
+    admitSection?: string;
+    currentRollNo?: string;
+    admitRollNo?: string;
+    admitDate?: string;
+  };
+  schoolDetails?: {
+    schoolName: string;
+    address: string;
+    recognitionId: string;
+    affiliationNo: string;
+    contact: string;
+    email: string;
+    imageUrl: string;
+  };
+  gamesPlayed?: string | string[];
+  extraActivity?: string | string[];
+  academicYear?: string;
+  lastAttendanceDate?: string;
+  feesPaidUpTo?: string;
+  maxAttendance?: string;
+  obtainedAttendance?: string;
+  subject?: string;
+  whetherFailed?: string;
+  examIn?: string;
+  qualified?: string;
+  generalConduct?: string;
+  dateOfLeaving?: string;
+  behavior?: string;
+  reason?: string;
+  tcCharge?: string;
+  toClass?: string;
+  classInWords?: string;
+  conduct?: string;
+  remark?: string;
+  behaviorRemarks?: string;
+  subjectStudied?: string;
+}
+
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // Get current school ID from API login or localStorage
@@ -61,8 +114,10 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
       
       // Format and return the data
       return formatStudentData(data);
-    } catch (tcError) {
-      console.log(`[DEBUG] Failed to fetch via TC endpoint: ${tcError.message}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.log(`[DEBUG] Failed to fetch via TC endpoint: ${error.message}`);
+      }
       
       // Try the student-specific endpoint
       const studentLookupEndpoint = `${API_BASE_URL}/students/lookup/${admissionNumber}`;
@@ -91,8 +146,10 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
             }
           }
         }
-      } catch (lookupError) {
-        console.log(`[DEBUG] Error in student lookup: ${lookupError.message}`);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          console.log(`[DEBUG] Error in student lookup: ${error.message}`);
+        }
       }
       
       // If that also fails, try the regular students endpoint
@@ -118,16 +175,19 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
       // Format student data from the student API format
       return formatStudentDetailsFromStudentAPI(student);
     }
-  } catch (error) {
-    console.error('[ERROR] Error fetching student data:', error);
-    throw error;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('[ERROR] Error fetching student data:', error.message);
+      throw error;
+    }
+    throw new Error('An unknown error occurred while fetching student data');
   }
 };
 
 // Helper function to format student data from the TC API format
-const formatStudentData = (data: any): StudentDetails => {
+const formatStudentData = (data: TCAPIResponse): StudentDetails => {
   // Standardize class name format
-  let classInfo = data.currentClass || '';
+  let classInfo = data.sessionInfo?.currentClass || data.sessionInfo?.admitClass || '';
   console.log(`[DEBUG] Original class from TC API: "${classInfo}"`);
   
   // Handle Nursery class formatting
@@ -157,22 +217,26 @@ const formatStudentData = (data: any): StudentDetails => {
   console.log(`[DEBUG] Formatted games:`, gamesPlayed);
   console.log(`[DEBUG] Formatted activities:`, extraActivity);
 
+  // Get roll number from sessionInfo
+  const rollNo = data.sessionInfo?.currentRollNo || data.sessionInfo?.admitRollNo || '';
+  console.log(`[DEBUG] Roll number from sessionInfo: "${rollNo}"`);
+
   return {
-    studentId: data.studentId,
+    studentId: data.id,
     schoolId: data.schoolId,
-    fullName: data.fullName,
+    fullName: data.fullName || '',
     fatherName: data.fatherName || '',
     motherName: data.motherName || '',
     nationality: data.nationality || 'Indian',
     category: data.category || 'General',
     dateOfBirth: data.dateOfBirth,
-    dateOfAdmission: data.dateOfAdmission,
-    section: data.section || '',
-    admissionNumber: data.admissionNumber,
-    currentClass: classInfo,
-    admitClass: data.admitClass || classInfo,
+    dateOfAdmission: data.sessionInfo?.admitDate || new Date().toISOString(),
+    section: data.sessionInfo?.currentSection || data.sessionInfo?.admitSection || '',
+    admissionNumber: data.admissionNo,
+    currentClass: data.sessionInfo?.currentClass || classInfo,
+    admitClass: data.sessionInfo?.admitClass || classInfo,
     academicYear: data.academicYear || new Date().getFullYear().toString(),
-    rollNo: data.rollNo || '',
+    rollNo: rollNo,
     lastAttendanceDate: data.lastAttendanceDate || new Date().toISOString(),
     feesUpToDate: data.feesPaidUpTo || new Date().toISOString(),
     maxAttendance: data.maxAttendance || '220',
@@ -197,23 +261,30 @@ const formatStudentData = (data: any): StudentDetails => {
     extraActivity,
     dateOfIssue: new Date().toISOString(),
     remarks: '',
-    schoolDetails: data.schoolDetails || {
+    schoolDetails: typeof data.schoolDetails === 'object' && data.schoolDetails !== null ? {
+      schoolName: data.schoolDetails.schoolName || '',
+      address: data.schoolDetails.address || '',
+      recognitionId: data.schoolDetails.recognitionId || '',
+      affiliationNo: data.schoolDetails.affiliationNo || '',
+      contact: data.schoolDetails.contact || '',
+      email: data.schoolDetails.email || '',
+      imageUrl: data.schoolDetails.imageUrl || ''
+    } : {
       schoolName: '',
       address: '',
       recognitionId: '',
       affiliationNo: '',
       contact: '',
       email: '',
-      website: '',
       imageUrl: ''
     }
   };
 };
 
 // Helper function to format student data from the Student API
-const formatStudentDetailsFromStudentAPI = (student: any): StudentDetails => {
+const formatStudentDetailsFromStudentAPI = (student: TCAPIResponse): StudentDetails => {
   // Standardize class name format
-  let classInfo = student.className || '';
+  let classInfo = student.sessionInfo?.currentClass || student.sessionInfo?.admitClass || '';
   console.log(`[DEBUG] Original class from Student API: "${classInfo}"`);
   
   // Handle Nursery class formatting
@@ -229,22 +300,26 @@ const formatStudentDetailsFromStudentAPI = (student: any): StudentDetails => {
   
   console.log(`[DEBUG] Formatted class: "${classInfo}"`);
   
+  // Get roll number from sessionInfo
+  const rollNo = student.sessionInfo?.currentRollNo || student.sessionInfo?.admitRollNo || '';
+  console.log(`[DEBUG] Roll number from sessionInfo: "${rollNo}"`);
+  
   return {
     studentId: student.id,
     schoolId: student.schoolId,
-    fullName: `${student.firstName} ${student.middleName || ''} ${student.lastName}`.trim(),
+    fullName: student.fullName,
     fatherName: student.fatherName || '',
     motherName: student.motherName || '',
     nationality: student.nationality || 'Indian',
     category: student.category || 'General',
     dateOfBirth: student.dateOfBirth,
-    dateOfAdmission: student.admissionDate,
-    section: student.section || '',
+    dateOfAdmission: student.sessionInfo?.admitDate || new Date().toISOString(),
+    section: student.sessionInfo?.currentSection || student.sessionInfo?.admitSection || '',
     admissionNumber: student.admissionNo,
-    currentClass: classInfo,
+    currentClass: student.sessionInfo?.currentClass || classInfo,
     admitClass: student.sessionInfo?.admitClass || classInfo,
     academicYear: new Date().getFullYear().toString(),
-    rollNo: student.rollNumber || '',
+    rollNo: rollNo,
     lastAttendanceDate: new Date().toISOString(),
     feesUpToDate: new Date().toISOString(),
     maxAttendance: '220',
@@ -269,14 +344,21 @@ const formatStudentDetailsFromStudentAPI = (student: any): StudentDetails => {
     extraActivity: ['Dance', 'Singing'],
     dateOfIssue: new Date().toISOString(),
     remarks: '',
-    schoolDetails: {
-      schoolName: student.school?.fullName || '',
-      address: student.school?.address || '',
-      recognitionId: student.school?.code || '',
+    schoolDetails: student.schoolDetails && typeof student.schoolDetails === 'object' ? {
+      schoolName: student.schoolDetails.schoolName || '',
+      address: student.schoolDetails.address || '',
+      recognitionId: student.schoolDetails.recognitionId || '',
+      affiliationNo: student.schoolDetails.affiliationNo || '',
+      contact: student.schoolDetails.contact || '',
+      email: student.schoolDetails.email || '',
+      imageUrl: student.schoolDetails.imageUrl || ''
+    } : {
+      schoolName: '',
+      address: '',
+      recognitionId: '',
       affiliationNo: '',
-      contact: student.school?.contact?.toString() || '',
-      email: student.school?.email || '',
-      website: '',
+      contact: '',
+      email: '',
       imageUrl: ''
     }
   };
@@ -311,7 +393,7 @@ export const createCertificate = async (certificate: IssuedCertificate): Promise
       nationality: certificate.nationality,
       category: certificate.category,
       dateOfAdmission: certificate.dateOfAdmission,
-      currentClass: certificate.studentClass,
+      currentClass: certificate.currentClass,
       whetherFailed: certificate.whetherFailed,
       section: certificate.section || "", // Default empty string if not available
       rollNumber: certificate.rollNo || "",
@@ -346,9 +428,12 @@ export const createCertificate = async (certificate: IssuedCertificate): Promise
     }
     
     return await response.json();
-  } catch (error) {
-    console.error('Error creating certificate:', error);
-    throw error;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Error creating certificate:', error.message);
+      throw error;
+    }
+    throw new Error('An unknown error occurred while creating certificate');
   }
 };
 
@@ -386,7 +471,7 @@ export const updateCertificate = async (certificate: IssuedCertificate): Promise
       nationality: certificate.nationality,
       category: certificate.category,
       dateOfAdmission: certificate.dateOfAdmission,
-      currentClass: certificate.studentClass,
+      currentClass: certificate.currentClass,
       whetherFailed: certificate.whetherFailed,
       section: certificate.section || "",
       rollNumber: certificate.rollNo || "",
@@ -424,9 +509,12 @@ export const updateCertificate = async (certificate: IssuedCertificate): Promise
     }
     
     return await response.json();
-  } catch (error) {
-    console.error('Error updating certificate:', error);
-    throw error;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Error updating certificate:', error.message);
+      throw error;
+    }
+    throw new Error('An unknown error occurred while updating certificate');
   }
 };
 
@@ -446,8 +534,10 @@ async function getStudentIdFromAdmissionNumber(admissionNumber: string): Promise
       const data = await response.json();
       console.log(`[DEBUG] Student ID found via TC endpoint: ${data.id}`);
       return data.id;
-    } catch (tcError) {
-      console.log(`[DEBUG] Failed via TC endpoint: ${tcError.message}, trying students endpoint`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.log(`[DEBUG] Failed via TC endpoint: ${error.message}, trying students endpoint`);
+      }
       
       // If that fails, try the student API endpoint
       const studentEndpoint = `${API_BASE_URL}/students/admission/${admissionNumber}`;
@@ -485,9 +575,12 @@ async function getStudentIdFromAdmissionNumber(admissionNumber: string): Promise
       console.log(`[DEBUG] Student ID found via students endpoint: ${result.data.id}`);
       return result.data.id;
     }
-  } catch (error) {
-    console.error(`[ERROR] Error getting student ID from admission number ${admissionNumber}:`, error);
-    throw error;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`[ERROR] Error getting student ID from admission number ${admissionNumber}:`, error.message);
+      throw error;
+    }
+    throw new Error(`An unknown error occurred while getting student ID for admission number ${admissionNumber}`);
   }
 }
 

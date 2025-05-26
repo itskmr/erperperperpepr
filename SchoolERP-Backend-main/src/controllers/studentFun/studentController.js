@@ -27,9 +27,6 @@ export const createStudent = async (req, res) => {
       emergencyContact,
       admissionNo,
       studentId,
-      rollNumber,
-      className,
-      section,
       admissionDate,
       previousSchool,
       schoolId = 1, // Default school ID
@@ -42,11 +39,16 @@ export const createStudent = async (req, res) => {
       city: req.body['address.city'] || '',
       state: req.body['address.state'] || '',
       pinCode: req.body['address.pinCode'] || '',
+      permanentHouseNo: req.body['address.permanentHouseNo'] || '',
+      permanentStreet: req.body['address.permanentStreet'] || '',
+      permanentCity: req.body['address.permanentCity'] || '',
+      permanentState: req.body['address.permanentState'] || '',
+      permanentPinCode: req.body['address.permanentPinCode'] || '',
     };
     
     // Extract parent information
     const father = {
-      name: req.body['father.name'] || '',
+      name: req.body['father.name'] || req.body.fatherName || '',
       qualification: req.body['father.qualification'] || '',
       occupation: req.body['father.occupation'] || '',
       contactNumber: req.body['father.contactNumber'] || '',
@@ -57,7 +59,7 @@ export const createStudent = async (req, res) => {
     };
     
     const mother = {
-      name: req.body['mother.name'] || '',
+      name: req.body['mother.name'] || req.body.motherName || '',
       qualification: req.body['mother.qualification'] || '',
       occupation: req.body['mother.occupation'] || '',
       contactNumber: req.body['mother.contactNumber'] || '',
@@ -71,29 +73,26 @@ export const createStudent = async (req, res) => {
       name: req.body['guardian.name'] || '',
       address: req.body['guardian.address'] || '',
       contactNumber: req.body['guardian.contactNumber'] || '',
+      email: req.body['guardian.email'] || '',
+      aadhaarNo: req.body['guardian.aadhaarNo'] || '',
+      occupation: req.body['guardian.occupation'] || '',
+      annualIncome: req.body['guardian.annualIncome'] || '',
     };
     
-    // Extract session information
-    const admitSession = {
-      group: req.body['admitSession.group'] || '',
-      stream: req.body['admitSession.stream'] || '',
-      class: req.body['admitSession.class'] || '',
-      section: req.body['admitSession.section'] || '',
-      rollNo: req.body['admitSession.rollNo'] || '',
-      semester: req.body['admitSession.semester'] || '',
-      feeGroup: req.body['admitSession.feeGroup'] || '',
-      house: req.body['admitSession.house'] || '',
-    };
-    
-    const currentSession = {
-      group: req.body['currentSession.group'] || '',
-      stream: req.body['currentSession.stream'] || '',
-      class: req.body['currentSession.class'] || '',
-      section: req.body['currentSession.section'] || '',
-      rollNo: req.body['currentSession.rollNo'] || '',
-      semester: req.body['currentSession.semester'] || '',
-      feeGroup: req.body['currentSession.feeGroup'] || '',
-      house: req.body['currentSession.house'] || '',
+    // Extract session information - only for admission session
+    const sessionInfo = {
+      admitGroup: req.body.admitSession.group,
+      admitClass: req.body.admitSession.class,
+      admitSection: req.body.admitSession.section,
+      admitRollNo: req.body.admitSession.rollNo,
+      currentGroup: null,
+      currentClass: null,
+      currentSection: null,
+      currentRollNo: null,
+      stream: null,
+      semester: null,
+      feeGroup: req.body.currentSession.feeGroup,
+      house: req.body.currentSession.house
     };
     
     // Extract transport information
@@ -177,39 +176,50 @@ export const createStudent = async (req, res) => {
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
           gender: gender || "OTHER",
           bloodGroup,
-          nationality,
+          nationality: nationality || "Indian",
           religion,
           category,
           caste,
           aadhaarNumber,
           mobileNumber: mobileNumber || "0000000000",
-          email,
+          email: email || "",
           emergencyContact,
           admissionNo: admissionNo || `ADM-${Date.now()}`,
           studentId,
-          rollNumber,
-          className: className || "1st",
-          section,
           admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
           previousSchool,
           
-          // Address fields
+          // Address fields - map from nested structure to flat structure
           houseNo: address.houseNo,
           street: address.street,
           city: address.city || "Unknown",
           state: address.state || "Unknown",
           pinCode: address.pinCode,
+          permanentHouseNo: address.permanentHouseNo,
+          permanentStreet: address.permanentStreet,
+          permanentCity: address.permanentCity,
+          permanentState: address.permanentState,
+          permanentPinCode: address.permanentPinCode,
+          sameAsPresentAddress: req.body['address.sameAsPresentAddress'] || false,
           
-          // Basic parent info stored directly on student
-          fatherName: father.name || "Unknown",
-          motherName: mother.name || "Unknown",
+          // Parent information - ensure both direct and nested paths are checked
+          fatherName: father.name || req.body.fatherName || '',
+          motherName: mother.name || req.body.motherName || '',
           
           // Connect to school
           school: {
             connect: {
               id: parseInt(schoolId, 10)
             }
+          },
+          
+          // SessionInfo
+          sessionInfo: {
+            create: sessionInfo
           }
+        },
+        include: {
+          sessionInfo: true,
         }
       });
       
@@ -235,38 +245,10 @@ export const createStudent = async (req, res) => {
           guardianName: guardian.name,
           guardianAddress: guardian.address,
           guardianContact: guardian.contactNumber,
-          
-          // Connect to student
-          student: {
-            connect: {
-              id: newStudent.id
-            }
-          }
-        }
-      });
-      
-      // Create SessionInfo record
-      await prisma.sessionInfo.create({
-        data: {
-          // Admit session
-          admitGroup: admitSession.group,
-          admitStream: admitSession.stream,
-          admitClass: admitSession.class,
-          admitSection: admitSession.section,
-          admitRollNo: admitSession.rollNo,
-          admitSemester: admitSession.semester,
-          admitFeeGroup: admitSession.feeGroup,
-          admitHouse: admitSession.house,
-          
-          // Current session
-          currentGroup: currentSession.group,
-          currentStream: currentSession.stream,
-          currentClass: currentSession.class,
-          currentSection: currentSession.section,
-          currentRollNo: currentSession.rollNo,
-          currentSemester: currentSession.semester,
-          currentFeeGroup: currentSession.feeGroup,
-          currentHouse: currentSession.house,
+          guardianEmail: guardian.email,
+          guardianAadhaarNo: guardian.aadhaarNo,
+          guardianOccupation: guardian.occupation,
+          guardianAnnualIncome: guardian.annualIncome,
           
           // Connect to student
           student: {
@@ -536,10 +518,6 @@ export const updateStudent = async (req, res) => {
           email: studentData.email,
           emergencyContact: studentData.emergencyContact,
           admissionNo: studentData.admissionNo,
-          studentId: studentData.studentId,
-          rollNumber: studentData.rollNumber,
-          className: studentData.className,
-          section: studentData.section,
           admissionDate: studentData.admissionDate,
           previousSchool: studentData.previousSchool,
           
@@ -549,6 +527,11 @@ export const updateStudent = async (req, res) => {
           city: studentData.city || studentData['address.city'],
           state: studentData.state || studentData['address.state'],
           pinCode: studentData.pinCode || studentData['address.pinCode'],
+          permanentHouseNo: studentData.permanentHouseNo || studentData['address.permanentHouseNo'],
+          permanentStreet: studentData.permanentStreet || studentData['address.permanentStreet'],
+          permanentCity: studentData.permanentCity || studentData['address.permanentCity'],
+          permanentState: studentData.permanentState || studentData['address.permanentState'],
+          permanentPinCode: studentData.permanentPinCode || studentData['address.permanentPinCode'],
           
           // Basic parent names
           fatherName: studentData.fatherName || studentData['father.name'],
@@ -586,6 +569,10 @@ export const updateStudent = async (req, res) => {
             guardianName: studentData['guardian.name'] || studentData.guardianName,
             guardianAddress: studentData['guardian.address'] || studentData.guardianAddress,
             guardianContact: studentData['guardian.contactNumber'] || studentData.guardianContact,
+            guardianEmail: studentData['guardian.email'] || studentData.guardianEmail,
+            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianAadhaarNo,
+            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianOccupation,
+            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianAnnualIncome,
           },
           create: {
             fatherQualification: studentData['father.qualification'] || '',
@@ -607,6 +594,10 @@ export const updateStudent = async (req, res) => {
             guardianName: studentData['guardian.name'] || '',
             guardianAddress: studentData['guardian.address'] || '',
             guardianContact: studentData['guardian.contactNumber'] || '',
+            guardianEmail: studentData['guardian.email'] || '',
+            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || '',
+            guardianOccupation: studentData['guardian.occupation'] || '',
+            guardianAnnualIncome: studentData['guardian.annualIncome'] || '',
             
             student: {
               connect: {
@@ -748,6 +739,75 @@ export const getStudentByAdmissionNo = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve student details',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get students by current class and section from sessionInfo
+ * @route GET /api/students/class/:className/section/:section
+ * @access Public
+ */
+export const getStudentsByCurrentClass = async (req, res) => {
+  try {
+    const { className, section } = req.params;
+    console.log(`Fetching students for class: ${className}, section: ${section}`);
+
+    const students = await prisma.student.findMany({
+      where: {
+        sessionInfo: {
+          currentClass: className,
+          currentSection: section
+        }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNo: true,
+        fatherName: true,
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true,
+            currentRollNo: true
+          }
+        }
+      },
+      orderBy: {
+        sessionInfo: {
+          currentRollNo: 'asc'
+        }
+      }
+    });
+
+    if (students.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No students found in ${className} - Section ${section}`
+      });
+    }
+
+    // Format student data
+    const formattedStudents = students.map(student => ({
+      id: student.id,
+      fullName: student.fullName,
+      admissionNo: student.admissionNo,
+      section: student.sessionInfo?.currentSection || '',
+      fatherName: student.fatherName || ''
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: "Students retrieved successfully",
+      data: formattedStudents
+    });
+
+  } catch (error) {
+    console.error('Error fetching students by class:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve students',
       error: error.message
     });
   }

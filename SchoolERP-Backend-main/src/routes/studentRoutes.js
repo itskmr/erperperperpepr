@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getStudentByAdmissionNumber, fetchStudentDetails } from '../controllers/tcfromController.js';
+import { getStudentsByCurrentClass } from '../controllers/studentFun/studentController.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -167,7 +168,18 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
     console.log('Student registration data received:', Object.keys(data));
     
     // Validate required fields
-    const requiredFields = ['fullName', 'admissionNo', 'gender', 'mobileNumber', 'className', 'address.city', 'address.state', 'father.name', 'mother.name'];
+    const requiredFields = [
+      'fullName', 
+      'admissionNo', 
+      'gender', 
+      'mobileNumber', 
+      'address.city', 
+      'address.state', 
+      'father.name', 
+      'mother.name',
+      'admitSession.class',
+      'admitSession.section'
+    ];
     const missingFields = requiredFields.filter(field => {
       if (field.includes('.')) {
         const [parent, child] = field.split('.');
@@ -183,7 +195,9 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
         'address.city': 'City',
         'address.state': 'State',
         'father.name': 'Father\'s Name',
-        'mother.name': 'Mother\'s Name'
+        'mother.name': 'Mother\'s Name',
+        'admitSession.class': 'Admission Class',
+        'admitSession.section': 'Admission Section'
       };
       
       const readableMissingFields = missingFields.map(field => 
@@ -195,29 +209,27 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
         message: `Missing required fields: ${readableMissingFields.join(', ')}`,
       });
     }
+
+    // Remove any current session fields if they were sent
+    delete data.currentSession;
     
     // Format date fields - with extra error handling
     let dateOfBirth = null;
-    let admissionDate = new Date();
     let lastTcDate = null;
     
     try {
       if (data.dateOfBirth) {
-        dateOfBirth = new Date(data.dateOfBirth);
+        // Ensure the date is in YYYY-MM-DD format
+        const [year, month, day] = data.dateOfBirth.split('-').map(Number);
+        dateOfBirth = new Date(year, month - 1, day);
         if (isNaN(dateOfBirth.getTime())) {
           throw new Error(`Invalid date format for dateOfBirth: ${data.dateOfBirth}`);
         }
       }
       
-      if (data.admissionDate) {
-        admissionDate = new Date(data.admissionDate);
-        if (isNaN(admissionDate.getTime())) {
-          throw new Error(`Invalid date format for admissionDate: ${data.admissionDate}`);
-        }
-      }
-      
       if (data['lastEducation.tcDate']) {
-        lastTcDate = new Date(data['lastEducation.tcDate']);
+        const [year, month, day] = data['lastEducation.tcDate'].split('-').map(Number);
+        lastTcDate = new Date(year, month - 1, day);
         if (isNaN(lastTcDate.getTime())) {
           throw new Error(`Invalid date format for lastEducation.tcDate: ${data['lastEducation.tcDate']}`);
         }
@@ -250,93 +262,85 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
           schoolId = 1;
         }
       }
-    } catch (e) {
-      console.error('Error parsing schoolId:', e);
+    } catch (error) {
+      console.error('Error parsing schoolId:', error);
       schoolId = 1;
     }
-    
-    console.log('Creating student record with schoolId:', schoolId);
-    
-    // Create student with all related information using a transaction
-    const student = await prisma.$transaction(async (tx) => {
-      // Log the operation
-      console.log('Starting database transaction for student creation');
 
-      try {
-        // 1. Create the main student record
-        const newStudent = await tx.student.create({
-          data: {
-            branchName: data.branchName || null,
-            fullName: data.fullName,
-            admissionNo: data.admissionNo,
-            penNo: data.penNo || null,
-            studentId: data.studentId || null,
-            dateOfBirth: dateOfBirth,
-            age: data.age ? parseInt(data.age) : null,
-            gender: data.gender,
-            bloodGroup: data.bloodGroup || null,
-            nationality: data.nationality || null,
-            religion: data.religion || null,
-            category: data.category || null,
-            caste: data.caste || null,
-            aadhaarNumber: data.aadhaarNumber || null,
-            mobileNumber: data.mobileNumber,
-            email: data.email || null,
-            emergencyContact: data.emergencyContact || null,
-            rollNumber: data.rollNumber || null,
-            className: data.className || data['admitSession.class'] || '',
-            section: data.section || null,
-            stream: data.stream || null,
-            semester: data.semester || null,
-            admissionDate: admissionDate,
-            previousSchool: data.previousSchool || null,
-            presentHouseNo: data['address.houseNo'] || null,
-            presentStreet: data['address.street'] || null,
-            presentCity: data['address.city'] || '',
-            presentState: data['address.state'] || '',
-            presentPinCode: data['address.pinCode'] || null,
-            permanentHouseNo: data['address.permanentHouseNo'] || null,
-            permanentStreet: data['address.permanentStreet'] || null,
-            permanentCity: data['address.permanentCity'] || null,
-            permanentState: data['address.permanentState'] || null,
-            permanentPinCode: data['address.permanentPinCode'] || null,
-            fatherName: data['father.name'] || '',
-            motherName: data.motherName || '',
-            schoolId: schoolId,
-          }
-        });
+    // First check if the school exists
+    const existingSchool = await prisma.school.findUnique({
+      where: { id: schoolId }
+    });
 
-        console.log(`Created student record with id: ${newStudent.id}`);
+    if (!existingSchool) {
+      // Create a default school if it doesn't exist
+      const defaultSchool = await prisma.school.create({
+        data: {
+          fullName: "Default School",
+          email: "default@school.com",
+          password: "default123", // You should change this
+          code: "SC001",
+          address: "Default Address",
+          contact: 1234567890,
+          principal: "Default Principal",
+          established: 2000,
+          role: "SCHOOL",
+          status: "active",
+          username: "default_school"
+        }
+      });
+      schoolId = defaultSchool.id;
+    }
+
+    // Create the student record with session info
+    const student = await prisma.student.create({
+      data: {
+        // Basic information
+        fullName: data.fullName,
+        admissionNo: data.admissionNo,
+        dateOfBirth,
+        age: data.age ? parseInt(data.age) : null,
+        gender: data.gender,
+        bloodGroup: data.bloodGroup,
+        nationality: data.nationality || 'Indian',
+        religion: data.religion,
+        category: data.category,
+        caste: data.caste,
+        aadhaarNumber: data.aadhaarNumber,
+        mobileNumber: data.mobileNumber,
+        email: data.email,
+        emailPassword: data.emailPassword,
+        emergencyContact: data.emergencyContact,
+        branchName: data.branchName,
         
-        // 2. Create Parent Info
-        await tx.parentInfo.create({
-          data: {
-            fatherQualification: data['father.qualification'] || null,
-            fatherOccupation: data['father.occupation'] || null,
-            fatherContact: data['father.contactNumber'] || null,
-            fatherEmail: data['father.email'] || null,
-            fatherAadhaarNo: data['father.aadhaarNo'] || null,
-            fatherAnnualIncome: data['father.annualIncome'] || null,
-            fatherIsCampusEmployee: data['father.isCampusEmployee'] || 'no',
-            motherQualification: data['mother.qualification'] || null,
-            motherOccupation: data['mother.occupation'] || null,
-            motherContact: data['mother.contactNumber'] || null,
-            motherEmail: data['mother.email'] || null,
-            motherAadhaarNo: data['mother.aadhaarNo'] || null,
-            motherAnnualIncome: data['mother.annualIncome'] || null,
-            motherIsCampusEmployee: data['mother.isCampusEmployee'] || 'no',
-            guardianName: data['guardian.name'] || null,
-            guardianAddress: data['guardian.address'] || null,
-            guardianContact: data['guardian.contactNumber'] || null,
-            studentId: newStudent.id
-          }
-        });
+        // Address information
+        houseNo: data['address.houseNo'],
+        street: data['address.street'],
+        city: data['address.city'],
+        state: data['address.state'],
+        pinCode: data['address.pinCode'],
+        permanentHouseNo: data['address.permanentHouseNo'],
+        permanentStreet: data['address.permanentStreet'],
+        permanentCity: data['address.permanentCity'],
+        permanentState: data['address.permanentState'],
+        permanentPinCode: data['address.permanentPinCode'],
+        sameAsPresentAddress: data['address.sameAsPresentAddress'] === 'true',
         
-        console.log(`Created parent info for student id: ${newStudent.id}`);
+        // Parent information
+        fatherName: data['father.name'],
+        fatherEmail: data['father.email'],
+        fatherEmailPassword: data['father.emailPassword'],
+        motherName: data['mother.name'],
+        motherEmail: data['mother.email'] || null,
+        motherEmailPassword: data['mother.emailPassword'] || null,
         
-        // 3. Create Session Info
-        await tx.sessionInfo.create({
-          data: {
+        // Connect to school
+        schoolId: schoolId,
+        
+        // Session information - both admission and current session
+        sessionInfo: {
+          create: {
+            // Admit Session fields
             admitGroup: data['admitSession.group'] || null,
             admitStream: data['admitSession.stream'] || null,
             admitClass: data['admitSession.class'] || null,
@@ -345,6 +349,9 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
             admitSemester: data['admitSession.semester'] || null,
             admitFeeGroup: data['admitSession.feeGroup'] || null,
             admitHouse: data['admitSession.house'] || null,
+            admitDate: new Date(), // Set current date as admission date
+            
+            // Current session fields - store the values from currentSession
             currentGroup: data['currentSession.group'] || null,
             currentStream: data['currentSession.stream'] || null,
             currentClass: data['currentSession.class'] || null,
@@ -353,105 +360,118 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
             currentSemester: data['currentSession.semester'] || null,
             currentFeeGroup: data['currentSession.feeGroup'] || null,
             currentHouse: data['currentSession.house'] || null,
-            studentId: newStudent.id
+            
+            // Previous school information
+            previousSchool: data.previousSchool || null
           }
-        });
+        },
         
-        console.log(`Created session info for student id: ${newStudent.id}`);
+        // Parent information
+        parentInfo: {
+          create: {
+            // Father details
+            fatherQualification: data['father.qualification'] || null,
+            fatherOccupation: data['father.occupation'] || null,
+            fatherContact: data['father.contactNumber'] || null,
+            fatherEmail: data['father.email'] || null,
+            fatherAadhaarNo: data['father.aadhaarNo'] || null,
+            fatherAnnualIncome: data['father.annualIncome'] || null,
+            fatherIsCampusEmployee: data['father.isCampusEmployee'] === 'true' ? 'yes' : 'no',
+            
+            // Mother details
+            motherQualification: data['mother.qualification'] || null,
+            motherOccupation: data['mother.occupation'] || null,
+            motherContact: data['mother.contactNumber'] || null,
+            motherEmail: data['mother.email'] || null,
+            motherAadhaarNo: data['mother.aadhaarNo'] || null,
+            motherAnnualIncome: data['mother.annualIncome'] || null,
+            motherIsCampusEmployee: data['mother.isCampusEmployee'] === 'true' ? 'yes' : 'no',
+            
+            // Guardian details
+            guardianName: data['guardian.name'] || null,
+            guardianAddress: data['guardian.address'] || null,
+            guardianContact: data['guardian.contactNumber'] || null,
+            guardianEmail: data['guardian.email'] || null,
+            guardianAadhaarNo: data['guardian.aadhaarNo'] || null,
+            guardianOccupation: data['guardian.occupation'] || null,
+            guardianAnnualIncome: data['guardian.annualIncome'] || null
+          }
+        },
         
-        // 4. Create Transport Info
-        await tx.transportInfo.create({
-          data: {
+        // Transport information
+        transportInfo: {
+          create: {
             transportMode: data['transport.mode'] || null,
             transportArea: data['transport.area'] || null,
             transportStand: data['transport.stand'] || null,
             transportRoute: data['transport.route'] || null,
             transportDriver: data['transport.driver'] || null,
             pickupLocation: data['transport.pickupLocation'] || null,
-            dropLocation: data['transport.dropLocation'] || null,
-            studentId: newStudent.id
+            dropLocation: data['transport.dropLocation'] || null
           }
-        });
+        },
         
-        console.log(`Created transport info for student id: ${newStudent.id}`);
-        
-        // 5. Create Documents
-        await tx.documents.create({
-          data: {
+        // Documents
+        documents: {
+          create: {
             ...documentPaths,
-            academicRegistrationNo: data['academic.registrationNo'] || null,
-            studentId: newStudent.id
+            academicRegistrationNo: data['academic.registrationNo'] || null
           }
-        });
+        },
         
-        console.log(`Created documents for student id: ${newStudent.id}`);
-        
-        // 6. Create Education Info
-        await tx.educationInfo.create({
-          data: {
+        // Education information
+        educationInfo: {
+          create: {
             lastSchool: data['lastEducation.school'] || null,
             lastSchoolAddress: data['lastEducation.address'] || null,
-            lastTcDate: lastTcDate,
+            lastTcDate,
             lastClass: data['lastEducation.prevClass'] || null,
             lastPercentage: data['lastEducation.percentage'] || null,
             lastAttendance: data['lastEducation.attendance'] || null,
-            lastExtraActivity: data['lastEducation.extraActivity'] || null,
-            studentId: newStudent.id
+            lastExtraActivity: data['lastEducation.extraActivity'] || null
           }
-        });
+        },
         
-        console.log(`Created education info for student id: ${newStudent.id}`);
-        
-        // 7. Create Other Info
-        await tx.otherInfo.create({
-          data: {
-            belongToBPL: data['other.belongToBPL'] || 'no',
-            minority: data['other.minority'] || 'no',
+        // Other information
+        otherInfo: {
+          create: {
+            belongToBPL: data['other.belongToBPL'] === 'true' ? 'yes' : 'no',
+            minority: data['other.minority'] === 'true' ? 'yes' : 'no',
             disability: data['other.disability'] || null,
             accountNo: data['other.accountNo'] || null,
             bank: data['other.bank'] || null,
             ifscCode: data['other.ifscCode'] || null,
             medium: data['other.medium'] || null,
             lastYearResult: data['other.lastYearResult'] || null,
-            singleParent: data['other.singleParent'] || 'no',
-            onlyChild: data['other.onlyChild'] || 'no',
-            onlyGirlChild: data['other.onlyGirlChild'] || 'no',
-            adoptedChild: data['other.adoptedChild'] || 'no',
+            singleParent: data['other.singleParent'] === 'true' ? 'yes' : 'no',
+            onlyChild: data['other.onlyChild'] === 'true' ? 'yes' : 'no',
+            onlyGirlChild: data['other.onlyGirlChild'] === 'true' ? 'yes' : 'no',
+            adoptedChild: data['other.adoptedChild'] === 'true' ? 'yes' : 'no',
             siblingAdmissionNo: data['other.siblingAdmissionNo'] || null,
-            transferCase: data['other.transferCase'] || 'no',
+            transferCase: data['other.transferCase'] === 'true' ? 'yes' : 'no',
             livingWith: data['other.livingWith'] || null,
             motherTongue: data['other.motherTongue'] || null,
             admissionType: data['other.admissionType'] || 'new',
-            udiseNo: data['other.udiseNo'] || null,
-            studentId: newStudent.id
+            udiseNo: data['other.udiseNo'] || null
           }
-        });
-        
-        console.log(`Created other info for student id: ${newStudent.id}`);
-        
-        // Return complete student with all relations
-        return tx.student.findUnique({
-          where: { id: newStudent.id },
-          include: {
-            parentInfo: true,
-            sessionInfo: true,
-            transportInfo: true,
-            documents: true,
-            educationInfo: true,
-            otherInfo: true
-          }
-        });
-      } catch (txError) {
-        console.error('Transaction error:', txError);
-        throw txError; // Re-throw to be caught by the outer try-catch
+        }
+      },
+      include: {
+        parentInfo: true,
+        sessionInfo: true,
+        transportInfo: true,
+        documents: true,
+        educationInfo: true,
+        otherInfo: true
       }
     });
     
-    res.json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: 'Student registered successfully',
       data: student
     });
+    
   } catch (error) {
     console.error('Error creating student:', error);
     
@@ -475,8 +495,8 @@ router.post('/', upload.fields(documentFields), async (req, res) => {
       }
     }
     
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: errorMessage,
       error: error.message
     });
@@ -663,8 +683,64 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// Add a new route to update student session information
+router.put('/:id/session', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      currentClass,
+      currentSection,
+      currentRollNo,
+      stream,
+      semester,
+      feeGroup,
+      house
+    } = req.body;
+
+    // Validate required fields
+    if (!currentClass || !currentSection) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current class and section are required'
+      });
+    }
+
+    // Update the session information
+    const updatedSession = await prisma.sessionInfo.update({
+      where: {
+        studentId: parseInt(id)
+      },
+      data: {
+        currentClass,
+        currentSection,
+        currentRollNo,
+        stream,
+        semester,
+        feeGroup,
+        house
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Student session information updated successfully',
+      data: updatedSession
+    });
+  } catch (error) {
+    console.error('Error updating student session:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating student session',
+      error: error.message
+    });
+  }
+});
+
 // Student lookup endpoints for TC generation
 router.get('/lookup/:admissionNumber', getStudentByAdmissionNumber);
 router.get('/details/:admissionNumber', fetchStudentDetails);
+
+// Add new route for getting students by current class and section
+router.get('/class/:className/section/:section', getStudentsByCurrentClass);
 
 export default router;

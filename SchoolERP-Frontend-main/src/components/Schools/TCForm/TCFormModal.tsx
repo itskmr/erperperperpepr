@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { StudentDetails, IssuedCertificate } from './types';
+import { IssuedCertificate } from './types';
 import { fetchStudentData, createCertificate, updateCertificate } from './data';
 import { MultiSelectInput } from './MultipleSelectInput';
 // Enums for select options
@@ -102,12 +102,29 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
   certificate,
   setIssuedCertificates
 }) => {
-  const [studentDetails, setStudentDetails] = useState<StudentDetails | null>(null);
   const [admissionNumber, setAdmissionNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<IssuedCertificate>({
+    status: '',
+    studentId: '',
+    schoolId: 0,
+    fullName: '',
+    feesPaidUpTo: '',
+    feesConcessionAvailed: '',
+    certificateId: '',
+    leavingDate: '',
+    dateOfIssue: new Date().toISOString().split('T')[0],
+    section: '',
+    currentClass: '',
+    academicYear: '',
+    feesUpToDate: '',
+    lastExam: '',
+    subjectStudied: '',
+    conduct: '',
+    remark: '',
+    behavior: '',
     studentName: '',
     studentClass: '',
     admissionNumber: '',
@@ -117,7 +134,6 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
     category: '',
     dateOfBirth: '',
     issueDate: new Date().toISOString().split('T')[0],
-    leavingDate: new Date().toISOString().split('T')[0],
     reason: '',
     examIn: '',
     qualified: '',
@@ -137,10 +153,7 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
     classInWords: '',
     behaviorRemarks: '',
     rollNo: '',
-    dateOfIssue: new Date().toISOString().split('T')[0],
     admitClass: '',
-    feesPaidUpTo: '',
-    feesConcessionAvailed: '',
     dateOfAdmission: new Date().toISOString().split('T')[0],
     schoolDetails: {
       schoolName: '',
@@ -149,7 +162,6 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
       affiliationNo: '',
       contact: '',
       email: '',
-      website: '',
       imageUrl: '',
     },
   });
@@ -165,6 +177,24 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
 
   const resetForm = () => {
     setFormData({
+      status: '',
+      studentId: '',
+      schoolId: 0,
+      fullName: '',
+      feesPaidUpTo: '',
+      feesConcessionAvailed: '',
+      certificateId: '',
+      leavingDate: '',
+      dateOfIssue: new Date().toISOString().split('T')[0],
+      section: '',
+      currentClass: '',
+      academicYear: '',
+      feesUpToDate: '',
+      lastExam: '',
+      subjectStudied: '',
+      conduct: '',
+      remark: '',
+      behavior: '',
       studentName: '',
       studentClass: '',
       admissionNumber: '',
@@ -174,7 +204,6 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
       category: '',
       dateOfBirth: '',
       issueDate: new Date().toISOString().split('T')[0],
-      leavingDate: new Date().toISOString().split('T')[0],
       reason: '',
       examIn: '',
       qualified: '',
@@ -194,10 +223,7 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
       classInWords: '',
       behaviorRemarks: '',
       rollNo: '',
-      dateOfIssue: new Date().toISOString().split('T')[0],
       admitClass: '',
-      feesPaidUpTo: '',
-      feesConcessionAvailed: '',
       dateOfAdmission: new Date().toISOString().split('T')[0],
       schoolDetails: {
         schoolName: '',
@@ -206,12 +232,10 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
         affiliationNo: '',
         contact: '',
         email: '',
-        website: '',
         imageUrl: '',
       },
     });
     setAdmissionNumber('');
-    setStudentDetails(null);
   };
 
   const handleAdmissionSubmit = async (e: React.FormEvent) => {
@@ -225,7 +249,6 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
       const student = await fetchStudentData(admissionNumber);
       console.log('[DEBUG] Student data retrieved successfully:', student);
       
-      setStudentDetails(student);
       setFormData((prev) => ({
         ...prev,
         admissionNumber: student.admissionNumber,
@@ -243,15 +266,16 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
         dateOfIssue: student.dateOfIssue || prev.dateOfIssue,
         admitClass: student.admitClass || prev.admitClass,
         feesPaidUpTo: student.feesUpToDate || prev.feesPaidUpTo,
+        rollNo: student.rollNo || prev.rollNo,
         gamesPlayed: student.gamesPlayed ? 
-          (typeof student.gamesPlayed === 'string' ? 
-            student.gamesPlayed.split(',').map(g => g.trim()) : 
-            [...student.gamesPlayed]
+          (Array.isArray(student.gamesPlayed as string[] | string) ? 
+            student.gamesPlayed as string[] : 
+            (typeof student.gamesPlayed === 'string' ? (student.gamesPlayed as string).split(',').map((g: string) => g.trim()) : [])
           ) : [],
         extraActivity: student.extraActivity ? 
-          (typeof student.extraActivity === 'string' ?
-            student.extraActivity.split(',').map(a => a.trim()) :
-            [...student.extraActivity]
+          (Array.isArray(student.extraActivity as string[] | string) ?
+            student.extraActivity as string[] :
+            (typeof student.extraActivity === 'string' ? (student.extraActivity as string).split(',').map((a: string) => a.trim()) : [])
           ) : [],
         schoolDetails: student.schoolDetails ? {
           ...prev.schoolDetails, 

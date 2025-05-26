@@ -51,7 +51,6 @@ const TCViewModal: React.FC<TCViewModalProps> = ({ isOpen, onClose, certificate 
             <p className="text-gray-600 mt-1 text-xs">{certificate.schoolDetails.address}</p>
             <p className="text-gray-600 text-xs">Sr. Sec. Recognized Vide ID No. {certificate.schoolDetails.recognitionId}, CBSE Affiliation No. {certificate.schoolDetails.affiliationNo}</p>
             <p className="text-gray-600 text-xs">Contact Nos.: {certificate.schoolDetails.contact}, Email: {certificate.schoolDetails.email}</p>
-            <p className="text-gray-600 text-xs">Website: {certificate.schoolDetails.website}</p>
           </div>
           </div>
             <hr />

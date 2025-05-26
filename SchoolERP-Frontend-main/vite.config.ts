@@ -32,6 +32,8 @@ export default defineConfig({
           ],
           'ui': [
             '@mui/material',
+            '@mui/x-data-grid',
+            '@mui/icons-material',
             '@emotion/react',
             '@emotion/styled',
             '@radix-ui/react-alert-dialog',

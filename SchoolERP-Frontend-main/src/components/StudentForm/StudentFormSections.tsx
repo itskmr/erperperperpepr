@@ -9,6 +9,11 @@ interface StudentFormSectionsProps {
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>, documentType: keyof Documents) => void;
 }
 
+interface FormSectionProps {
+  formData: StudentFormData;
+  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+}
+
 /**
  * Component that renders the appropriate form section based on current step
  */
@@ -26,7 +31,8 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     name: string, 
     type: string = 'text', 
     required: boolean = false,
-    placeholder: string = ''
+    placeholder: string = '',
+    onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
   ) => {
     const error = name.includes('.') 
       ? validationErrors[name] 
@@ -42,7 +48,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         // For nested properties
         try {
           const parts = name.split('.');
-          let value: any = { ...formData };
+          let value: Record<string, any> = { ...formData };
           
           // Navigate the path
           for (const part of parts) {
@@ -63,7 +69,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     const handleDateFocus = (e: React.FocusEvent<HTMLInputElement>) => {
       if (type === 'date' && 'showPicker' in HTMLInputElement.prototype) {
         // Use modern browsers' showPicker method if available
-        (e.target as any).showPicker?.();
+        (e.target as HTMLInputElement).showPicker?.();
       }
     };
     
@@ -75,7 +81,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           name={name}
           value={getValue()}
           onChange={handleChange}
-          onFocus={type === 'date' ? handleDateFocus : undefined}
+          onFocus={onFocus || (type === 'date' ? handleDateFocus : undefined)}
           placeholder={placeholder}
           className={`mt-1 block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all bg-gray-50 ${
             error ? 'border-red-300 bg-red-50' : 'border-gray-300'
@@ -92,7 +98,8 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     label: string, 
     name: string, 
     options: { value: string; label: string }[], 
-    required: boolean = false
+    required: boolean = false,
+    placeholder: string = ''
   ) => {
     const error = name.includes('.') 
       ? validationErrors[name] 
@@ -126,7 +133,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     };
     
     const currentValue = getValue();
-    const placeholderText = `Select ${label}`;
+    const placeholderText = placeholder || `Select ${label}`;
     
     return (
       <label className="block mb-5">
@@ -258,6 +265,141 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     );
   };
 
+  // Session Information Section
+  const SessionSection: React.FC<FormSectionProps> = ({ formData, handleChange }) => (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Session Information</h3>
+      
+      {/* Admit Session */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Admit Group</label>
+          <input
+            type="text"
+            name="admitSession.group"
+            value={formData.admitSession.group}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Admit Class</label>
+          <input
+            type="text"
+            name="admitSession.class"
+            value={formData.admitSession.class}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Admit Section</label>
+          <input
+            type="text"
+            name="admitSession.section"
+            value={formData.admitSession.section}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Admit Roll No</label>
+          <input
+            type="text"
+            name="admitSession.rollNo"
+            value={formData.admitSession.rollNo}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Current Session */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Current Group</label>
+          <input
+            type="text"
+            name="currentSession.group"
+            value={formData.currentSession.group}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Current Class</label>
+          <input
+            type="text"
+            name="currentSession.class"
+            value={formData.currentSession.class}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Current Section</label>
+          <input
+            type="text"
+            name="currentSession.section"
+            value={formData.currentSession.section}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Current Roll No</label>
+          <input
+            type="text"
+            name="currentSession.rollNo"
+            value={formData.currentSession.rollNo}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Stream</label>
+          <input
+            type="text"
+            name="currentSession.stream"
+            value={formData.currentSession.stream}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Semester</label>
+          <input
+            type="text"
+            name="currentSession.semester"
+            value={formData.currentSession.semester}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Fee Group</label>
+          <input
+            type="text"
+            name="currentSession.feeGroup"
+            value={formData.currentSession.feeGroup}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">House</label>
+          <input
+            type="text"
+            name="currentSession.house"
+            value={formData.currentSession.house}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   // Different form sections based on currentStep
   const formSections: { [key: number]: JSX.Element } = {
     // Step 1: Basic Information
@@ -265,13 +407,41 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       <div className="space-y-6">
         <h3 className="text-lg font-medium mb-4 border-b pb-2">Student Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderInput('Branch Name', 'branchName')}
+          {renderInput('Branch Name', 'branchName', 'text', false)}
           {renderInput('Admission No', 'admissionNo', 'text', true)}
           {renderInput('PEN No', 'penNo', 'text')}
           {renderInput('Full Name', 'fullName', 'text', true)}
           {renderInput('Admission Date', 'admissionDate', 'date', true)}
           {renderInput('SR No / Student ID', 'studentId')}
-          {renderInput('Date of Birth', 'dateOfBirth', 'date', true)}
+          {renderInput('Date of Birth', 'dateOfBirth', 'date', true, '', (e) => {
+            const date = new Date(e.target.value);
+            if (!isNaN(date.getTime())) {
+              // Calculate age
+              const today = new Date();
+              let age = today.getFullYear() - date.getFullYear();
+              const monthDiff = today.getMonth() - date.getMonth();
+              
+              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate())) {
+                age--;
+              }
+              
+              handleChange({
+                ...e,
+                target: {
+                  ...e.target,
+                  value: date.toISOString().split('T')[0]
+                }
+              });
+              
+              const ageEvent = {
+                target: {
+                  name: 'age',
+                  value: age.toString()
+                }
+              } as React.ChangeEvent<HTMLInputElement>;
+              handleChange(ageEvent);
+            }
+          })}
           {renderInput('Age', 'age', 'text', false, 'Auto-calculated')}
           {renderInput('Religion', 'religion')}
           {renderSelect('Gender', 'gender', [
@@ -292,6 +462,9 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             { value: 'O-', label: 'O-' }
           ])}
           {renderInput('Caste', 'caste')}
+          {renderInput('Category', 'category')}
+          {renderInput('Nationality', 'nationality', 'text', true)}
+          {renderInput('Aadhar Number', 'aadhaarNumber')}
         </div>
       </div>
     ),
@@ -311,12 +484,28 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             ])}
             {renderSelect('Class', 'admitSession.class', [
               { value: '', label: 'Select Class' },
-              ...['Nursery', 'LKG', 'UKG', 
-                 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
-                 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
-                 'Class 11', 'Class 12'].map(cls => ({ 
+              ...['Nursery',
+                  'LKG',
+                  'UKG',
+                  'Class 1',
+                  'Class 2',
+                  'Class 3',
+                  'Class 4',
+                  'Class 5',
+                  'Class 6',
+                  'Class 7',
+                  'Class 8',
+                  'Class 9',
+                  'Class 10',
+                  'Class 11 (Science)',
+                  'Class 11 (Commerce)',
+                  'Class 11 (Arts)',
+                  'Class 12 (Science)',
+                  'Class 12 (Commerce)',
+                  'Class 12 (Arts)'].map(cls => ({ 
                 value: cls, label: cls 
               }))
+              
             ], true)}
             {renderSelect('Section', 'admitSession.section', [
               { value: '', label: 'Select Section' },
@@ -339,29 +528,35 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Current Session</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {renderInput('Group', 'currentSession.group')}
-            {renderSelect('Stream', 'stream', [
+            {renderSelect('Stream', 'currentSession.stream', [
               { value: '', label: 'Select Stream' },
               ...['Science', 'Commerce', 'Arts', 'Vocational', 'General'].map(stream => ({ 
                 value: stream.toLowerCase(), label: stream 
               }))
             ])}
-            {renderSelect('Class', 'className', [
+            {renderSelect('Class', 'currentSession.class', [
               { value: '', label: 'Select Class' },
-              ...['Nursery', 'LKG', 'UKG', 
-                 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
-                 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
-                 'Class 11', 'Class 12'].map(cls => ({ 
+              ...['Nursery',
+                  'LKG',
+                  'UKG',
+                  'Class 1',
+                  'Class 2',
+                  'Class 3',
+                  'Class 4',
+                  'Class 5',
+                  'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
+                  'Class 11 (Science)', 'Class 11 (Commerce)', 'Class 11 (Arts)', 'Class 12 (Science)', 'Class 12 (Commerce)', 'Class 12 (Arts)'].map(cls => ({ 
                 value: cls, label: cls 
               }))
             ], true)}
-            {renderSelect('Section', 'section', [
+            {renderSelect('Section', 'currentSession.section', [
               { value: '', label: 'Select Section' },
-              ...['A', 'B', 'C', 'D'].map(section => ({ 
+              ...['A', 'B', 'C', 'D', 'E', 'F'].map(section => ({ 
                 value: section, label: section 
               }))
             ])}
-            {renderInput('Roll No.', 'rollNumber')}
-            {renderSelect('Semester', 'semester', [
+            {renderInput('Roll No.', 'currentSession.rollNo')}
+            {renderSelect('Semester', 'currentSession.semester', [
               { value: '', label: 'Select Semester' },
               { value: '1st sem', label: '1st Semester' },
               { value: '2nd sem', label: '2nd Semester' }
@@ -372,26 +567,43 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         </div>
 
         <div className="space-y-6">
+          <h3 className="text-lg font-medium mb-4 border-b pb-2">Previous Education</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {renderInput('Previous School', 'lastEducation.school')}
+            {renderTextarea('School Address', 'lastEducation.address', false, 2)}
+            {renderInput('TC Date', 'lastEducation.tcDate', 'date')}
+            {renderInput('Previous Class', 'lastEducation.prevClass')}
+            {renderInput('Percentage/CGPA', 'lastEducation.percentage')}
+            {renderInput('Attendance', 'lastEducation.attendance')}
+            {renderTextarea('Extra Activities', 'lastEducation.extraActivity', false, 2)}
+          </div>
+        </div>
+
+        <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Academic Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {renderInput('Registration No', 'academic.registrationNo')}
-            {renderInput('Previous School', 'previousSchool')}
           </div>
         </div>
       </div>
     ),
     
-    // Step 3: Contact Information (Transport moved to Address section)
+    // Step 3: Contact Information
     3: (
       <div className="space-y-8">
         <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Contact Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {renderInput('Mobile Number', 'mobileNumber', 'tel', true)}
-            {renderInput('Student Email', 'email', 'email')}
+            {renderInput('Student Email', 'email', 'email', true)}
+            {renderInput('Student Email Password', 'emailPassword', 'password', true)}
             {renderInput('Father\'s Mobile', 'father.contactNumber', 'tel')}
             {renderInput('Mother\'s Mobile', 'mother.contactNumber', 'tel')}
-            {renderInput('Emergency Contact', 'emergencyContact', 'tel')}
+            {renderInput('Emergency Contact', 'emergencyContact', 'tel', true)}
+            {renderInput('Father\'s Email', 'father.email', 'email', true)}
+            {renderInput('Father\'s Email Password', 'father.emailPassword', 'password', true)}
+            {renderInput('Mother\'s Email', 'mother.email', 'email')}
+            {renderInput('Mother\'s Email Password', 'mother.emailPassword', 'password')}
           </div>
         </div>
       </div>
@@ -405,7 +617,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {renderInput('House/Flat No.', 'address.houseNo')}
             {renderTextarea('Street/Area', 'address.street')}
-            {renderInput('City', 'address.city', 'text', true)}
+            {renderInput('City', 'address.city', 'text', true, 'Enter city name')}
             {renderSelect('State', 'address.state', [
               { value: '', label: 'Select State' },
               ...['Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -418,7 +630,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
                  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'].map(state => ({
                 value: state, label: state
               }))
-            ], true)}
+            ], true, 'Select your state')}
             {renderInput('PIN Code', 'address.pinCode')}
           </div>
         </div>
@@ -498,6 +710,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               { value: 'no', label: 'No' },
               { value: 'yes', label: 'Yes' }
             ])}
+            {renderInput('Contact Number', 'father.contactNumber', 'tel')}
           </div>
         </div>
         
@@ -514,6 +727,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               { value: 'no', label: 'No' },
               { value: 'yes', label: 'Yes' }
             ])}
+            {renderInput('Contact Number', 'mother.contactNumber', 'tel')}
           </div>
         </div>
         
@@ -523,6 +737,10 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             {renderInput('Guardian Name', 'guardian.name')}
             {renderTextarea('Guardian Address', 'guardian.address', false, 2)}
             {renderInput('Guardian Mobile', 'guardian.contactNumber', 'tel')}
+            {renderInput('Guardian Email', 'guardian.email', 'email')}
+            {renderInput('Guardian Aadhar No', 'guardian.aadhaarNo')}
+            {renderInput('Guardian Occupation', 'guardian.occupation')}
+            {renderInput('Guardian Annual Income', 'guardian.annualIncome')}
           </div>
         </div>
       </div>
@@ -614,19 +832,6 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               { value: 'old', label: 'Old' }
             ])}
             {renderInput('UDISE NO', 'other.udiseNo')}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <h3 className="text-lg font-medium mb-4 border-b pb-2">Last Education</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('School', 'lastEducation.school')}
-            {renderTextarea('Address', 'lastEducation.address', false, 2)}
-            {renderInput('TC Date', 'lastEducation.tcDate', 'date')}
-            {renderInput('Previous Class', 'lastEducation.prevClass')}
-            {renderInput('CGPA/Percentage', 'lastEducation.percentage')}
-            {renderInput('Attendance', 'lastEducation.attendance')}
-            {renderTextarea('Extra Activities', 'lastEducation.extraActivity', false, 2)}
           </div>
         </div>
       </div>

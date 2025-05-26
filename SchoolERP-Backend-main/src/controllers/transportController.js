@@ -1312,8 +1312,12 @@ export const getAllStudentTransport = async (req, res) => {
           select: {
             fullName: true,
             admissionNo: true,
-            className: true,
-            section: true
+            sessionInfo: {
+              select: {
+                currentClass: true,
+                currentSection: true
+              }
+            }
           }
         },
         route: true
@@ -1350,11 +1354,14 @@ export const getStudentsByRoute = async (req, res) => {
       include: {
         student: {
           select: {
-            firstName: true,
-            lastName: true,
+            fullName: true,
             admissionNo: true,
-            className: true,
-            section: true
+            sessionInfo: {
+              select: {
+                currentClass: true,
+                currentSection: true
+              }
+            }
           }
         }
       },

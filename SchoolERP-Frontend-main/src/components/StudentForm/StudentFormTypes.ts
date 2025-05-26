@@ -21,14 +21,14 @@ export interface Documents {
 
 // Define Address type - split into present and permanent
 export interface Address {
-  street: string;
   houseNo: string;
+  street: string;
   city: string;
   state: string;
   pinCode: string;
   
-  permanentStreet: string;
   permanentHouseNo: string;
+  permanentStreet: string;
   permanentCity: string;
   permanentState: string;
   permanentPinCode: string;
@@ -40,11 +40,11 @@ export interface Parent {
   name: string;
   qualification: string;
   occupation: string;
-  email: string;
   contactNumber: string;
+  email: string;
   aadhaarNo: string;
   annualIncome: string;
-  isCampusEmployee: string;
+  isCampusEmployee: 'yes' | 'no';
 }
 
 // Define Guardian type
@@ -52,6 +52,10 @@ export interface Guardian {
   name: string;
   address: string;
   contactNumber: string;
+  email?: string;
+  aadhaarNo?: string;
+  occupation?: string;
+  annualIncome?: string;
 }
 
 // Define Session type
@@ -78,8 +82,8 @@ export interface Transport {
   stand: string;
   route: string;
   driver: string;
-  pickupLocation: string;
-  dropLocation: string;
+  pickupLocation?: string;
+  dropLocation?: string;
 }
 
 // Define LastEducation type
@@ -95,64 +99,65 @@ export interface LastEducation {
 
 // Define Other type
 export interface Other {
-  belongToBPL: string;
-  minority: string;
+  belongToBPL: 'yes' | 'no';
+  minority: 'yes' | 'no';
   disability: string;
   accountNo: string;
   bank: string;
   ifscCode: string;
   medium: string;
   lastYearResult: string;
-  singleParent: string;
-  onlyChild: string;
-  onlyGirlChild: string;
-  adoptedChild: string;
+  singleParent: 'yes' | 'no';
+  onlyChild: 'yes' | 'no';
+  onlyGirlChild: 'yes' | 'no';
+  adoptedChild: 'yes' | 'no';
   siblingAdmissionNo: string;
-  transferCase: string;
+  transferCase: 'yes' | 'no';
   livingWith: string;
   motherTongue: string;
-  admissionType: string;
+  admissionType: 'new' | 'old';
   udiseNo: string;
 }
 
 // Define StudentFormData type - the complete student data structure
 export interface StudentFormData {
-  id?: number | string; // Database ID
+  // Basic Information
   branchName: string;
+  fullName: string;
   admissionNo: string;
   penNo: string;
-  fullName: string;
-  admissionDate: string;
   studentId: string;
   dateOfBirth: string;
   age: string;
-  religion: string;
   gender: string;
   bloodGroup: string;
-  caste: string;
+  nationality: string;
+  religion: string;
   category: string;
-  admitSession: Session;
-  currentSession: Session;
-  className: string;
-  section: string;
-  stream: string;
-  semester: string;
-  rollNumber: string;
-  academic: Academic;
-  previousSchool: string;
+  caste: string;
+  aadhaarNumber: string;
   mobileNumber: string;
   email: string;
   emergencyContact: string;
-  transport: Transport;
+
+  // Session Information
+  admitSession: Session;
+  currentSession: Session;
+
+  // Address Information
   address: Address;
+
+  // Parent Information
   father: Parent;
   mother: Parent;
   guardian: Guardian;
+
+  // Additional Information
+  academic: Academic;
+  transport: Transport;
   documents: Documents;
-  aadhaarNumber: string;
-  nationality: string;
-  other: Other;
   lastEducation: LastEducation;
+  other: Other;
 }
 
 // Define Step interface for the progress indicator

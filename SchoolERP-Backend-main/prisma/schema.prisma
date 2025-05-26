@@ -30,15 +30,16 @@ model Admin {
 
 model School {
   id          Int          @id @default(autoincrement())
-  fullName    String       @default("Unknown")
+  schoolName  String       @default("Unknown")
   email       String       @unique
   password    String
-  username    String       @unique @default(cuid())
+  // username    String       @unique @default(cuid())
   code        String       @unique @default("SC000")
   address     String       @default("Not Provided")
   contact     BigInt       @default(0)
   phone       String       @default("0123456789") @db.VarChar(15)
   principal   String       @default("Unknown")
+  image_url   String?      @db.Text
   established Int          @default(2000)
   role        Role         @default(SCHOOL)
   status      String       @default("active")
@@ -59,17 +60,19 @@ model Teacher {
   password         String
   username         String    @unique @default(cuid())
   phone            String    @default("0123456789") @db.VarChar(15)
+  gender           String    // Required field
+  dateOfBirth      DateTime? // Added date of birth field
+  age              Int?      // Added age field
   
   // Professional details
   designation      String    @default("Teacher")
-  education        String?   @db.Text
+  qualification    String?   @db.Text  // Changed from education
   address          String?   @db.Text
   
   // Teaching details
-  classes          String    @db.Text  // Comma-separated classes taught
   subjects         String    @db.Text  // JSON string of subjects taught
   sections         String    @db.Text  // JSON string of class and section combinations
-  
+
   // Class incharge details
   isClassIncharge  Boolean   @default(false)
   inchargeClass    String?
@@ -79,6 +82,26 @@ model Teacher {
   profileImage     String?   @db.Text
   joining_year     DateTime  @default(now())
   experience       String    @default("0")
+  
+  // New personal details
+  religion         String?
+  bloodGroup       String?
+  maritalStatus    String?
+  
+  // Social media links
+  facebook         String?
+  twitter          String?
+  linkedIn         String?
+  
+  // Documents
+  documents        String?   @db.Text  // JSON string of document URLs
+  
+  // Salary and bank details
+  joiningSalary    Float?
+  accountHolderName String?
+  accountNumber    String?
+  bankName         String?
+  bankBranch       String?
   
   // Status fields
   role             Role      @default(TEACHER)
@@ -104,12 +127,12 @@ model Student {
   branchName       String?
   fullName         String
   admissionNo      String   @unique
-  password         String?  // For student login
-  email            String?  @unique // Email for login
-  penNo            String? // Added PEN Number field
+  email            String   @unique
+  emailPassword    String?  // Password for student email
+  penNo            String? // PEN Number field
   studentId        String?
   dateOfBirth      DateTime
-  age              Int? // Added calculated age field
+  age              Int? // Calculated age field
   gender           String
   bloodGroup       String?
   nationality      String?
@@ -119,37 +142,33 @@ model Student {
   aadhaarNumber    String?
   mobileNumber     String
   emergencyContact String?
-  loginEnabled     Boolean  @default(false) // Flag to indicate if login is enabled
+  loginEnabled     Boolean  @default(false)
   lastLogin        DateTime?
-  isVerified       Boolean  @default(false) // Track if email is verified
-  passwordResetToken String? // For password reset functionality
+  isVerified       Boolean  @default(false)
+  passwordResetToken String?
   passwordResetExpires DateTime?
 
-  // Academic fields
-  rollNumber     String?
-  className      String
-  section        String?
-  stream         String? // Added stream field
-  semester       String? // Added semester field
-  admissionDate  DateTime @default(now())
-  previousSchool String?  @db.Text
-
   // Address fields
-  presentHouseNo String?
-  presentStreet  String? @db.Text
-  presentCity    String
-  presentState   String
-  presentPinCode String?
+  houseNo        String?
+  street         String? @db.Text
+  city           String
+  state          String
+  pinCode        String?
 
   permanentHouseNo String?
   permanentStreet  String? @db.Text
   permanentCity    String?
   permanentState   String?
   permanentPinCode String?
+  sameAsPresentAddress Boolean @default(false)
 
   // Parent information
-  fatherName String
-  motherName String
+  fatherName     String
+  fatherEmail    String   @unique
+  fatherEmailPassword String?   // Added password field for father email
+  motherName     String
+  motherEmail    String?  // Made optional
+  motherEmailPassword String?   // Made optional
 
   // Relations
   schoolId      Int
@@ -168,6 +187,11 @@ model Student {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   attendance      Attendance[]
+
+  @@index([admissionNo])
+  @@index([email])
+  @@index([mobileNumber])
+  @@index([aadhaarNumber])
 }
 
 // Normalized tables to reduce row size
@@ -193,9 +217,13 @@ model ParentInfo {
   motherIsCampusEmployee String? @default("no")
 
   // Guardian information
-  guardianName    String?
-  guardianAddress String? @db.Text
-  guardianContact String?
+  guardianName           String?
+  guardianAddress        String? @db.Text
+  guardianContact        String?
+  guardianEmail          String?
+  guardianAadhaarNo      String?
+  guardianOccupation     String?
+  guardianAnnualIncome   String?
 
   // Relation
   studentId String   @unique
@@ -213,6 +241,7 @@ model SessionInfo {
   admitSemester String?
   admitFeeGroup String?
   admitHouse    String?
+  admitDate     DateTime @default(now())
 
   // Current Session
   currentGroup    String?
@@ -223,6 +252,9 @@ model SessionInfo {
   currentSemester String?
   currentFeeGroup String?
   currentHouse    String?
+
+  // Previous School Information
+  previousSchool String?  @db.Text
 
   // Relation
   studentId String   @unique
@@ -236,8 +268,8 @@ model TransportInfo {
   transportStand  String?
   transportRoute  String?
   transportDriver String?
-  pickupLocation  String? // Added pickup location
-  dropLocation    String? // Added drop location
+  pickupLocation  String?
+  dropLocation    String?
 
   // Relation
   studentId String   @unique
@@ -251,19 +283,17 @@ model Documents {
   motherImagePath          String? @db.Text
   guardianImagePath        String? @db.Text
   signaturePath            String? @db.Text
-  parentSignaturePath      String? @db.Text // Added parent signature
+  parentSignaturePath      String? @db.Text
   fatherAadharPath         String? @db.Text
   motherAadharPath         String? @db.Text
   birthCertificatePath     String? @db.Text
   migrationCertificatePath String? @db.Text
   aadhaarCardPath          String? @db.Text
-  affidavitCertificatePath String? @db.Text // Added affidavit certificate
-  incomeCertificatePath    String? @db.Text // Added income certificate
-  addressProof1Path        String? @db.Text // Added address proof 1
-  addressProof2Path        String? @db.Text // Added address proof 2
-
-  // Academic registration
-  academicRegistrationNo String?
+  affidavitCertificatePath String? @db.Text
+  incomeCertificatePath    String? @db.Text
+  addressProof1Path        String? @db.Text
+  addressProof2Path        String? @db.Text
+  academicRegistrationNo   String?
 
   // Relation
   studentId String   @unique
@@ -271,14 +301,14 @@ model Documents {
 }
 
 model EducationInfo {
-  id                Int       @id @default(autoincrement())
-  lastSchool        String?   @db.Text
-  lastSchoolAddress String?   @db.Text
+  id                Int      @id @default(autoincrement())
+  lastSchool        String?
+  lastSchoolAddress String?  @db.Text
   lastTcDate        DateTime?
   lastClass         String?
   lastPercentage    String?
   lastAttendance    String?
-  lastExtraActivity String?   @db.Text
+  lastExtraActivity String?  @db.Text
 
   // Relation
   studentId String   @unique
@@ -286,25 +316,25 @@ model EducationInfo {
 }
 
 model OtherInfo {
-  id                 Int     @id @default(autoincrement())
-  belongToBPL        String? @default("no")
-  minority           String? @default("no")
-  disability         String?
-  accountNo          String?
-  bank               String?
-  ifscCode           String?
-  medium             String?
-  lastYearResult     String?
-  singleParent       String? @default("no")
-  onlyChild          String? @default("no")
-  onlyGirlChild      String? @default("no")
-  adoptedChild       String? @default("no")
+  id                Int      @id @default(autoincrement())
+  belongToBPL       String?  @default("no")
+  minority          String?  @default("no")
+  disability        String?
+  accountNo         String?
+  bank              String?
+  ifscCode          String?
+  medium            String?
+  lastYearResult    String?
+  singleParent      String?  @default("no")
+  onlyChild         String?  @default("no")
+  onlyGirlChild     String?  @default("no")
+  adoptedChild      String?  @default("no")
   siblingAdmissionNo String?
-  transferCase       String? @default("no")
-  livingWith         String?
-  motherTongue       String?
-  admissionType      String? @default("new")
-  udiseNo            String?
+  transferCase      String?  @default("no")
+  livingWith        String?
+  motherTongue      String?
+  admissionType     String?  @default("new")
+  udiseNo           String?
 
   // Relation
   studentId String   @unique
@@ -761,4 +791,23 @@ enum MaintenanceStatus {
   PENDING
   COMPLETED
   OVERDUE
+}
+
+// Timetable Model
+model Timetable {
+  id            String    @id @default(uuid())
+  classId       String
+  sectionId     String
+  subjectId     String
+  teacherId     String
+  day           String    // Monday, Tuesday, etc.
+  startTime     String
+  endTime       String
+  roomNumber    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([classId, sectionId])
+  @@index([teacherId])
+  @@index([day])
 }

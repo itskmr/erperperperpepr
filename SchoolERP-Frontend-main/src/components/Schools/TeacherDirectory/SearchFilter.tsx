@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, User2, Download } from 'lucide-react';
+import { Search, User2 } from 'lucide-react';
 import { AVAILABLE_CLASSES } from './data';
 
 interface SearchFiltersProps {
@@ -43,10 +43,6 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
             ))}
           </select>
         </div>
-        <button className="flex items-center text-gray-600 hover:text-blue-600 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors duration-300">
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </button>
       </div>
     </div>
   );

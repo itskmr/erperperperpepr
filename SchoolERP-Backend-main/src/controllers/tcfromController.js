@@ -139,14 +139,13 @@ export const createTC = async (req, res) => {
       extraActivity: tc.extraActivities ? JSON.parse(tc.extraActivities) : [],
       // School details
       schoolDetails: {
-        schoolName: tc.school.fullName,
-        address: tc.school.address,
-        contact: tc.school.contact.toString(),
-        email: tc.school.email,
-        recognitionId: tc.school.code || '',
+        schoolName: tc.school?.schoolName || '',
+        address: tc.school?.address || '',
+        recognitionId: tc.school?.code || '',
         affiliationNo: '',
-        website: '',
-        imageUrl: ''
+        contact: tc.school?.contact ? tc.school.contact.toString() : '',
+        email: tc.school?.email || '',
+        imageUrl: tc.school?.image_url || ''
       }
     };
     
@@ -273,14 +272,13 @@ export const getAllTCs = async (req, res) => {
       extraActivity: tc.extraActivities ? JSON.parse(tc.extraActivities) : [],
       // School details
       schoolDetails: {
-        schoolName: tc.school.fullName,
-        address: tc.school.address,
-        recognitionId: tc.school.code || '',
+        schoolName: tc.school?.schoolName || '',
+        address: tc.school?.address || '',
+        recognitionId: tc.school?.code || '',
         affiliationNo: '',
-        contact: tc.school.contact.toString(),
-        email: tc.school.email,
-        website: '',
-        imageUrl: ''
+        contact: tc.school?.contact ? tc.school.contact.toString() : '',
+        email: tc.school?.email || '',
+        imageUrl: tc.school?.image_url || ''
       }
     }));
 
@@ -347,14 +345,13 @@ export const getTC = async (req, res) => {
       extraActivity: tc.extraActivities ? JSON.parse(tc.extraActivities) : [],
       // School details
       schoolDetails: {
-        schoolName: tc.school.fullName,
-        address: tc.school.address,
-        recognitionId: tc.school.code || '',
+        schoolName: tc.school?.schoolName || '',
+        address: tc.school?.address || '',
+        recognitionId: tc.school?.code || '',
         affiliationNo: '',
-        contact: tc.school.contact.toString(),
-        email: tc.school.email,
-        website: '',
-        imageUrl: ''
+        contact: tc.school?.contact ? tc.school.contact.toString() : '',
+        email: tc.school?.email || '',
+        imageUrl: tc.school?.image_url || ''
       }
     };
 
@@ -478,14 +475,13 @@ export const updateTC = async (req, res) => {
       extraActivity: tc.extraActivities ? JSON.parse(tc.extraActivities) : [],
       // School details
       schoolDetails: {
-        schoolName: tc.school.fullName,
-        address: tc.school.address,
-        recognitionId: tc.school.code || '',
+        schoolName: tc.school?.schoolName || '',
+        address: tc.school?.address || '',
+        recognitionId: tc.school?.code || '',
         affiliationNo: '',
-        contact: tc.school.contact.toString(),
-        email: tc.school.email,
-        website: '',
-        imageUrl: ''
+        contact: tc.school?.contact ? tc.school.contact.toString() : '',
+        email: tc.school?.email || '',
+        imageUrl: tc.school?.image_url || ''
       }
     };
 
@@ -614,7 +610,18 @@ export const fetchStudentDetails = async (req, res) => {
         admissionNo: admissionNumber 
       },
       include: {
-        school: true,
+        school: {
+          select: {
+            id: true,
+            schoolName: true,
+            address: true,
+            code: true,
+            contact: true,
+            email: true,
+            image_url: true,
+            affiliationNo: true
+          }
+        },
         sessionInfo: true,
         educationInfo: true,
         parentInfo: true,
@@ -633,7 +640,7 @@ export const fetchStudentDetails = async (req, res) => {
     }
     
     // Handle class name standardization (Nursery, Class 1, etc.)
-    let classInfo = student.className || '';
+    let classInfo = student.sessionInfo?.currentClass || '';
     console.log(`[DEBUG] Student class value: "${classInfo}"`);
     
     // Standardize class name format for consistent handling
@@ -648,7 +655,7 @@ export const fetchStudentDetails = async (req, res) => {
 
     // Format the data for the TC form
     const studentDetails = {
-      studentId: student.id,
+      id: student.id,
       schoolId: student.schoolId,
       fullName: student.fullName,
       fatherName: student.fatherName || '',
@@ -657,10 +664,10 @@ export const fetchStudentDetails = async (req, res) => {
       category: student.category || 'General',
       dateOfBirth: student.dateOfBirth.toISOString(),
       dateOfAdmission: student.admissionDate.toISOString(),
-      section: student.section || '',
-      admissionNumber: student.admissionNo,
-      currentClass: classInfo,
-      rollNo: student.rollNumber || '',
+      section: student.sessionInfo?.currentSection || student.sessionInfo?.admitSection || '',
+      admissionNo: student.admissionNo,
+      currentClass: student.sessionInfo?.currentClass || classInfo,
+      rollNo: student.sessionInfo?.currentRollNo || student.sessionInfo?.admitRollNo || '',
       admitClass: student.sessionInfo?.admitClass || classInfo,
       academicYear: new Date().getFullYear().toString(),
       // Default values for TC fields
@@ -676,24 +683,22 @@ export const fetchStudentDetails = async (req, res) => {
       generalConduct: 'Good',
       // School details
       schoolDetails: {
-        schoolName: student.school.fullName,
-        address: student.school.address,
-        recognitionId: student.school.code || '',
-        affiliationNo: '',
-        contact: student.school.contact.toString(),
-        email: student.school.email,
-        website: '',
-        imageUrl: ''
+        schoolName: student.school?.schoolName || '',
+        address: student.school?.address || '',
+        recognitionId: student.school?.code || '',
+        affiliationNo: student.school?.affiliationNo || '',
+        contact: student.school?.contact ? student.school.contact.toString() : '',
+        email: student.school?.email || '',
+        imageUrl: student.school?.image_url || ''
       }
     };
 
     res.json(studentDetails);
   } catch (error) {
-    console.error('[ERROR] Fetch Student Details Error:', error);
+    console.error('[ERROR] Error fetching student details:', error);
     res.status(500).json({ 
-      error: 'Internal server error', 
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: 'Internal server error',
+      detail: error.message
     });
   }
 };

@@ -7,7 +7,6 @@ interface TeacherTableProps {
   handleViewProfile: (teacher: Teacher) => void;
   handleEditTeacher: (teacher: Teacher) => void;
   handleDeleteTeacher: (id: number) => void;
-  handleStatusChange?: (id: number, status: 'active' | 'inactive') => void;
 }
 
 const TeacherTable: React.FC<TeacherTableProps> = ({
@@ -15,7 +14,6 @@ const TeacherTable: React.FC<TeacherTableProps> = ({
   handleViewProfile,
   handleEditTeacher,
   handleDeleteTeacher,
-  handleStatusChange,
 }) => {
   return (
     <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -53,7 +51,6 @@ const TeacherTable: React.FC<TeacherTableProps> = ({
                     handleViewProfile={handleViewProfile}
                     handleEditTeacher={handleEditTeacher}
                     handleDeleteTeacher={handleDeleteTeacher}
-                    handleStatusChange={handleStatusChange}
                   />
                 ))
               ) : (

@@ -32,7 +32,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         <div className="bg-blue-600 px-6 py-4 rounded-t-lg">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-bold text-white">
-              Student Information: {student.firstName} {student.middleName} {student.lastName}
+              Student Information: {student.fullName}
             </h3>
             <button
               onClick={onClose}
@@ -55,33 +55,20 @@ export const StudentView: React.FC<StudentViewProps> = ({
                 <p className="text-base font-semibold">{student.admissionNo}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Student ID</p>
-                <div className="flex items-center">
-                  <p className="text-base font-semibold mr-2">
-                    {student.studentId || (student.id ? `ID-${student.id}` : 'N/A')}
-                  </p>
-                  {(student.studentId || student.id) && (
-                    <button 
-                      onClick={() => copyToClipboard(student.studentId || `ID-${student.id}`)}
-                      className="text-gray-500 hover:text-blue-600 focus:outline-none"
-                      title="Copy to clipboard"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+                <p className="text-sm font-medium text-gray-500">Current Class & Section</p>
+                <p className="text-base font-semibold">
+                  {student.currentSession?.class} {student.currentSession?.section}
+                </p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Class & Section</p>
-                <p className="text-base font-semibold">{student.className} {student.section}</p>
+                <p className="text-sm font-medium text-gray-500">Current Roll No</p>
+                <p className="text-base font-semibold">{student.currentSession?.rollNo}</p>
               </div>
             </div>
           </div>
 
           {/* Main content sections */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-6 space-y-6">
             {/* Personal Information */}
             <div className="border rounded-lg p-4">
               <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Personal Information</h4>
@@ -93,7 +80,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Date of Birth</p>
-                    <p>{student.dateOfBirth || 'N/A'}</p>
+                    <p>{student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : 'N/A'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -112,14 +99,14 @@ export const StudentView: React.FC<StudentViewProps> = ({
                     <p>{student.religion || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Nationality</p>
-                    <p>{student.nationality || 'N/A'}</p>
+                    <p className="text-sm font-medium text-gray-500">Category</p>
+                    <p>{student.category || 'N/A'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Mobile Number</p>
-                    <p>{student.mobileNumber}</p>
+                    <p>{student.mobileNumber || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Email</p>
@@ -184,38 +171,47 @@ export const StudentView: React.FC<StudentViewProps> = ({
             </div>
 
             {/* Academic Information */}
-            <div className="border rounded-lg p-4">
-              <h4 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">Academic Information</h4>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Admission Date</p>
-                    <p>{student.admissionDate || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Class</p>
-                    <p>{student.className}</p>
-                  </div>
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Academic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Current Stream</p>
+                  <p className="text-base">{student.currentSession?.stream || 'N/A'}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Section</p>
-                    <p>{student.section || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Roll Number</p>
-                    <p>{student.rollNumber || 'N/A'}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Current Semester</p>
+                  <p className="text-base">{student.currentSession?.semester || 'N/A'}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Previous School</p>
-                    <p>{student.previousSchool || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Registration Number</p>
-                    <p>{student.academic?.registrationNo || 'N/A'}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Fee Group</p>
+                  <p className="text-base">{student.currentSession?.feeGroup || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">House</p>
+                  <p className="text-base">{student.currentSession?.house || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Previous Education */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Previous Education</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Previous School</p>
+                  <p className="text-base">{student.lastEducation?.school || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Previous Class</p>
+                  <p className="text-base">{student.lastEducation?.prevClass || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Percentage/CGPA</p>
+                  <p className="text-base">{student.lastEducation?.percentage || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Attendance</p>
+                  <p className="text-base">{student.lastEducation?.attendance || 'N/A'}</p>
                 </div>
               </div>
             </div>

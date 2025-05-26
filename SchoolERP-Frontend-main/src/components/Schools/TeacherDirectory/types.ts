@@ -1,27 +1,60 @@
 export interface Teacher {
-    id: number;
-    fullName: string;
-    email: string;
-    phone: string;
-    designation: string;
-    subjects: string[];
-    classes?: string;
-    sections: {
-      class: string;
-      sections: string[];
-    }[];
-    joinDate: string;
-    address: string;
-    education: string;
-    experience: string;
-    profileImage: string;
-    isClassIncharge: boolean;
-    inchargeClass: string | null;
-    inchargeSection: string | null;
-    status: string;
-    schoolId: number;
-    username: string;
-    password?: string;
+  id?: number;
+  fullName: string;
+  email: string;
+  password?: string;
+  username?: string;
+  phone: string;
+  gender: string;
+  dateOfBirth?: string;
+  age?: number;
+  
+  // Professional details
+  designation?: string;
+  qualification?: string;
+  address?: string;
+  joining_year?: string;
+  experience?: string;
+  profileImage?: string;
+  
+  // Teaching details
+  subjects?: string[];
+  sections?: Array<{
+    class: string;
+    sections: string[];
+  }>;
+  
+  // Class incharge details
+  isClassIncharge?: boolean;
+  inchargeClass?: string;
+  inchargeSection?: string;
+  
+  // Additional details
+  religion?: string;
+  bloodGroup?: string;
+  maritalStatus?: string;
+  
+  // Social media links
+  facebook?: string;
+  twitter?: string;
+  linkedIn?: string;
+  
+  // Documents
+  documents?: string[];
+  
+  // Salary and bank details
+  joiningSalary?: number;
+  accountHolderName?: string;
+  accountNumber?: string;
+  bankName?: string;
+  bankBranch?: string;
+  
+  // Status fields
+  status?: 'active' | 'inactive';
+  schoolId?: number;
+  lastLogin?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface School {

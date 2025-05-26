@@ -34,11 +34,10 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   const filteredStudents = students.filter(student => {
     const searchFields = [
       student.admissionNo,
-      student.studentId,
       student.fullName,
-      student.className,
-      student.section,
-      student.rollNumber,
+      student.currentSession?.class || '',
+      student.currentSession?.section || '',
+      student.currentSession?.rollNo || '',
       student.mobileNumber,
       student.email,
     ];
@@ -60,19 +59,8 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   // Handle delete confirmation and action
   const handleDeleteClick = (student: StudentFormData) => {
     if (window.confirm(`Are you sure you want to delete ${student.fullName}?`)) {
-      onDelete(student.studentId);
+      onDelete(student.admissionNo);
     }
-  };
-
-  // Add a function to copy studentId to clipboard
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        alert('Student ID copied to clipboard!');
-      })
-      .catch(err => {
-        console.error('Failed to copy text: ', err);
-      });
   };
 
   return (
@@ -107,16 +95,6 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               >
                 Admission No
                 {sortField === 'admissionNo' && (
-                  <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                )}
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                onClick={() => handleSort('studentId')}
-              >
-                Student ID
-                {sortField === 'studentId' && (
                   <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                 )}
               </th>
@@ -176,36 +154,15 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               </tr>
             ) : (
               sortedStudents.map((student) => (
-                <tr key={student.studentId} className="hover:bg-gray-50">
+                <tr key={student.admissionNo} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {student.admissionNo}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <div className="flex items-center">
-                      <span className="mr-2">
-                        {student.studentId || (student.id ? `ID-${student.id}` : 'N/A')}
-                      </span>
-                      {(student.studentId || student.id) && (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(student.studentId || `ID-${student.id}`);
-                          }}
-                          className="text-gray-500 hover:text-blue-600 focus:outline-none"
-                          title="Copy to clipboard"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.fullName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {student.className} {student.section}
+                    {student.currentSession?.class} {student.currentSession?.section}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {student.mobileNumber}
