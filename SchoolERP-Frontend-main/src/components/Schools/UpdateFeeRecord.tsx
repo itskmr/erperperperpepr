@@ -20,6 +20,8 @@ interface FeeRecord {
   status: 'Paid' | 'Pending' | 'Partial';
   feeCategory?: string;
   feeCategories?: string[];
+  discountType?: string;
+  discountAmount?: number;
 }
 
 interface UpdateFeeRecordProps {
@@ -58,7 +60,9 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
     receiptNumber: '',
     status: 'Paid',
     feeCategory: '',
-    feeCategories: []
+    feeCategories: [],
+    discountType: '',
+    discountAmount: 0
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -373,6 +377,61 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
+                </div>
+
+                {/* Discount Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                  <div className="flex space-x-2">
+                    <select
+                      name="discountType"
+                      value={formData.discountType || ''}
+                      onChange={handleChange}
+                      className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">No Discount</option>
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="fixed">Fixed Amount (₹)</option>
+                      <option value="scholarship">Scholarship</option>
+                      <option value="sibling">Sibling Discount</option>
+                      <option value="early_payment">Early Payment</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {formData.discountType === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Specify discount type"
+                        className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => setFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Discount Amount {formData.discountType === 'percentage' ? '(%)' : formData.discountType === 'fixed' ? '(₹)' : ''}
+                  </label>
+                  <input
+                    type="number"
+                    name="discountAmount"
+                    value={formData.discountAmount || 0}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={formData.discountType === 'percentage' ? 'Enter percentage (0-100)' : 'Enter discount amount'}
+                    min="0"
+                    max={formData.discountType === 'percentage' ? '100' : undefined}
+                    step={formData.discountType === 'percentage' ? '0.1' : '0.01'}
+                    disabled={!formData.discountType}
+                  />
+                  {formData.discountType && (formData.discountAmount || 0) > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.discountType === 'percentage' 
+                        ? `Discount: ₹${((formData.feeAmount * (formData.discountAmount || 0)) / 100).toFixed(2)}`
+                        : `Discount: ₹${(formData.discountAmount || 0).toFixed(2)}`
+                      }
+                    </p>
+                  )}
                 </div>
 
                 <div>

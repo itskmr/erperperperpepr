@@ -50,6 +50,9 @@ import ClassManagement from "./components/Teacher/classManagement";
 import TeachingMaterials from "./components/Teacher/TeachingMaterials";
 import AssignmentManager from './components/Teacher/Assignment';
 import TeacherDirectory from './components/Schools/TeacherDirectory/TeacherDirectory';
+import DriverDirectory from './components/Schools/DriverDirectory/DriverDirectory';
+import VehicleManagement from './components/Schools/VehicleManagement/VehicleManagement';
+import TransportRoutes from './components/Schools/TransportRoutes/TransportRoutes';
 import ExamSchedule from './components/Teacher/ExamSchedule';
 import FeeCollectionApp from "./components/Schools/FeesCollection";
 import  AttendanceManagement from "./components/Teacher/AttendanceManagement";
@@ -65,7 +68,7 @@ import StudentDataPage from "./pages/RegisterStudentsData";
 
 // Parent components
 import { ParentDashboard, ParentAttendance } from './components/parent';
-import FeedbackPage from './pages/parent/FeedbackPage';
+// import FeedbackPage from './pages/parent/FeedbackPage';
 import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
 import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
 // Uncomment these when the components are available
@@ -427,6 +430,39 @@ function AppContent({
             </ProtectedRoute>
           }
         />
+        
+        {/* Transport Management Routes */}
+        <Route
+          path="/school/transport-management/driver-directory"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DriverDirectory />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/school/transport-management/vehicle-management"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <VehicleManagement />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/school/transport-management/transport-routes"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TransportRoutes />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         <Route
           path="/school/students/register/allStudents"
           element={
@@ -561,7 +597,7 @@ function AppContent({
               <Layout userRole={userRole} onLogout={handleLogout}>
                 < ExpenseTracker />
               </Layout>
-            </ProtectedRoute>
+              </ProtectedRoute>
           }
         />
 
@@ -623,7 +659,7 @@ function AppContent({
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <GradeManagementSchool/>
               </Layout>
-            </ProtectedRoute>
+              </ProtectedRoute>
           }
         />
         <Route
@@ -632,16 +668,6 @@ function AppContent({
             <ProtectedRoute allowedRoles={['teacher']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <ClassManagement />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/classes/TeachingMaterials"
-          element={
-            <ProtectedRoute allowedRoles={['teacher']}>
-              <Layout userRole={userRole} onLogout={handleLogout}>
-                <TeachingMaterials />
               </Layout>
             </ProtectedRoute>
           }
@@ -710,7 +736,6 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-
         />
 
         <Route
@@ -816,18 +841,6 @@ function AppContent({
         />
 
         <Route
-          path="/parent/feedback"
-          element={
-            <ProtectedRoute allowedRoles={['parent']}>
-              <Layout userRole={userRole} onLogout={handleLogout}>
-                <FeedbackPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Parent Communication Routes */}
-        <Route
           path="/parent/communication/messages"
           element={
             <ProtectedRoute allowedRoles={['parent']}>
@@ -909,7 +922,7 @@ function AppContent({
                   <p className="text-gray-600">Detailed fee information coming soon.</p>
                 </div>
               </Layout>
-            </ProtectedRoute>
+              </ProtectedRoute>
           }
         />
 
@@ -969,6 +982,7 @@ function AppContent({
             </ProtectedRoute>
           }
         />
+
 
         <Route
           path="/parent/settings"
@@ -1107,7 +1121,7 @@ function AppContent({
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <UserProfile />
               </Layout>
-            </ProtectedRoute>
+            } 
           } 
         />
         */}
@@ -1132,7 +1146,7 @@ function AppContent({
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <UserProfile />
               </Layout>
-            </ProtectedRoute>
+            } 
           } 
         />
         */}
@@ -1318,7 +1332,7 @@ function AppContent({
                   <p className="text-gray-600">Your profile information will appear here.</p>
                 </div>
               </Layout>
-            </ProtectedRoute>
+              </ProtectedRoute>
           }
         />
 

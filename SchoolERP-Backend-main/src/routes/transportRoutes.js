@@ -1,5 +1,8 @@
 import express from 'express';
 import {
+  // School routes
+  getSchoolInfo,
+  
   // Driver routes
   getAllDrivers,
   getDriverById,
@@ -45,6 +48,9 @@ import {
 } from '../controllers/transportController.js';
 
 const router = express.Router();
+
+// School routes
+router.get('/school-info', getSchoolInfo);
 
 // Driver routes
 router.get('/drivers', getAllDrivers);

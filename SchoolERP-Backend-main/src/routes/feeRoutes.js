@@ -128,6 +128,8 @@ router.post('/', async (req, res) => {
       receiptNumber: req.body.receiptNumber,
       status: req.body.status,
       feeCategory: feeCategory,
+      discountType: req.body.discountType || null,
+      discountAmount: req.body.discountAmount ? parseFloat(req.body.discountAmount) : 0,
       schoolId: student.schoolId
     };
     
@@ -211,6 +213,8 @@ router.put('/:id', async (req, res) => {
       receiptNumber: req.body.receiptNumber,
       status: req.body.status,
       feeCategory: feeCategory,
+      discountType: req.body.discountType || existingFee.discountType || null,
+      discountAmount: req.body.discountAmount !== undefined ? parseFloat(req.body.discountAmount) : (existingFee.discountAmount || 0),
       schoolId: req.body.schoolId || existingFee.schoolId || 1
     };
     

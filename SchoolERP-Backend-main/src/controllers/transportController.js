@@ -16,9 +16,69 @@ try {
     route: { findMany: async () => [] },
     trip: { findMany: async () => [] },
     maintenance: { findMany: async () => [] },
-    studentTransport: { findMany: async () => [] }
+    studentTransport: { findMany: async () => [] },
+    school: { findFirst: async () => null }
   };
 }
+
+// Helper function to get school_id from request and validate it exists in database
+const getAndValidateSchoolId = async (req) => {
+  let schoolId = null;
+  
+  // Try to get schoolId from different sources
+  if (req.params.schoolId) {
+    schoolId = parseInt(req.params.schoolId);
+  } else if (req.query.schoolId) {
+    schoolId = parseInt(req.query.schoolId);
+  } else if (req.body.schoolId) {
+    schoolId = parseInt(req.body.schoolId);
+  } else if (req.user && req.user.schoolId) {
+    // From authenticated user context
+    schoolId = parseInt(req.user.schoolId);
+  } else if (req.user && req.user.role === 'school') {
+    // If user is a school, use their ID
+    schoolId = parseInt(req.user.id);
+  }
+
+  // If no schoolId provided or found, check if there's a default school
+  if (!schoolId) {
+    try {
+      const defaultSchool = await prisma.school.findFirst({
+        select: { id: true }
+      });
+      if (defaultSchool) {
+        schoolId = defaultSchool.id;
+        console.log(`Using default school ID: ${schoolId}`);
+      } else {
+        return { schoolId: null, error: "No school found in database. Please ensure at least one school exists." };
+      }
+    } catch (error) {
+      console.error("Error fetching default school:", error);
+      return { schoolId: null, error: "Database error while fetching school information" };
+    }
+  }
+
+  // Validate that the school exists in the database
+  try {
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, schoolName: true, status: true }
+    });
+
+    if (!school) {
+      return { schoolId: null, error: `School with ID ${schoolId} not found in database` };
+    }
+
+    if (school.status === 'inactive') {
+      return { schoolId: null, error: `School with ID ${schoolId} is inactive` };
+    }
+
+    return { schoolId: school.id, school: school, error: null };
+  } catch (error) {
+    console.error("Error validating school:", error);
+    return { schoolId: null, error: "Database error while validating school" };
+  }
+};
 
 // Add a connection test function
 async function testPrismaConnection() {
@@ -55,7 +115,7 @@ export const checkDbConnection = async (req, res, next) => {
 // ==================== DRIVER CONTROLLERS ====================
 
 /**
- * Get all drivers
+ * Get all drivers for a specific school
  */
 export const getAllDrivers = async (req, res) => {
   try {
@@ -68,7 +128,27 @@ export const getAllDrivers = async (req, res) => {
       });
     }
 
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const drivers = await prisma.driver.findMany({
+      where: {
+        schoolId: schoolId
+      },
+      include: {
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
+      },
       orderBy: {
         name: 'asc'
       }
@@ -77,7 +157,8 @@ export const getAllDrivers = async (req, res) => {
     res.status(200).json({
       success: true,
       count: drivers.length,
-      data: drivers
+      data: drivers,
+      schoolId: schoolId
     });
   } catch (error) {
     console.error("Error fetching drivers:", error);
@@ -90,20 +171,40 @@ export const getAllDrivers = async (req, res) => {
 };
 
 /**
- * Get a single driver by ID
+ * Get a single driver by ID (with school validation)
  */
 export const getDriverById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const driver = await prisma.driver.findUnique({
-      where: { id }
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
+    const driver = await prisma.driver.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      },
+      include: {
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
+      }
     });
     
     if (!driver) {
       return res.status(404).json({
         success: false,
-        message: "Driver not found"
+        message: "Driver not found or doesn't belong to this school"
       });
     }
     
@@ -122,10 +223,22 @@ export const getDriverById = async (req, res) => {
 };
 
 /**
- * Create a new driver
+ * Create a new driver with school association
  */
 export const createDriver = async (req, res) => {
   try {
+    console.log('Received driver creation request');
+    console.log('Request body keys:', Object.keys(req.body));
+    
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
     const {
       name,
       licenseNumber,
@@ -133,45 +246,101 @@ export const createDriver = async (req, res) => {
       address,
       experience,
       joiningDate,
-      isActive
+      dateOfBirth,
+      age,
+      gender,
+      maritalStatus,
+      emergencyContact,
+      bloodGroup,
+      qualification,
+      salary,
+      isActive,
+      photo
     } = req.body;
     
-    // Validate required fields
-    if (!name || !licenseNumber || !contactNumber) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide name, license number, and contact number"
-      });
-    }
-    
-    // Check if driver with the same license number already exists
-    const existingDriver = await prisma.driver.findFirst({
-      where: { licenseNumber }
+    console.log('Driver data received:', {
+      name,
+      contactNumber,
+      schoolId,
+      photoLength: photo ? photo.length : 0,
+      hasPhoto: !!photo
     });
     
-    if (existingDriver) {
+    // Validate required fields
+    if (!name || !contactNumber) {
+      console.error('Missing required fields:', { name: !!name, contactNumber: !!contactNumber });
       return res.status(400).json({
         success: false,
-        message: "Driver with this license number already exists"
+        message: "Please provide name and contact number"
       });
     }
+    
+    // Validate photo size if provided (check if it's too large)
+    if (photo && photo.length > 1000000) { // ~1MB limit for base64 string
+      console.error('Photo too large:', photo.length);
+      return res.status(400).json({
+        success: false,
+        message: "Photo file is too large. Please use a smaller image."
+      });
+    }
+    
+    // Check if driver with the same license number already exists in the same school
+    if (licenseNumber) {
+      const existingDriver = await prisma.driver.findFirst({
+        where: { 
+          licenseNumber: licenseNumber,
+          schoolId: schoolId
+        }
+      });
+      
+      if (existingDriver) {
+        console.error('License number already exists in this school:', licenseNumber);
+        return res.status(400).json({
+          success: false,
+          message: "Driver with this license number already exists in this school"
+        });
+      }
+    }
+    
+    console.log('Creating driver in database...');
     
     const driver = await prisma.driver.create({
       data: {
         id: uuidv4(),
         name,
-        licenseNumber,
+        licenseNumber: licenseNumber || null,
         contactNumber,
-        address,
+        address: address || null,
         experience: parseInt(experience) || 0,
-        joiningDate: new Date(joiningDate),
-        isActive: Boolean(isActive)
+        joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        age: parseInt(age) || null,
+        gender: gender || null,
+        maritalStatus: maritalStatus || null,
+        emergencyContact: emergencyContact || null,
+        bloodGroup: bloodGroup || null,
+        qualification: qualification || null,
+        salary: parseFloat(salary) || null,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+        photo: photo || null,
+        schoolId: schoolId
+      },
+      include: {
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       }
     });
     
+    console.log('Driver created successfully with ID:', driver.id);
+    
     res.status(201).json({
       success: true,
-      data: driver
+      data: driver,
+      message: "Driver created successfully"
     });
   } catch (error) {
     console.error("Error creating driver:", error);
@@ -184,11 +353,24 @@ export const createDriver = async (req, res) => {
 };
 
 /**
- * Update an existing driver
+ * Update an existing driver (with school validation)
  */
 export const updateDriver = async (req, res) => {
   try {
+    console.log('Received driver update request');
+    console.log('Request body keys:', Object.keys(req.body));
+    
     const { id } = req.params;
+    
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
     const {
       name,
       licenseNumber,
@@ -196,43 +378,136 @@ export const updateDriver = async (req, res) => {
       address,
       experience,
       joiningDate,
-      isActive
+      dateOfBirth,
+      age,
+      gender,
+      maritalStatus,
+      emergencyContact,
+      bloodGroup,
+      qualification,
+      salary,
+      isActive,
+      photo
     } = req.body;
     
-    // Check if driver exists
-    const driverExists = await prisma.driver.findUnique({
-      where: { id }
+    console.log('Driver update data received:', {
+      id,
+      name,
+      contactNumber,
+      schoolId,
+      photoLength: photo ? photo.length : 0,
+      hasPhoto: !!photo
+    });
+    
+    // Check if driver exists and belongs to the school
+    const driverExists = await prisma.driver.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      }
     });
     
     if (!driverExists) {
+      console.error('Driver not found or does not belong to this school:', id);
       return res.status(404).json({
         success: false,
-        message: "Driver not found"
+        message: "Driver not found or doesn't belong to this school"
       });
+    }
+    
+    // Validate photo size if provided (check if it's too large)
+    if (photo && photo.length > 1000000) { // ~1MB limit for base64 string
+      console.error('Photo too large during update:', photo.length);
+      return res.status(400).json({
+        success: false,
+        message: "Photo file is too large. Please use a smaller image."
+      });
+    }
+    
+    // Check if driver with the same license number already exists in the same school
+    if (licenseNumber && licenseNumber !== driverExists.licenseNumber) {
+      const existingDriverWithLicense = await prisma.driver.findFirst({
+        where: { 
+          licenseNumber: licenseNumber,
+          schoolId: schoolId,
+          id: { not: id } // Exclude current driver
+        }
+      });
+      
+      if (existingDriverWithLicense) {
+        console.error('License number already exists for different driver in this school:', licenseNumber);
+        return res.status(400).json({
+          success: false,
+          message: "Another driver with this license number already exists in this school"
+        });
+      }
     }
     
     // Prepare update data
     const updateData = {};
     
     if (name !== undefined) updateData.name = name;
-    if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber;
+    if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber || null;
     if (contactNumber !== undefined) updateData.contactNumber = contactNumber;
-    if (address !== undefined) updateData.address = address;
+    if (address !== undefined) updateData.address = address || null;
     if (experience !== undefined) updateData.experience = parseInt(experience) || 0;
-    if (joiningDate !== undefined) updateData.joiningDate = new Date(joiningDate);
+    if (joiningDate !== undefined) updateData.joiningDate = joiningDate ? new Date(joiningDate) : null;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    if (age !== undefined) updateData.age = parseInt(age) || null;
+    if (gender !== undefined) updateData.gender = gender || null;
+    if (maritalStatus !== undefined) updateData.maritalStatus = maritalStatus || null;
+    if (emergencyContact !== undefined) updateData.emergencyContact = emergencyContact || null;
+    if (bloodGroup !== undefined) updateData.bloodGroup = bloodGroup || null;
+    if (qualification !== undefined) updateData.qualification = qualification || null;
+    if (salary !== undefined) updateData.salary = parseFloat(salary) || null;
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (photo !== undefined) updateData.photo = photo || null;
+    
+    console.log('Updating driver in database with data keys:', Object.keys(updateData));
     
     const driver = await prisma.driver.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: {
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
+      }
     });
+    
+    console.log('Driver updated successfully:', driver.id);
     
     res.status(200).json({
       success: true,
-      data: driver
+      data: driver,
+      message: "Driver updated successfully"
     });
   } catch (error) {
     console.error("Error updating driver:", error);
+    
+    // Check for specific database errors
+    if (error.code === 'P2002') {
+      console.error('Unique constraint violation during update:', error.meta);
+      return res.status(400).json({
+        success: false,
+        message: "A driver with this information already exists",
+        error: error.message
+      });
+    }
+    
+    // Check for invalid date errors
+    if (error.message && error.message.includes('Invalid date')) {
+      console.error('Invalid date error during update:', error.message);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format provided. Please check the date fields.",
+        error: error.message
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: "Failed to update driver",
@@ -242,33 +517,49 @@ export const updateDriver = async (req, res) => {
 };
 
 /**
- * Delete a driver
+ * Delete a driver (with school validation)
  */
 export const deleteDriver = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if driver exists
-    const driver = await prisma.driver.findUnique({
-      where: { id }
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
+    // Check if driver exists and belongs to the school
+    const driver = await prisma.driver.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      }
     });
     
     if (!driver) {
       return res.status(404).json({
         success: false,
-        message: "Driver not found"
+        message: "Driver not found or doesn't belong to this school"
       });
     }
     
-    // Check if driver is assigned to any bus
-    const assignedBus = await prisma.bus.findFirst({
+    // Check if driver is assigned to any buses
+    const assignedBuses = await prisma.bus.findMany({
       where: { driverId: id }
     });
     
-    if (assignedBus) {
+    if (assignedBuses.length > 0) {
       return res.status(400).json({
         success: false,
-        message: "Cannot delete driver. Driver is assigned to a bus."
+        message: "Cannot delete driver as they are assigned to buses. Please unassign the driver first.",
+        assignedBuses: assignedBuses.map(bus => ({
+          id: bus.id,
+          registrationNumber: bus.registrationNumber
+        }))
       });
     }
     
@@ -293,14 +584,32 @@ export const deleteDriver = async (req, res) => {
 // ==================== BUS CONTROLLERS ====================
 
 /**
- * Get all buses
+ * Get all buses for a specific school
  */
 export const getAllBuses = async (req, res) => {
   try {
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const buses = await prisma.bus.findMany({
+      where: {
+        schoolId: schoolId
+      },
       include: {
         driver: true,
-        route: true
+        route: true,
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       },
       orderBy: {
         registrationNumber: 'asc'
@@ -310,7 +619,8 @@ export const getAllBuses = async (req, res) => {
     res.status(200).json({
       success: true,
       count: buses.length,
-      data: buses
+      data: buses,
+      schoolId: schoolId
     });
   } catch (error) {
     console.error("Error fetching buses:", error);
@@ -323,24 +633,42 @@ export const getAllBuses = async (req, res) => {
 };
 
 /**
- * Get a single bus by ID
+ * Get a single bus by ID (with school validation)
  */
 export const getBusById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const bus = await prisma.bus.findUnique({
-      where: { id },
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
+    const bus = await prisma.bus.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      },
       include: {
         driver: true,
-        route: true
+        route: true,
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       }
     });
     
     if (!bus) {
       return res.status(404).json({
         success: false,
-        message: "Bus not found"
+        message: "Bus not found or doesn't belong to this school"
       });
     }
     
@@ -359,10 +687,19 @@ export const getBusById = async (req, res) => {
 };
 
 /**
- * Create a new bus
+ * Create a new bus with school association
  */
 export const createBus = async (req, res) => {
   try {
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const {
       registrationNumber,
       make,
@@ -371,50 +708,109 @@ export const createBus = async (req, res) => {
       fuelType,
       purchaseDate,
       insuranceExpiryDate,
+      lastMaintenanceDate,
+      lastInspectionDate,
+      currentOdometer,
       driverId,
       routeId,
-      status
+      status,
+      notes
     } = req.body;
     
     // Validate required fields
-    if (!registrationNumber || !make || !model || !capacity) {
+    if (!make || !capacity) {
       return res.status(400).json({
         success: false,
-        message: "Please provide registration number, make, model, and capacity"
+        message: "Please provide vehicle make and capacity"
       });
     }
     
-    // Check if bus with the same registration number already exists
-    const existingBus = await prisma.bus.findFirst({
-      where: { registrationNumber }
-    });
-    
-    if (existingBus) {
-      return res.status(400).json({
-        success: false,
-        message: "Bus with this registration number already exists"
+    // Check if bus with the same registration number already exists in the same school
+    if (registrationNumber) {
+      const existingBus = await prisma.bus.findFirst({
+        where: { 
+          registrationNumber: registrationNumber,
+          schoolId: schoolId
+        }
       });
+      
+      if (existingBus) {
+        return res.status(400).json({
+          success: false,
+          message: "Bus with this registration number already exists in this school"
+        });
+      }
+    }
+
+    // Validate driver belongs to the same school if provided
+    if (driverId) {
+      const driver = await prisma.driver.findFirst({
+        where: {
+          id: driverId,
+          schoolId: schoolId
+        }
+      });
+
+      if (!driver) {
+        return res.status(400).json({
+          success: false,
+          message: "Driver not found or doesn't belong to this school"
+        });
+      }
+    }
+
+    // Validate route belongs to the same school if provided
+    if (routeId) {
+      const route = await prisma.route.findFirst({
+        where: {
+          id: routeId,
+          schoolId: schoolId
+        }
+      });
+
+      if (!route) {
+        return res.status(400).json({
+          success: false,
+          message: "Route not found or doesn't belong to this school"
+        });
+      }
     }
     
     const bus = await prisma.bus.create({
       data: {
         id: uuidv4(),
-        registrationNumber,
+        registrationNumber: registrationNumber || null,
         make,
-        model,
+        model: model || 'Unknown',
         capacity: parseInt(capacity),
-        fuelType,
+        fuelType: fuelType || null,
         purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
         insuranceExpiryDate: insuranceExpiryDate ? new Date(insuranceExpiryDate) : null,
-        driverId,
-        routeId,
-        status: status || 'ACTIVE'
+        lastMaintenanceDate: lastMaintenanceDate ? new Date(lastMaintenanceDate) : null,
+        lastInspectionDate: lastInspectionDate ? new Date(lastInspectionDate) : null,
+        currentOdometer: parseFloat(currentOdometer) || 0,
+        driverId: driverId || null,
+        routeId: routeId || null,
+        status: status || 'ACTIVE',
+        notes: notes || null,
+        schoolId: schoolId
+      },
+      include: {
+        driver: true,
+        route: true,
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       }
     });
     
     res.status(201).json({
       success: true,
-      data: bus
+      data: bus,
+      message: "Bus created successfully"
     });
   } catch (error) {
     console.error("Error creating bus:", error);
@@ -440,9 +836,13 @@ export const updateBus = async (req, res) => {
       fuelType,
       purchaseDate,
       insuranceExpiryDate,
+      lastMaintenanceDate,
+      lastInspectionDate,
+      currentOdometer,
       driverId,
       routeId,
-      status
+      status,
+      notes
     } = req.body;
     
     // Check if bus exists
@@ -465,11 +865,15 @@ export const updateBus = async (req, res) => {
     if (model !== undefined) updateData.model = model;
     if (capacity !== undefined) updateData.capacity = parseInt(capacity);
     if (fuelType !== undefined) updateData.fuelType = fuelType;
-    if (purchaseDate !== undefined) updateData.purchaseDate = new Date(purchaseDate);
-    if (insuranceExpiryDate !== undefined) updateData.insuranceExpiryDate = new Date(insuranceExpiryDate);
+    if (purchaseDate !== undefined) updateData.purchaseDate = purchaseDate ? new Date(purchaseDate) : null;
+    if (insuranceExpiryDate !== undefined) updateData.insuranceExpiryDate = insuranceExpiryDate ? new Date(insuranceExpiryDate) : null;
+    if (lastMaintenanceDate !== undefined) updateData.lastMaintenanceDate = lastMaintenanceDate ? new Date(lastMaintenanceDate) : null;
+    if (lastInspectionDate !== undefined) updateData.lastInspectionDate = lastInspectionDate ? new Date(lastInspectionDate) : null;
+    if (currentOdometer !== undefined) updateData.currentOdometer = parseFloat(currentOdometer) || 0;
     if (driverId !== undefined) updateData.driverId = driverId;
     if (routeId !== undefined) updateData.routeId = routeId;
     if (status !== undefined) updateData.status = status;
+    if (notes !== undefined) updateData.notes = notes;
     
     const bus = await prisma.bus.update({
       where: { id },
@@ -542,23 +946,116 @@ export const deleteBus = async (req, res) => {
 // ==================== ROUTE CONTROLLERS ====================
 
 /**
- * Get all routes
+ * Get all routes for a specific school
  */
 export const getAllRoutes = async (req, res) => {
   try {
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const routes = await prisma.route.findMany({
+      where: {
+        schoolId: schoolId
+      },
       include: {
-        bus: true
+        bus: {
+          include: {
+            driver: true
+          }
+        },
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       },
       orderBy: {
         name: 'asc'
       }
     });
+
+    // If the bus relation isn't working, let's fetch buses separately and match them
+    const buses = await prisma.bus.findMany({
+      where: {
+        schoolId: schoolId
+      },
+      include: {
+        driver: true
+      }
+    });
+
+    // Transform the data to ensure vehicle and driver info is available
+    const transformedRoutes = routes.map(route => {
+      let vehicleInfo = null;
+      let driverInfo = null;
+
+      // Try to get bus info from the included relation first
+      if (route.bus) {
+        vehicleInfo = {
+          id: route.bus.id,
+          vehicleName: route.bus.make,
+          registrationNumber: route.bus.registrationNumber,
+          make: route.bus.make,
+          model: route.bus.model,
+          capacity: route.bus.capacity
+        };
+
+        if (route.bus.driver) {
+          driverInfo = {
+            id: route.bus.driver.id,
+            name: route.bus.driver.name,
+            contactNumber: route.bus.driver.contactNumber,
+            licenseNumber: route.bus.driver.licenseNumber
+          };
+        }
+      } else if (route.busId) {
+        // If relation doesn't work, find the bus manually
+        const matchedBus = buses.find(bus => bus.id === route.busId);
+        if (matchedBus) {
+          vehicleInfo = {
+            id: matchedBus.id,
+            vehicleName: matchedBus.make,
+            registrationNumber: matchedBus.registrationNumber,
+            make: matchedBus.make,
+            model: matchedBus.model,
+            capacity: matchedBus.capacity
+          };
+
+          if (matchedBus.driver) {
+            driverInfo = {
+              id: matchedBus.driver.id,
+              name: matchedBus.driver.name,
+              contactNumber: matchedBus.driver.contactNumber,
+              licenseNumber: matchedBus.driver.licenseNumber
+            };
+          }
+        }
+      }
+
+      return {
+        ...route,
+        vehicle: vehicleInfo,
+        driver: driverInfo,
+        // Ensure we have the bus data structure for backward compatibility
+        bus: vehicleInfo ? {
+          ...vehicleInfo,
+          driver: driverInfo
+        } : null
+      };
+    });
     
     res.status(200).json({
       success: true,
-      count: routes.length,
-      data: routes
+      count: transformedRoutes.length,
+      data: transformedRoutes,
+      schoolId: schoolId
     });
   } catch (error) {
     console.error("Error fetching routes:", error);
@@ -580,7 +1077,11 @@ export const getRouteById = async (req, res) => {
     const route = await prisma.route.findUnique({
       where: { id },
       include: {
-        bus: true
+        bus: {
+          include: {
+            driver: true
+          }
+        }
       }
     });
     
@@ -590,10 +1091,74 @@ export const getRouteById = async (req, res) => {
         message: "Route not found"
       });
     }
+
+    // Transform the route data to ensure vehicle and driver info is available
+    let vehicleInfo = null;
+    let driverInfo = null;
+
+    // Try to get bus info from the included relation first
+    if (route.bus) {
+      vehicleInfo = {
+        id: route.bus.id,
+        vehicleName: route.bus.make,
+        registrationNumber: route.bus.registrationNumber,
+        make: route.bus.make,
+        model: route.bus.model,
+        capacity: route.bus.capacity
+      };
+
+      if (route.bus.driver) {
+        driverInfo = {
+          id: route.bus.driver.id,
+          name: route.bus.driver.name,
+          contactNumber: route.bus.driver.contactNumber,
+          licenseNumber: route.bus.driver.licenseNumber
+        };
+      }
+    } else if (route.busId) {
+      // If relation doesn't work, find the bus manually
+      const matchedBus = await prisma.bus.findUnique({
+        where: { id: route.busId },
+        include: {
+          driver: true
+        }
+      });
+
+      if (matchedBus) {
+        vehicleInfo = {
+          id: matchedBus.id,
+          vehicleName: matchedBus.make,
+          registrationNumber: matchedBus.registrationNumber,
+          make: matchedBus.make,
+          model: matchedBus.model,
+          capacity: matchedBus.capacity
+        };
+
+        if (matchedBus.driver) {
+          driverInfo = {
+            id: matchedBus.driver.id,
+            name: matchedBus.driver.name,
+            contactNumber: matchedBus.driver.contactNumber,
+            licenseNumber: matchedBus.driver.licenseNumber
+          };
+        }
+      }
+    }
+
+    const transformedRoute = {
+      ...route,
+      vehicle: vehicleInfo,
+      driver: driverInfo,
+      // Ensure we have the bus data structure for backward compatibility
+      bus: vehicleInfo ? {
+        ...vehicleInfo,
+        driver: driverInfo
+      } : route.bus
+    };
     
     res.status(200).json({
       success: true,
-      data: route
+      data: transformedRoute
     });
   } catch (error) {
     console.error("Error fetching route:", error);
@@ -640,10 +1205,54 @@ export const createRoute = async (req, res) => {
         busId
       }
     });
+
+    // Fetch the complete route data with bus and driver information
+    let vehicleInfo = null;
+    let driverInfo = null;
+
+    if (busId) {
+      const matchedBus = await prisma.bus.findUnique({
+        where: { id: busId },
+        include: {
+          driver: true
+        }
+      });
+
+      if (matchedBus) {
+        vehicleInfo = {
+          id: matchedBus.id,
+          vehicleName: matchedBus.make,
+          registrationNumber: matchedBus.registrationNumber,
+          make: matchedBus.make,
+          model: matchedBus.model,
+          capacity: matchedBus.capacity
+        };
+
+        if (matchedBus.driver) {
+          driverInfo = {
+            id: matchedBus.driver.id,
+            name: matchedBus.driver.name,
+            contactNumber: matchedBus.driver.contactNumber,
+            licenseNumber: matchedBus.driver.licenseNumber
+          };
+        }
+      }
+    }
+
+    const transformedRoute = {
+      ...route,
+      vehicle: vehicleInfo,
+      driver: driverInfo,
+      // Ensure we have the bus data structure for backward compatibility
+      bus: vehicleInfo ? {
+        ...vehicleInfo,
+        driver: driverInfo
+      } : null
+    };
     
     res.status(201).json({
       success: true,
-      data: route
+      data: transformedRoute
     });
   } catch (error) {
     console.error("Error creating route:", error);
@@ -698,10 +1307,54 @@ export const updateRoute = async (req, res) => {
       where: { id },
       data: updateData
     });
+
+    // Fetch the complete route data with bus and driver information
+    let vehicleInfo = null;
+    let driverInfo = null;
+
+    if (route.busId) {
+      const matchedBus = await prisma.bus.findUnique({
+        where: { id: route.busId },
+        include: {
+          driver: true
+        }
+      });
+
+      if (matchedBus) {
+        vehicleInfo = {
+          id: matchedBus.id,
+          vehicleName: matchedBus.make,
+          registrationNumber: matchedBus.registrationNumber,
+          make: matchedBus.make,
+          model: matchedBus.model,
+          capacity: matchedBus.capacity
+        };
+
+        if (matchedBus.driver) {
+          driverInfo = {
+            id: matchedBus.driver.id,
+            name: matchedBus.driver.name,
+            contactNumber: matchedBus.driver.contactNumber,
+            licenseNumber: matchedBus.driver.licenseNumber
+          };
+        }
+      }
+    }
+
+    const transformedRoute = {
+      ...route,
+      vehicle: vehicleInfo,
+      driver: driverInfo,
+      // Ensure we have the bus data structure for backward compatibility
+      bus: vehicleInfo ? {
+        ...vehicleInfo,
+        driver: driverInfo
+      } : null
+    };
     
     res.status(200).json({
       success: true,
-      data: route
+      data: transformedRoute
     });
   } catch (error) {
     console.error("Error updating route:", error);
@@ -1302,16 +1955,32 @@ export const deleteMaintenance = async (req, res) => {
 // ==================== STUDENT TRANSPORT CONTROLLERS ====================
 
 /**
- * Get all student transport records
+ * Get all student transport records for a specific school
  */
 export const getAllStudentTransport = async (req, res) => {
   try {
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const studentTransport = await prisma.studentTransport.findMany({
+      where: {
+        // Filter by routes that belong to the school
+        route: {
+          schoolId: schoolId
+        }
+      },
       include: {
         student: {
           select: {
             fullName: true,
             admissionNo: true,
+            schoolId: true,
             sessionInfo: {
               select: {
                 currentClass: true,
@@ -1320,17 +1989,29 @@ export const getAllStudentTransport = async (req, res) => {
             }
           }
         },
-        route: true
+        route: {
+          select: {
+            id: true,
+            name: true,
+            schoolId: true
+          }
+        }
       },
       orderBy: {
         pickupTime: 'asc'
       }
     });
     
+    // Additional filtering to ensure students belong to the same school
+    const filteredStudentTransport = studentTransport.filter(record => 
+      record.student && record.student.schoolId === schoolId
+    );
+    
     res.status(200).json({
       success: true,
-      count: studentTransport.length,
-      data: studentTransport
+      count: filteredStudentTransport.length,
+      data: filteredStudentTransport,
+      schoolId: schoolId
     });
   } catch (error) {
     console.error("Error fetching student transport records:", error);
@@ -1343,11 +2024,35 @@ export const getAllStudentTransport = async (req, res) => {
 };
 
 /**
- * Get students by route
+ * Get students by route (with school validation)
  */
 export const getStudentsByRoute = async (req, res) => {
   try {
     const { routeId } = req.params;
+    
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
+    // Validate that the route belongs to the school
+    const route = await prisma.route.findFirst({
+      where: {
+        id: routeId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: "Route not found or doesn't belong to this school"
+      });
+    }
     
     const students = await prisma.studentTransport.findMany({
       where: { routeId },
@@ -1356,6 +2061,7 @@ export const getStudentsByRoute = async (req, res) => {
           select: {
             fullName: true,
             admissionNo: true,
+            schoolId: true,
             sessionInfo: {
               select: {
                 currentClass: true,
@@ -1386,10 +2092,19 @@ export const getStudentsByRoute = async (req, res) => {
 };
 
 /**
- * Assign student to a route
+ * Assign student to a route (with school validation)
  */
 export const assignStudentToRoute = async (req, res) => {
   try {
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const {
       studentId,
       routeId,
@@ -1408,29 +2123,39 @@ export const assignStudentToRoute = async (req, res) => {
       });
     }
     
-    // CHECK IF ENTITIES EXIST FIRST
+    // CHECK IF ENTITIES EXIST AND BELONG TO THE SCHOOL
     const [routeExists, studentExists] = await Promise.all([
-      prisma.route.findUnique({ where: { id: routeId } }),
-      prisma.student.findUnique({ where: { admissionNo: studentId } })
+      prisma.route.findFirst({ 
+        where: { 
+          id: routeId,
+          schoolId: schoolId
+        } 
+      }),
+      prisma.student.findFirst({ 
+        where: { 
+          admissionNo: studentId,
+          schoolId: schoolId
+        } 
+      })
     ]);
     
     if (!routeExists) {
       return res.status(400).json({
         success: false,
-        message: "Route not found. Please create a route first or provide a valid route ID."
+        message: "Route not found or doesn't belong to this school. Please create a route first or provide a valid route ID."
       });
     }
     
     if (!studentExists) {
       return res.status(400).json({
         success: false,
-        message: "Student not found. The admission number provided does not match any student."
+        message: "Student not found or doesn't belong to this school. The admission number provided does not match any student in this school."
       });
     }
     
     // Check if student is already assigned to a route
     const existingAssignment = await prisma.studentTransport.findFirst({
-      where: { studentId }
+      where: { studentId: studentExists.id }
     });
     
     if (existingAssignment) {
@@ -1443,19 +2168,30 @@ export const assignStudentToRoute = async (req, res) => {
     const studentTransport = await prisma.studentTransport.create({
       data: {
         id: uuidv4(),
-        studentId,
+        studentId: studentExists.id, // Use the actual student ID from database
         routeId,
         pickupLocation,
         dropLocation,
         pickupTime,
         dropTime,
         fee: parseFloat(fee) || 0
+      },
+      include: {
+        student: {
+          select: {
+            fullName: true,
+            admissionNo: true,
+            schoolId: true
+          }
+        },
+        route: true
       }
     });
     
     res.status(201).json({
       success: true,
-      data: studentTransport
+      data: studentTransport,
+      message: "Student assigned to route successfully"
     });
   } catch (error) {
     console.error("Error assigning student to route:", error);
@@ -1556,6 +2292,120 @@ export const removeStudentFromRoute = async (req, res) => {
       success: false,
       message: "Failed to remove student from route",
       error: error.message
+    });
+  }
+};
+
+// ==================== SCHOOL CONTROLLERS ====================
+
+/**
+ * Get school information
+ */
+export const getSchoolInfo = async (req, res) => {
+  try {
+    console.log('Fetching school information from database...');
+    
+    // Get and validate school ID from request or use the first available school
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    
+    let school = null;
+    let schoolInfo = null;
+    
+    if (error) {
+      // If no school found in database, return null schoolId
+      console.log('No school found in database:', error);
+      return res.status(200).json({
+        success: true,
+        data: {
+          id: null,
+          schoolName: null,
+          address: null,
+          phone: null,
+          contact: null,
+          email: null,
+          principal: null,
+          established: null,
+          image_url: null
+        },
+        message: "No school found in database"
+      });
+    }
+    
+    // Fetch the specific school from the database
+    school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: {
+        id: true,
+        schoolName: true,
+        address: true,
+        contact: true,
+        phone: true,
+        email: true,
+        principal: true,
+        established: true,
+        image_url: true,
+        status: true
+      }
+    });
+    
+    console.log('School data from database:', school);
+    
+    // Transform the school data to match the expected format
+    if (school) {
+      schoolInfo = {
+        id: school.id,
+        schoolName: school.schoolName || '',
+        address: school.address || '',
+        phone: school.phone || '',
+        contact: school.contact ? school.contact.toString() : school.phone || '',
+        email: school.email || '',
+        principal: school.principal || null,
+        established: school.established || null,
+        image_url: school.image_url || null,
+        status: school.status || 'active'
+      };
+    } else {
+      console.log('School not found with ID:', schoolId);
+      // Return null values if school not found
+      schoolInfo = {
+        id: null,
+        schoolName: null,
+        address: null,
+        phone: null,
+        contact: null,
+        email: null,
+        principal: null,
+        established: null,
+        image_url: null,
+        status: null
+      };
+    }
+    
+    console.log('Returning school info:', schoolInfo);
+    
+    res.status(200).json({
+      success: true,
+      data: schoolInfo,
+      message: school ? "School information retrieved successfully" : "School not found"
+    });
+  } catch (error) {
+    console.error("Error fetching school info:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch school information",
+      error: error.message,
+      data: {
+        id: null,
+        schoolName: null,
+        address: null,
+        phone: null,
+        contact: null,
+        email: null,
+        principal: null,
+        established: null,
+        image_url: null,
+        status: null
+      }
     });
   }
 }; 

@@ -133,6 +133,7 @@ async function main() {
           fullName: 'Bart Simpson',
           admissionNo: '1',
           email: 'student1@school.com',
+          studentPassword: await bcrypt.hash('123456', 10),
           emailPassword: await bcrypt.hash('123456', 10),
           penNo: 'PEN001',
           studentId: '1',
@@ -293,6 +294,7 @@ async function main() {
           fullName: 'Lisa Simpson',
           admissionNo: '2',
           email: 'student2@school.com',
+          studentPassword: await bcrypt.hash('123456', 10),
           emailPassword: await bcrypt.hash('123456', 10),
           penNo: 'PEN002',
           studentId: '2',
@@ -638,7 +640,292 @@ async function main() {
       }
     });
 
-    console.log('Database has been seeded. 🌱');
+    console.log('Created registrations:', [bartRegistration, lisaRegistration]);
+
+    // ==================== TRANSPORT DATA ====================
+    
+    // Create drivers
+    const drivers = await Promise.all([
+      prisma.driver.create({
+        data: {
+          id: 'driver-001',
+          name: 'John Smith',
+          contactNumber: '9876543220',
+          licenseNumber: 'DL123456789',
+          address: '123 Driver Street, Springfield',
+          experience: 10,
+          isActive: true,
+          joiningDate: new Date('2020-01-15'),
+          dateOfBirth: new Date('1980-03-10'),
+          age: 44,
+          gender: 'Male',
+          maritalStatus: 'Married',
+          emergencyContact: '9876543221',
+          bloodGroup: 'B+',
+          qualification: 'High School',
+          salary: 25000,
+          photo: '/uploads/drivers/john-smith.jpg',
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.driver.create({
+        data: {
+          id: 'driver-002',
+          name: 'Michael Johnson',
+          contactNumber: '9876543222',
+          licenseNumber: 'DL987654321',
+          address: '456 Transport Avenue, Springfield',
+          experience: 8,
+          isActive: true,
+          joiningDate: new Date('2021-03-20'),
+          dateOfBirth: new Date('1985-07-15'),
+          age: 39,
+          gender: 'Male',
+          maritalStatus: 'Single',
+          emergencyContact: '9876543223',
+          bloodGroup: 'O+',
+          qualification: 'Graduate',
+          salary: 28000,
+          photo: '/uploads/drivers/michael-johnson.jpg',
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.driver.create({
+        data: {
+          id: 'driver-003',
+          name: 'Robert Davis',
+          contactNumber: '9876543224',
+          licenseNumber: 'DL456789123',
+          address: '789 Route Road, Springfield',
+          experience: 15,
+          isActive: true,
+          joiningDate: new Date('2018-09-10'),
+          dateOfBirth: new Date('1975-11-20'),
+          age: 48,
+          gender: 'Male',
+          maritalStatus: 'Married',
+          emergencyContact: '9876543225',
+          bloodGroup: 'A+',
+          qualification: 'High School',
+          salary: 30000,
+          photo: '/uploads/drivers/robert-davis.jpg',
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.driver.create({
+        data: {
+          id: 'driver-004',
+          name: 'Sarah Wilson',
+          contactNumber: '9876543226',
+          licenseNumber: null, // Optional license number
+          address: '321 Bus Lane, Springfield',
+          experience: 5,
+          isActive: true,
+          joiningDate: new Date('2022-06-01'),
+          dateOfBirth: new Date('1990-04-05'),
+          age: 34,
+          gender: 'Female',
+          maritalStatus: 'Single',
+          emergencyContact: '9876543227',
+          bloodGroup: 'AB+',
+          qualification: 'Graduate',
+          salary: 26000,
+          photo: '/uploads/drivers/sarah-wilson.jpg',
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
+    ]);
+
+    console.log('Created drivers:', drivers.map(d => ({ id: d.id, name: d.name })));
+
+    // Create buses
+    const buses = await Promise.all([
+      prisma.bus.create({
+        data: {
+          id: 'bus-001',
+          make: 'Springfield Express 1',
+          model: 'School Bus Deluxe',
+          year: 2020,
+          registrationNumber: 'SB001',
+          capacity: 45,
+          color: 'Yellow',
+          fuelType: 'Diesel',
+          currentOdometer: 25000,
+          status: 'ACTIVE',
+          purchaseDate: new Date('2020-01-01'),
+          insuranceExpiryDate: new Date('2025-01-01'),
+          lastMaintenanceDate: new Date('2024-02-15'),
+          lastInspectionDate: new Date('2024-01-10'),
+          notes: 'Primary route bus in excellent condition',
+          driverId: drivers[0].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.bus.create({
+        data: {
+          id: 'bus-002',
+          make: 'Springfield Express 2',
+          model: 'School Bus Standard',
+          year: 2019,
+          registrationNumber: 'SB002',
+          capacity: 40,
+          color: 'Yellow',
+          fuelType: 'Diesel',
+          currentOdometer: 35000,
+          status: 'ACTIVE',
+          purchaseDate: new Date('2019-03-15'),
+          insuranceExpiryDate: new Date('2024-12-15'),
+          lastMaintenanceDate: new Date('2024-01-20'),
+          lastInspectionDate: new Date('2024-01-05'),
+          notes: 'Secondary route bus, well maintained',
+          driverId: drivers[1].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.bus.create({
+        data: {
+          id: 'bus-003',
+          make: 'Springfield Express 3',
+          model: 'Mini Bus',
+          year: 2021,
+          registrationNumber: 'SB003',
+          capacity: 25,
+          color: 'Blue',
+          fuelType: 'CNG',
+          currentOdometer: 15000,
+          status: 'ACTIVE',
+          purchaseDate: new Date('2021-08-01'),
+          insuranceExpiryDate: new Date('2025-08-01'),
+          lastMaintenanceDate: new Date('2024-03-01'),
+          lastInspectionDate: new Date('2024-02-01'),
+          notes: 'Eco-friendly CNG bus for short routes',
+          driverId: drivers[2].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.bus.create({
+        data: {
+          id: 'bus-004',
+          make: 'Springfield Express 4',
+          model: 'School Bus Economy',
+          year: 2018,
+          registrationNumber: 'SB004',
+          capacity: 35,
+          color: 'Yellow',
+          fuelType: 'Diesel',
+          currentOdometer: 45000,
+          status: 'MAINTENANCE',
+          purchaseDate: new Date('2018-06-01'),
+          insuranceExpiryDate: new Date('2024-11-01'),
+          lastMaintenanceDate: new Date('2024-03-10'),
+          lastInspectionDate: new Date('2023-12-15'),
+          notes: 'Currently undergoing maintenance, expected back in service soon',
+          driverId: drivers[3].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
+    ]);
+
+    console.log('Created buses:', buses.map(b => ({ id: b.id, make: b.make, registrationNumber: b.registrationNumber })));
+
+    // Create routes
+    const routes = await Promise.all([
+      prisma.route.create({
+        data: {
+          id: 'route-001',
+          name: 'Downtown Route',
+          description: 'Main downtown area covering residential districts',
+          startLocation: 'Springfield Downtown Terminal',
+          endLocation: 'Springfield Elementary School',
+          distance: 12.5,
+          estimatedTime: 45,
+          busId: buses[0].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.route.create({
+        data: {
+          id: 'route-002',
+          name: 'Suburbs Route',
+          description: 'Suburban neighborhoods and housing complexes',
+          startLocation: 'Springfield Suburbs Center',
+          endLocation: 'Springfield Elementary School',
+          distance: 8.3,
+          estimatedTime: 30,
+          busId: buses[1].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.route.create({
+        data: {
+          id: 'route-003',
+          name: 'Hillside Route',
+          description: 'Hill station areas and rural districts',
+          startLocation: 'Springfield Hills Junction',
+          endLocation: 'Springfield Elementary School',
+          distance: 15.7,
+          estimatedTime: 55,
+          busId: buses[2].id,
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.route.create({
+        data: {
+          id: 'route-004',
+          name: 'Industrial Route',
+          description: 'Industrial area and worker residential zones',
+          startLocation: 'Springfield Industrial Complex',
+          endLocation: 'Springfield Elementary School',
+          distance: 10.2,
+          estimatedTime: 40,
+          busId: null, // No bus assigned (bus in maintenance)
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }),
+      prisma.route.create({
+        data: {
+          id: 'route-005',
+          name: 'University Route',
+          description: 'University district and surrounding areas',
+          startLocation: 'Springfield University',
+          endLocation: 'Springfield Elementary School',
+          distance: 6.8,
+          estimatedTime: 25,
+          busId: null, // Available for assignment
+          schoolId: school.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
+    ]);
+
+    console.log('Created routes:', routes.map(r => ({ id: r.id, name: r.name, startLocation: r.startLocation, endLocation: r.endLocation })));
+
+    console.log('Database has been seeded with comprehensive transport data. 🌱🚌');
 
   } catch (error) {
     console.error('Error seeding database:', error);

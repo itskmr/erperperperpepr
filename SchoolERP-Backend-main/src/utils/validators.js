@@ -17,6 +17,8 @@ export const validateFeeData = (data) => {
     status: Joi.string().valid('Paid', 'Pending', 'Partial').required(),
     feeCategory: Joi.string().optional().allow(null, ''),
     feeCategories: Joi.array().items(Joi.string()).optional(),
+    discountType: Joi.string().optional().allow(null, ''),
+    discountAmount: Joi.number().min(0).optional().allow(null),
     schoolId: Joi.number().optional()
   });
 
