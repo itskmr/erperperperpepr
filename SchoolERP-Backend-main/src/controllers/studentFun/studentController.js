@@ -498,15 +498,23 @@ export const updateStudent = async (req, res) => {
       studentData.admissionDate = new Date(studentData.admissionDate);
     }
     
+    if (studentData.tcDate) {
+      studentData.tcDate = new Date(studentData.tcDate);
+    }
+    
     // Handle the update in a transaction to ensure consistency
     await prisma.$transaction(async (prisma) => {
-      // Update main student record
+      // Update main student record with all fields
       const updatedStudent = await prisma.student.update({
         where: { id: parseInt(id) },
         data: {
+          // Basic Information
           branchName: studentData.branchName,
           fullName: studentData.fullName,
           dateOfBirth: studentData.dateOfBirth,
+          age: studentData.age ? parseInt(studentData.age) : undefined,
+          height: studentData.height ? parseFloat(studentData.height) : undefined,
+          weight: studentData.weight ? parseFloat(studentData.weight) : undefined,
           gender: studentData.gender,
           bloodGroup: studentData.bloodGroup,
           nationality: studentData.nationality,
@@ -514,90 +522,112 @@ export const updateStudent = async (req, res) => {
           category: studentData.category,
           caste: studentData.caste,
           aadhaarNumber: studentData.aadhaarNumber,
+          penNo: studentData.penNo,
+          apaarId: studentData.apaarId,
+          
+          // Contact Information
           mobileNumber: studentData.mobileNumber,
           email: studentData.email,
+          emailPassword: studentData.emailPassword,
+          studentPassword: studentData.studentEmailPassword,
           emergencyContact: studentData.emergencyContact,
+          
+          // Academic Information
           admissionNo: studentData.admissionNo,
+          studentId: studentData.srNo,
           admissionDate: studentData.admissionDate,
-          previousSchool: studentData.previousSchool,
+          registrationNo: studentData.registrationNo,
           
-          // Address fields
-          houseNo: studentData.houseNo || studentData['address.houseNo'],
-          street: studentData.street || studentData['address.street'],
-          city: studentData.city || studentData['address.city'],
-          state: studentData.state || studentData['address.state'],
-          pinCode: studentData.pinCode || studentData['address.pinCode'],
-          permanentHouseNo: studentData.permanentHouseNo || studentData['address.permanentHouseNo'],
-          permanentStreet: studentData.permanentStreet || studentData['address.permanentStreet'],
-          permanentCity: studentData.permanentCity || studentData['address.permanentCity'],
-          permanentState: studentData.permanentState || studentData['address.permanentState'],
-          permanentPinCode: studentData.permanentPinCode || studentData['address.permanentPinCode'],
+          // Address fields - handle both nested and flat structure
+          houseNo: studentData.houseNo || studentData['address.houseNo'] || studentData.presentAddress?.houseNo,
+          street: studentData.street || studentData['address.street'] || studentData.presentAddress?.street,
+          city: studentData.city || studentData['address.city'] || studentData.presentAddress?.city,
+          state: studentData.state || studentData['address.state'] || studentData.presentAddress?.state,
+          pinCode: studentData.pinCode || studentData['address.pinCode'] || studentData.presentAddress?.pinCode,
+          permanentHouseNo: studentData.permanentHouseNo || studentData['address.permanentHouseNo'] || studentData.permanentAddress?.houseNo,
+          permanentStreet: studentData.permanentStreet || studentData['address.permanentStreet'] || studentData.permanentAddress?.street,
+          permanentCity: studentData.permanentCity || studentData['address.permanentCity'] || studentData.permanentAddress?.city,
+          permanentState: studentData.permanentState || studentData['address.permanentState'] || studentData.permanentAddress?.state,
+          permanentPinCode: studentData.permanentPinCode || studentData['address.permanentPinCode'] || studentData.permanentAddress?.pinCode,
+          sameAsPresentAddress: studentData.sameAsPresentAddress || false,
           
-          // Basic parent names
-          fatherName: studentData.fatherName || studentData['father.name'],
-          motherName: studentData.motherName || studentData['mother.name'],
+          // Parent Information - basic fields
+          fatherName: studentData.fatherName || studentData['father.name'] || studentData.fatherDetails?.name,
+          motherName: studentData.motherName || studentData['mother.name'] || studentData.motherDetails?.name,
+          fatherEmail: studentData.fatherEmail || studentData['father.email'] || studentData.fatherDetails?.email,
+          motherEmail: studentData.motherEmail || studentData['mother.email'] || studentData.motherDetails?.email,
+          fatherEmailPassword: studentData.fatherEmailPassword,
+          motherEmailPassword: studentData.motherEmailPassword,
+          
+          // Transport Information
+          transportMode: studentData.transportMode,
+          transportArea: studentData.transportArea,
+          transportStand: studentData.transportStand,
+          transportRoute: studentData.transportRoute,
+          transportDriver: studentData.transportDriver,
+          
+          // Other Information
+          belongToBPL: studentData.belongToBPL || studentData.other?.belongToBPL || 'no',
+          typeOfDisability: studentData.typeOfDisability || studentData.other?.disability || '',
+          
+          lastLogin: new Date(),
+          updatedAt: new Date()
         }
       });
-      
-      // Update related tables if they exist
-      if (studentData.parentInfo || 
-          studentData.father || 
-          studentData.mother || 
-          studentData.guardian) {
-        
-        await prisma.parentInfo.upsert({
+
+      // Update session information
+      if (studentData.admitSession || studentData.currentSession) {
+        await prisma.sessionInfo.upsert({
           where: {
             studentId: parseInt(id)
           },
           update: {
-            fatherQualification: studentData['father.qualification'] || studentData.fatherQualification,
-            fatherOccupation: studentData['father.occupation'] || studentData.fatherOccupation,
-            fatherContact: studentData['father.contactNumber'] || studentData.fatherContact,
-            fatherEmail: studentData['father.email'] || studentData.fatherEmail,
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherAadhaarNo,
-            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherAnnualIncome,
-            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || studentData.fatherIsCampusEmployee,
+            // Admit Session
+            admitGroup: studentData.admitSession?.group,
+            admitStream: studentData.admitSession?.stream,
+            admitClass: studentData.admitSession?.class,
+            admitSection: studentData.admitSession?.section,
+            admitRollNo: studentData.admitSession?.rollNo,
+            admitSemester: studentData.admitSession?.semester,
+            admitFeeGroup: studentData.admitSession?.feeGroup,
+            admitHouse: studentData.admitSession?.house,
+            admitDate: studentData.admissionDate,
             
-            motherQualification: studentData['mother.qualification'] || studentData.motherQualification,
-            motherOccupation: studentData['mother.occupation'] || studentData.motherOccupation,
-            motherContact: studentData['mother.contactNumber'] || studentData.motherContact,
-            motherEmail: studentData['mother.email'] || studentData.motherEmail,
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherAadhaarNo,
-            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherAnnualIncome,
-            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || studentData.motherIsCampusEmployee,
+            // Current Session
+            currentGroup: studentData.currentSession?.group,
+            currentStream: studentData.currentSession?.stream,
+            currentClass: studentData.currentSession?.class,
+            currentSection: studentData.currentSession?.section,
+            currentRollNo: studentData.currentSession?.rollNo,
+            currentSemester: studentData.currentSession?.semester,
+            currentFeeGroup: studentData.currentSession?.feeGroup,
+            currentHouse: studentData.currentSession?.house,
             
-            guardianName: studentData['guardian.name'] || studentData.guardianName,
-            guardianAddress: studentData['guardian.address'] || studentData.guardianAddress,
-            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianContact,
-            guardianEmail: studentData['guardian.email'] || studentData.guardianEmail,
-            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianAadhaarNo,
-            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianOccupation,
-            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianAnnualIncome,
+            previousSchool: studentData.previousEducation?.school || studentData.previousSchool
           },
           create: {
-            fatherQualification: studentData['father.qualification'] || '',
-            fatherOccupation: studentData['father.occupation'] || '',
-            fatherContact: studentData['father.contactNumber'] || '',
-            fatherEmail: studentData['father.email'] || '',
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || '',
-            fatherAnnualIncome: studentData['father.annualIncome'] || '',
-            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
+            // Admit Session
+            admitGroup: studentData.admitSession?.group || '',
+            admitStream: studentData.admitSession?.stream || '',
+            admitClass: studentData.admitSession?.class || '',
+            admitSection: studentData.admitSession?.section || '',
+            admitRollNo: studentData.admitSession?.rollNo || '',
+            admitSemester: studentData.admitSession?.semester || '',
+            admitFeeGroup: studentData.admitSession?.feeGroup || '',
+            admitHouse: studentData.admitSession?.house || '',
+            admitDate: studentData.admissionDate,
             
-            motherQualification: studentData['mother.qualification'] || '',
-            motherOccupation: studentData['mother.occupation'] || '',
-            motherContact: studentData['mother.contactNumber'] || '',
-            motherEmail: studentData['mother.email'] || '',
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || '',
-            motherAnnualIncome: studentData['mother.annualIncome'] || '',
-            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
+            // Current Session
+            currentGroup: studentData.currentSession?.group || '',
+            currentStream: studentData.currentSession?.stream || '',
+            currentClass: studentData.currentSession?.class || '',
+            currentSection: studentData.currentSession?.section || '',
+            currentRollNo: studentData.currentSession?.rollNo || '',
+            currentSemester: studentData.currentSession?.semester || '',
+            currentFeeGroup: studentData.currentSession?.feeGroup || '',
+            currentHouse: studentData.currentSession?.house || '',
             
-            guardianName: studentData['guardian.name'] || '',
-            guardianAddress: studentData['guardian.address'] || '',
-            guardianContact: studentData['guardian.contactNumber'] || '',
-            guardianEmail: studentData['guardian.email'] || '',
-            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || '',
-            guardianOccupation: studentData['guardian.occupation'] || '',
-            guardianAnnualIncome: studentData['guardian.annualIncome'] || '',
+            previousSchool: studentData.previousEducation?.school || studentData.previousSchool || '',
             
             student: {
               connect: {
@@ -608,8 +638,247 @@ export const updateStudent = async (req, res) => {
         });
       }
       
-      // Update other related tables similarly (sessionInfo, transportInfo, etc.)
-      // This would follow the same pattern as parentInfo above
+      // Update parent information
+      if (studentData.parentInfo || 
+          studentData.father || 
+          studentData.mother || 
+          studentData.guardian ||
+          studentData.fatherDetails ||
+          studentData.motherDetails ||
+          studentData.guardianDetails) {
+        
+        await prisma.parentInfo.upsert({
+          where: {
+            studentId: parseInt(id)
+          },
+          update: {
+            // Father Information
+            fatherQualification: studentData['father.qualification'] || studentData.fatherDetails?.qualification,
+            fatherOccupation: studentData['father.occupation'] || studentData.fatherDetails?.occupation,
+            fatherContact: studentData['father.contactNumber'] || studentData.fatherDetails?.mobileNumber,
+            fatherEmail: studentData['father.email'] || studentData.fatherDetails?.email,
+            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherDetails?.aadhaarNumber,
+            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherDetails?.annualIncome,
+            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
+            
+            // Mother Information
+            motherQualification: studentData['mother.qualification'] || studentData.motherDetails?.qualification,
+            motherOccupation: studentData['mother.occupation'] || studentData.motherDetails?.occupation,
+            motherContact: studentData['mother.contactNumber'] || studentData.motherDetails?.contactNumber,
+            motherEmail: studentData['mother.email'] || studentData.motherDetails?.email,
+            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherDetails?.aadhaarNumber,
+            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherDetails?.annualIncome,
+            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
+            
+            // Guardian Information
+            guardianName: studentData['guardian.name'] || studentData.guardianDetails?.name,
+            guardianAddress: studentData['guardian.address'] || studentData.guardianDetails?.address,
+            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianDetails?.mobile,
+            guardianEmail: studentData['guardian.email'] || studentData.guardianDetails?.email,
+            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianDetails?.aadhaarNumber,
+            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianDetails?.occupation,
+            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianDetails?.annualIncome,
+          },
+          create: {
+            // Father Information
+            fatherQualification: studentData['father.qualification'] || studentData.fatherDetails?.qualification || '',
+            fatherOccupation: studentData['father.occupation'] || studentData.fatherDetails?.occupation || '',
+            fatherContact: studentData['father.contactNumber'] || studentData.fatherDetails?.mobileNumber || '',
+            fatherEmail: studentData['father.email'] || studentData.fatherDetails?.email || '',
+            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherDetails?.aadhaarNumber || '',
+            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherDetails?.annualIncome || '',
+            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
+            
+            // Mother Information
+            motherQualification: studentData['mother.qualification'] || studentData.motherDetails?.qualification || '',
+            motherOccupation: studentData['mother.occupation'] || studentData.motherDetails?.occupation || '',
+            motherContact: studentData['mother.contactNumber'] || studentData.motherDetails?.contactNumber || '',
+            motherEmail: studentData['mother.email'] || studentData.motherDetails?.email || '',
+            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherDetails?.aadhaarNumber || '',
+            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherDetails?.annualIncome || '',
+            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
+            
+            // Guardian Information
+            guardianName: studentData['guardian.name'] || studentData.guardianDetails?.name || '',
+            guardianAddress: studentData['guardian.address'] || studentData.guardianDetails?.address || '',
+            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianDetails?.mobile || '',
+            guardianEmail: studentData['guardian.email'] || studentData.guardianDetails?.email || '',
+            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianDetails?.aadhaarNumber || '',
+            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianDetails?.occupation || '',
+            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianDetails?.annualIncome || '',
+            
+            student: {
+              connect: {
+                id: parseInt(id)
+              }
+            }
+          }
+        });
+      }
+      
+      // Update transport information
+      if (studentData.transportMode || studentData.transportArea || studentData.transportStand) {
+        await prisma.transportInfo.upsert({
+          where: {
+            studentId: parseInt(id)
+          },
+          update: {
+            transportMode: studentData.transportMode || 'Own Transport',
+            transportArea: studentData.transportArea || '',
+            transportStand: studentData.transportStand || '',
+            transportRoute: studentData.transportRoute || '',
+            transportDriver: studentData.transportDriver || '',
+            pickupLocation: studentData.pickupLocation || '',
+            dropLocation: studentData.dropLocation || ''
+          },
+          create: {
+            transportMode: studentData.transportMode || 'Own Transport',
+            transportArea: studentData.transportArea || '',
+            transportStand: studentData.transportStand || '',
+            transportRoute: studentData.transportRoute || '',
+            transportDriver: studentData.transportDriver || '',
+            pickupLocation: studentData.pickupLocation || '',
+            dropLocation: studentData.dropLocation || '',
+            
+            student: {
+              connect: {
+                id: parseInt(id)
+              }
+            }
+          }
+        });
+      }
+
+      // Update education information
+      if (studentData.previousEducation) {
+        await prisma.educationInfo.upsert({
+          where: {
+            studentId: parseInt(id)
+          },
+          update: {
+            lastSchool: studentData.previousEducation.school || '',
+            lastSchoolAddress: studentData.previousEducation.schoolAddress || '',
+            lastTcDate: studentData.previousEducation.tcDate ? new Date(studentData.previousEducation.tcDate) : null,
+            lastClass: studentData.previousEducation.previousClass || '',
+            lastPercentage: studentData.previousEducation.percentage || '',
+            lastAttendance: studentData.previousEducation.attendance || '',
+            lastExtraActivity: studentData.previousEducation.extraActivities || ''
+          },
+          create: {
+            lastSchool: studentData.previousEducation.school || '',
+            lastSchoolAddress: studentData.previousEducation.schoolAddress || '',
+            lastTcDate: studentData.previousEducation.tcDate ? new Date(studentData.previousEducation.tcDate) : null,
+            lastClass: studentData.previousEducation.previousClass || '',
+            lastPercentage: studentData.previousEducation.percentage || '',
+            lastAttendance: studentData.previousEducation.attendance || '',
+            lastExtraActivity: studentData.previousEducation.extraActivities || '',
+            
+            student: {
+              connect: {
+                id: parseInt(id)
+              }
+            }
+          }
+        });
+      }
+
+      // Update other information
+      if (studentData.other) {
+        await prisma.otherInfo.upsert({
+          where: {
+            studentId: parseInt(id)
+          },
+          update: {
+            belongToBPL: studentData.other.belongToBPL || 'no',
+            minority: studentData.other.minority || 'no',
+            disability: studentData.other.disability || '',
+            accountNo: studentData.other.accountNo || '',
+            bank: studentData.other.bank || '',
+            ifscCode: studentData.other.ifscCode || '',
+            medium: studentData.other.medium || '',
+            lastYearResult: studentData.other.lastYearResult || '',
+            singleParent: studentData.other.singleParent || 'no',
+            onlyChild: studentData.other.onlyChild || 'no',
+            onlyGirlChild: studentData.other.onlyGirlChild || 'no',
+            adoptedChild: studentData.other.adoptedChild || 'no',
+            siblingAdmissionNo: studentData.other.siblingAdmissionNo || '',
+            transferCase: studentData.other.transferCase || 'no',
+            livingWith: studentData.other.livingWith || '',
+            motherTongue: studentData.other.motherTongue || '',
+            admissionType: studentData.other.admissionType || 'new',
+            udiseNo: studentData.other.udiseNo || ''
+          },
+          create: {
+            belongToBPL: studentData.other.belongToBPL || 'no',
+            minority: studentData.other.minority || 'no',
+            disability: studentData.other.disability || '',
+            accountNo: studentData.other.accountNo || '',
+            bank: studentData.other.bank || '',
+            ifscCode: studentData.other.ifscCode || '',
+            medium: studentData.other.medium || '',
+            lastYearResult: studentData.other.lastYearResult || '',
+            singleParent: studentData.other.singleParent || 'no',
+            onlyChild: studentData.other.onlyChild || 'no',
+            onlyGirlChild: studentData.other.onlyGirlChild || 'no',
+            adoptedChild: studentData.other.adoptedChild || 'no',
+            siblingAdmissionNo: studentData.other.siblingAdmissionNo || '',
+            transferCase: studentData.other.transferCase || 'no',
+            livingWith: studentData.other.livingWith || '',
+            motherTongue: studentData.other.motherTongue || '',
+            admissionType: studentData.other.admissionType || 'new',
+            udiseNo: studentData.other.udiseNo || '',
+            
+            student: {
+              connect: {
+                id: parseInt(id)
+              }
+            }
+          }
+        });
+      }
+
+      // Update document information if provided
+      if (studentData.documents) {
+        await prisma.documents.upsert({
+          where: {
+            studentId: parseInt(id)
+          },
+          update: {
+            studentImagePath: studentData.documents.studentImage,
+            fatherImagePath: studentData.documents.fatherImage,
+            motherImagePath: studentData.documents.motherImage,
+            guardianImagePath: studentData.documents.guardianImage,
+            signaturePath: studentData.documents.studentSignature,
+            parentSignaturePath: studentData.documents.parentSignature,
+            birthCertificatePath: studentData.documents.birthCertificate,
+            migrationCertificatePath: studentData.documents.transferCertificate,
+            aadhaarCardPath: studentData.documents.studentAadhaar,
+            fatherAadharPath: studentData.documents.fatherAadhaar,
+            motherAadharPath: studentData.documents.motherAadhaar,
+            // Add other document fields as needed
+          },
+          create: {
+            studentImagePath: studentData.documents.studentImage || '',
+            fatherImagePath: studentData.documents.fatherImage || '',
+            motherImagePath: studentData.documents.motherImage || '',
+            guardianImagePath: studentData.documents.guardianImage || '',
+            signaturePath: studentData.documents.studentSignature || '',
+            parentSignaturePath: studentData.documents.parentSignature || '',
+            birthCertificatePath: studentData.documents.birthCertificate || '',
+            migrationCertificatePath: studentData.documents.transferCertificate || '',
+            aadhaarCardPath: studentData.documents.studentAadhaar || '',
+            fatherAadharPath: studentData.documents.fatherAadhaar || '',
+            motherAadharPath: studentData.documents.motherAadhaar || '',
+            academicRegistrationNo: studentData.registrationNo || '',
+            
+            student: {
+              connect: {
+                id: parseInt(id)
+              }
+            }
+          }
+        });
+      }
     });
     
     // Fetch the updated student with all relations to return

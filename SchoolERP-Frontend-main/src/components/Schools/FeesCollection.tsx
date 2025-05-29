@@ -30,6 +30,8 @@ interface FeeRecord {
   status: 'Paid' | 'Pending' | 'Partial';
   feeCategory?: string;
   feeCategories?: string[];
+  discountType?: string;
+  discountAmount?: number;
   studentDetails?: {
     fullName: string;
     fatherName: string;
@@ -137,7 +139,9 @@ const FeeCollectionApp: React.FC = () => {
     receiptNumber: '',
     status: 'Paid',
     feeCategory: '',
-    feeCategories: []
+    feeCategories: [],
+    discountType: '',
+    discountAmount: 0
   });
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -178,6 +182,15 @@ const FeeCollectionApp: React.FC = () => {
   // New state for view record
   const [selectedRecordForView, setSelectedRecordForView] = useState<FeeRecord | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // Add school details state
+  const [schoolDetails] = useState({
+    name: 'SCHOOL NAME',
+    address: 'School Address',
+    contactNumber: '0123456789',
+    email: 'school@example.com',
+    principalName: 'Principal Name'
+  });
 
   // Load data from backend
   useEffect(() => {
@@ -327,7 +340,9 @@ const FeeCollectionApp: React.FC = () => {
       receiptNumber: '',
       status: 'Paid',
       feeCategory: '',
-      feeCategories: []
+      feeCategories: [],
+      discountType: '',
+      discountAmount: 0
     });
     setFeeStructureCategories([]); // Reset fee categories
     setSelectedCategories([]); // Reset selected categories
@@ -796,6 +811,14 @@ const FeeCollectionApp: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
+  // Simple number to words function
+  const numberToWords = (num: number): string => {
+    // Simple implementation - you can replace with a more comprehensive one
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+    if (num < 11) return ones[num];
+    return `${num}`; // Fallback for now
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Notification component */}
@@ -1075,16 +1098,85 @@ const FeeCollectionApp: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Submit Button */}
-                <div className="flex justify-end">
+                {/* Discount Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                  <div className="flex space-x-2">
+                    <select
+                      name="discountType"
+                      value={formData.discountType}
+                      onChange={handleChange}
+                      className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">No Discount</option>
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="fixed">Fixed Amount (₹)</option>
+                      <option value="scholarship">Scholarship</option>
+                      <option value="sibling">Sibling Discount</option>
+                      <option value="early_payment">Early Payment</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {formData.discountType === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Specify discount type"
+                        className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => setFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Discount Amount {formData.discountType === 'percentage' ? '(%)' : formData.discountType === 'fixed' ? '(₹)' : ''}
+                  </label>
+                  <input
+                    type="number"
+                    name="discountAmount"
+                    value={formData.discountAmount || 0}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={formData.discountType === 'percentage' ? 'Enter percentage (0-100)' : 'Enter discount amount'}
+                    min="0"
+                    max={formData.discountType === 'percentage' ? '100' : undefined}
+                    step={formData.discountType === 'percentage' ? '0.1' : '0.01'}
+                    disabled={!formData.discountType}
+                  />
+                  {formData.discountType && (formData.discountAmount || 0) > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.discountType === 'percentage' 
+                        ? `Discount: ₹${((formData.feeAmount * (formData.discountAmount || 0)) / 100).toFixed(2)}`
+                        : `Discount: ₹${(formData.discountAmount || 0).toFixed(2)}`
+                      }
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="Paid">Paid</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Pending">Pending</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2 lg:col-span-3 mt-4">
                   <button
                     type="submit"
-                    disabled={isLoading || selectedStudents.length === 0}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md transition duration-300 ease-in-out"
+                    disabled={isLoading}
                   >
-                    {isLoading ? 'Processing...' : `Collect Fees (${selectedStudents.length} students)`}
-                    </button>
-                  </div>
+                    {isLoading ? 'Saving...' : 'Save Fee Record'}
+                  </button>
+                </div>
               </form>
             </div>
           </motion.div>
@@ -1360,6 +1452,61 @@ const FeeCollectionApp: React.FC = () => {
                   />
                 </div>
 
+                {/* Discount Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                  <div className="flex space-x-2">
+                    <select
+                      name="discountType"
+                      value={formData.discountType}
+                      onChange={handleChange}
+                      className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">No Discount</option>
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="fixed">Fixed Amount (₹)</option>
+                      <option value="scholarship">Scholarship</option>
+                      <option value="sibling">Sibling Discount</option>
+                      <option value="early_payment">Early Payment</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {formData.discountType === 'other' && (
+                      <input
+                        type="text"
+                        placeholder="Specify discount type"
+                        className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => setFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Discount Amount {formData.discountType === 'percentage' ? '(%)' : formData.discountType === 'fixed' ? '(₹)' : ''}
+                  </label>
+                  <input
+                    type="number"
+                    name="discountAmount"
+                    value={formData.discountAmount || 0}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={formData.discountType === 'percentage' ? 'Enter percentage (0-100)' : 'Enter discount amount'}
+                    min="0"
+                    max={formData.discountType === 'percentage' ? '100' : undefined}
+                    step={formData.discountType === 'percentage' ? '0.1' : '0.01'}
+                    disabled={!formData.discountType}
+                  />
+                  {formData.discountType && (formData.discountAmount || 0) > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.discountType === 'percentage' 
+                        ? `Discount: ₹${((formData.feeAmount * (formData.discountAmount || 0)) / 100).toFixed(2)}`
+                        : `Discount: ₹${(formData.discountAmount || 0).toFixed(2)}`
+                      }
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
@@ -1481,11 +1628,11 @@ const FeeCollectionApp: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('feeAmount')}>
                     Payment {renderSortArrow('feeAmount')}
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('amountPaid')}>
+                    Amount Paid {renderSortArrow('amountPaid')}
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('paymentDate')}>
                     Date {renderSortArrow('paymentDate')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('paymentMode')}>
-                    Mode {renderSortArrow('paymentMode')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('status')}>
                     Status {renderSortArrow('status')}
@@ -1503,8 +1650,8 @@ const FeeCollectionApp: React.FC = () => {
                     <td className="px-4 py-3 text-sm text-gray-900">{record.fatherName}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{record.class}-{record.section}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">₹{record.feeAmount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{record.amountPaid}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{new Date(record.paymentDate).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{record.paymentMode}</td>
                     <td className="px-4 py-3 text-sm">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         record.status === 'Paid'
@@ -1566,131 +1713,96 @@ const FeeCollectionApp: React.FC = () => {
       {/* View Modal */}
       {selectedRecordForView && (
         <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full ${isViewModalOpen ? 'block' : 'hidden'}`}>
-          <div className="relative top-20 mx-auto p-6 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-lg bg-white">
-            <div className="flex justify-between items-center mb-6 pb-4 border-b">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900">Fee Record Details</h3>
-                <p className="text-sm text-gray-500 mt-1">Receipt No: {selectedRecordForView.receiptNumber}</p>
+          <div className="relative top-10 mx-auto p-6 border w-full max-w-3xl shadow-lg rounded-lg bg-white print:w-full print:max-w-full print:shadow-none print:rounded-none">
+            <div className="bg-white border border-black rounded-lg p-6 print:border print:rounded-none print:p-4">
+              {/* School Header */}
+              <div className="flex flex-col items-center text-center mb-2">
+                {/* Logo (optional, use a placeholder or actual logo if available) */}
+                <div className="mb-2">
+                  <img src="/school-logo.png" alt="School Logo" className="h-16 w-16 object-contain mx-auto" onError={e => (e.currentTarget.style.display = 'none')} />
+                </div>
+                <h2 className="text-2xl font-bold uppercase tracking-wide">{schoolDetails?.name || 'SCHOOL NAME'}</h2>
+                <div className="text-sm font-medium">{schoolDetails?.address || 'School Address'}</div>
+                <div className="text-sm">Contact Nos.: {schoolDetails?.contactNumber || '-'}</div>
+                <div className="text-sm">Email : {schoolDetails?.email || '-'}{schoolDetails?.principalName ? `, Principal: ${schoolDetails.principalName}` : ''}</div>
               </div>
-              <button
-                onClick={() => setIsViewModalOpen(false)}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Student Information Card */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                  </svg>
-                  Student Information
-                </h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Admission No</span>
-                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.admissionNumber}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Student Name</span>
-                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.studentName}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Father's Name</span>
-                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.fatherName}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Class</span>
-                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.class}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Section</span>
-                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.section}</span>
-                  </div>
+              <hr className="my-2 border-black" />
+              <div className="text-center font-semibold text-lg mb-2">FEE RECEIPT (2025-2026)</div>
+              <div className="grid grid-cols-2 gap-4 text-sm mb-2">
+                <div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Receipt No</span>: <span className="ml-2">{selectedRecordForView.receiptNumber || '-'}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Name</span>: <span className="ml-2">{selectedRecordForView.studentName} {selectedRecordForView.fatherName ? `S/D/O ${selectedRecordForView.fatherName}` : ''} {selectedRecordForView.studentDetails?.motherName ? `/ ${selectedRecordForView.studentDetails.motherName}` : ''}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Admn No</span>: <span className="ml-2">{selectedRecordForView.admissionNumber}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Contact No</span>: <span className="ml-2">{selectedRecordForView.studentDetails?.mobileNumber || 'N/A'}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Address</span>: <span className="ml-2">{selectedRecordForView.studentDetails?.address || 'N/A'}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Fee Month</span>: <span className="ml-2">{selectedRecordForView.paymentDate ? new Date(selectedRecordForView.paymentDate).toLocaleString('default', { month: 'long' }) : '-'}</span></div>
+                </div>
+                <div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Date</span>: <span className="ml-2">{selectedRecordForView.paymentDate ? new Date(selectedRecordForView.paymentDate).toLocaleDateString() : '-'}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Class</span>: <span className="ml-2">{selectedRecordForView.class} - {selectedRecordForView.section}</span></div>
                 </div>
               </div>
-              
-              {/* Payment Information Card */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                  </svg>
-                  Payment Information
-                </h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Total Fees</span>
-                    <span className="text-sm font-medium text-gray-900">₹{selectedRecordForView.totalFees.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Amount Paid</span>
-                    <span className="text-sm font-medium text-gray-900">₹{selectedRecordForView.amountPaid.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Fee Amount</span>
-                    <span className="text-sm font-medium text-gray-900">₹{selectedRecordForView.feeAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Payment Date</span>
-                    <span className="text-sm font-medium text-gray-900">{new Date(selectedRecordForView.paymentDate).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Payment Mode</span>
-                    <span className="text-sm font-medium text-gray-900">{selectedRecordForView.paymentMode}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Status</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      selectedRecordForView.status === 'Paid'
-                        ? 'bg-green-100 text-green-800'
-                        : selectedRecordForView.status === 'Partial'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {selectedRecordForView.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fee Categories Card */}
-              {selectedRecordForView.feeCategories && selectedRecordForView.feeCategories.length > 0 && (
-                <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
-                    </svg>
-                    Fee Categories
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRecordForView.feeCategories.map((category, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium"
-                      >
-                        {category}
-                      </span>
+              {/* Fee Table */}
+              <div className="mt-2 mb-2">
+                <table className="w-full border border-black text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-black px-2 py-1">Fee Description</th>
+                      <th className="border border-black px-2 py-1">Previous Due</th>
+                      <th className="border border-black px-2 py-1">Previous Adv</th>
+                      <th className="border border-black px-2 py-1">Fees</th>
+                      <th className="border border-black px-2 py-1">To Pay</th>
+                      <th className="border border-black px-2 py-1">Fee Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Example: Map over fee categories if available, else show a single row */}
+                    {(selectedRecordForView.feeCategories && selectedRecordForView.feeCategories.length > 0 ? selectedRecordForView.feeCategories : ['TUITION FEE']).map(cat => (
+                      <tr key={cat}>
+                        <td className="border border-black px-2 py-1">{cat}</td>
+                        <td className="border border-black px-2 py-1 text-right">0</td>
+                        <td className="border border-black px-2 py-1 text-right">0</td>
+                        <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
+                        <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
+                        <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.amountPaid.toLocaleString()}</td>
+                      </tr>
                     ))}
-                  </div>
+                    {/* Total row */}
+                    <tr className="font-bold">
+                      <td className="border border-black px-2 py-1 text-right">Total :</td>
+                      <td className="border border-black px-2 py-1 text-right">0</td>
+                      <td className="border border-black px-2 py-1 text-right">0</td>
+                      <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
+                      <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
+                      <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.amountPaid.toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {/* Summary Section */}
+              <div className="text-sm mt-2">
+                <div className="mb-1">In Words : <span className="font-semibold">{numberToWords(selectedRecordForView.amountPaid)} Only</span></div>
+                <div className="flex flex-wrap gap-4">
+                  <div>Mode : <span className="font-semibold">{selectedRecordForView.paymentMode}</span></div>
+                  <div>Balance : <span className="font-semibold">0</span></div>
+                  <div>Advance : <span className="font-semibold">0</span></div>
+                  <div>Bank : <span className="font-semibold">-</span></div>
+                  <div>Concession : <span className="font-semibold">0</span></div>
+                  <div>Cheque/CC/DB/DD & Inst. Date : <span className="font-semibold">,</span></div>
+                  <div>Remarks : <span className="font-semibold">-</span></div>
                 </div>
-              )}
+                <div className="mt-1 text-xs">** Subject to realization of cheque. <span className="ml-2">* Optional</span></div>
+              </div>
+              <div className="flex justify-end mt-4">
+                <span className="font-semibold">(CASHIER)</span>
+              </div>
             </div>
-
-            <div className="mt-8 flex justify-end space-x-3">
+            <div className="mt-4 flex justify-end gap-2 print:hidden">
               <button
-                onClick={() => {
-                  setIsViewModalOpen(false);
-                  handleUpdateClick(selectedRecordForView);
-                }}
+                onClick={() => window.print()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                Edit Record
+                Print Receipt
               </button>
               <button
                 onClick={() => setIsViewModalOpen(false)}

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -49,6 +49,9 @@ model School {
   departments Department[]
   transferCertificates TransferCertificate[] 
   Registration Registration[]
+  drivers     Driver[]
+  buses       Bus[]
+  routes      Route[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -463,6 +466,10 @@ model Fee {
   feeCategory     String? // Optional fee category field
   feeCategories   String?  @db.Text // Store array as JSON string in Text field
 
+  // Discount fields
+  discountType    String? // Type of discount (percentage, fixed, etc.)
+  discountAmount  Float?  @default(0) // Discount amount or percentage value
+  
   // School relationship
   schoolId Int?
 
@@ -784,7 +791,9 @@ model Bus {
   registrationNumber  String        @unique
   make                String
   model               String
+  year                Int?
   capacity            Int
+  color               String?
   fuelType            String?
   purchaseDate        DateTime?
   insuranceExpiryDate DateTime?
@@ -793,6 +802,10 @@ model Bus {
   currentOdometer     Float         @default(0)
   status              String        @default("ACTIVE") // ACTIVE, MAINTENANCE, INACTIVE
   notes               String?       @db.Text
+  
+  // School Association
+  schoolId            Int?
+  school              School?       @relation(fields: [schoolId], references: [id])
   
   // Relations
   driverId            String?
@@ -804,6 +817,8 @@ model Bus {
   
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
+  
+  @@index([schoolId])
 }
 
 // Route Model
@@ -818,6 +833,10 @@ model Route {
   stops           String?       @db.Text // JSON string of stops with format [{name, location, sequence, estimatedTime, studentsCount}]
   schedule        String?       @db.Text // JSON string of schedule with format [{title, startTime, endTime, weekdays}]
   
+  // School Association
+  schoolId        Int?
+  school          School?       @relation(fields: [schoolId], references: [id])
+  
   // Relations
   busId           String?       // Remove @unique here
   bus             Bus?          @relation()
@@ -826,26 +845,44 @@ model Route {
   
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  
+  @@index([schoolId])
 }
 
 // Driver Model
 model Driver {
-  id            String    @id @default(uuid())
-  name          String
-  licenseNumber String    @unique
-  contactNumber String
-  address       String?   @db.Text
-  experience    Int       @default(0)
-  joiningDate   DateTime
-  isActive      Boolean   @default(true)
-  photo         String?   @db.Text
+  id               String    @id @default(uuid())
+  name             String
+  licenseNumber    String?   // Made optional as some drivers might not have it yet
+  contactNumber    String
+  address          String?   @db.Text
+  experience       Int       @default(0)
+  joiningDate      DateTime
+  isActive         Boolean   @default(true)
+  photo            String?   
+  
+  // Personal Information
+  dateOfBirth      DateTime?
+  age              Int?
+  gender           String?
+  maritalStatus    String?
+  emergencyContact String?
+  bloodGroup       String?
+  qualification    String?
+  salary           Float?
+  
+  // School Association
+  schoolId         Int?
+  school           School?   @relation(fields: [schoolId], references: [id])
   
   // Relations
-  buses         Bus[]
-  trips         Trip[]
+  buses            Bus[]
+  trips            Trip[]
   
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  @@index([schoolId])
 }
 
 // StudentTransport Model

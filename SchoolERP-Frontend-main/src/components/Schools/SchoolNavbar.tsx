@@ -22,7 +22,10 @@ import {
   Menu,
   // Eye,
   //  EyeOff,
-  MessageSquare
+  MessageSquare,
+  Truck,
+  MapPin,
+  UserCheck
 } from "lucide-react";
 
 interface SchoolNavbarProps {
@@ -409,6 +412,34 @@ const SchoolNavbar = {
                 label="Teacher Evaluations" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/School/TeacherEvaluationPage")}
+              />
+            </NavDropdown>
+
+            {/* Transport Management */}
+            <NavDropdown 
+              title="Transport Management" 
+              icon={<Truck className="h-5 w-5" />}
+              isOpen={activeDropdown === "transport"} 
+              onClick={() => toggleDropdown("transport")}
+              isCollapsed={isCollapsed}
+            >
+              <NavLink 
+                to="/school/transport-management/driver-directory" 
+                label="Driver Directory" 
+                onClick={() => setIsMobileSidebarOpen(false)}
+                isActive={isPathActive("/school/transport-management/driver-directory")}
+              />
+              <NavLink 
+                to="/school/transport-management/vehicle-management" 
+                label="Vehicle Management" 
+                onClick={() => setIsMobileSidebarOpen(false)}
+                isActive={isPathActive("/school/transport-management/vehicle-management")}
+              />
+              <NavLink 
+                to="/school/transport-management/transport-routes" 
+                label="Transport Routes" 
+                onClick={() => setIsMobileSidebarOpen(false)}
+                isActive={isPathActive("/school/transport-management/transport-routes")}
               />
             </NavDropdown>
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, AlertTriangle, Calendar, Truck, User, MapPin } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import transportService from '../../services/transportService';
+import { useTransport } from '../../contexts/TransportContext.jsx';
+import { formatDateForInput } from '../../utils/dateUtils';
 
 // Define Bus interface based on API structure
 interface Bus {
@@ -57,8 +59,8 @@ const BusForm: React.FC<BusFormProps> = ({
     model: bus?.model || '',
     capacity: bus?.capacity || '',
     fuelType: bus?.fuelType || 'Diesel',
-    purchaseDate: bus?.purchaseDate ? new Date(bus.purchaseDate).toISOString().substr(0, 10) : '',
-    insuranceExpiryDate: bus?.insuranceExpiryDate ? new Date(bus.insuranceExpiryDate).toISOString().substr(0, 10) : '',
+    purchaseDate: formatDateForInput(bus?.purchaseDate),
+    insuranceExpiryDate: formatDateForInput(bus?.insuranceExpiryDate),
     driverId: bus?.driverId || '',
     routeId: bus?.routeId || '',
     status: bus?.status || 'ACTIVE'
