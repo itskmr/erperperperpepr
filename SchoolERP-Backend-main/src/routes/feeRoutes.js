@@ -129,8 +129,10 @@ router.post('/', async (req, res) => {
       status: req.body.status,
       feeCategory: feeCategory,
       discountType: req.body.discountType || null,
-      discountAmount: req.body.discountAmount ? parseFloat(req.body.discountAmount) : 0,
-      schoolId: student.schoolId
+      discountAmount: req.body.discountAmount ? parseFloat(req.body.discountAmount) : null,
+      discountValue: req.body.discountValue ? parseFloat(req.body.discountValue) : null,
+      amountAfterDiscount: req.body.amountAfterDiscount ? parseFloat(req.body.amountAfterDiscount) : null,
+      schoolId: req.body.schoolId || 1
     };
     
     // Create new fee record
@@ -214,7 +216,9 @@ router.put('/:id', async (req, res) => {
       status: req.body.status,
       feeCategory: feeCategory,
       discountType: req.body.discountType || existingFee.discountType || null,
-      discountAmount: req.body.discountAmount !== undefined ? parseFloat(req.body.discountAmount) : (existingFee.discountAmount || 0),
+      discountAmount: req.body.discountAmount !== undefined ? parseFloat(req.body.discountAmount) : (existingFee.discountAmount || null),
+      discountValue: req.body.discountValue !== undefined ? parseFloat(req.body.discountValue) : (existingFee.discountValue || null),
+      amountAfterDiscount: req.body.amountAfterDiscount !== undefined ? parseFloat(req.body.amountAfterDiscount) : (existingFee.amountAfterDiscount || null),
       schoolId: req.body.schoolId || existingFee.schoolId || 1
     };
     

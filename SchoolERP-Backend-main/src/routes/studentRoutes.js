@@ -229,19 +229,14 @@ router.post('/', upload, handleMulterError, async (req, res) => {
     
     console.log('Student registration data received:', Object.keys(data));
     
-    // Validate required fields
+    // Validate required fields - updated to match frontend requirements
     const requiredFields = [
       'fullName', 
       'admissionNo', 
-      'gender', 
-      'mobileNumber', 
-      'address.city', 
-      'address.state', 
-      'father.name', 
-      'mother.name',
-      'admitSession.class',
-      'admitSession.section'
+      'father.name',
+      'admitSession.class'
     ];
+    
     const missingFields = requiredFields.filter(field => {
       if (field.includes('.')) {
         const [parent, child] = field.split('.');
@@ -254,12 +249,8 @@ router.post('/', upload, handleMulterError, async (req, res) => {
       console.error('Missing required fields:', missingFields);
       // Map nested field names to their readable format for error messages
       const fieldDisplayNames = {
-        'address.city': 'City',
-        'address.state': 'State',
         'father.name': 'Father\'s Name',
-        'mother.name': 'Mother\'s Name',
-        'admitSession.class': 'Admission Class',
-        'admitSession.section': 'Admission Section'
+        'admitSession.class': 'Class'
       };
       
       const readableMissingFields = missingFields.map(field => 
@@ -269,6 +260,75 @@ router.post('/', upload, handleMulterError, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Missing required fields: ${readableMissingFields.join(', ')}`,
+      });
+    }
+
+    // Validate email format if provided
+    const validateEmail = (email, fieldName) => {
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return `Invalid ${fieldName} email format`;
+      }
+      return null;
+    };
+
+    // Validate phone number format if provided
+    const validatePhone = (phone, fieldName) => {
+      if (phone && !/^[0-9]{10}$/.test(phone)) {
+        return `Invalid ${fieldName} phone number format (must be 10 digits)`;
+      }
+      return null;
+    };
+
+    // Validate Aadhaar number format if provided
+    const validateAadhaar = (aadhaar, fieldName) => {
+      if (aadhaar && !/^[0-9]{12}$/.test(aadhaar)) {
+        return `Invalid ${fieldName} Aadhaar number format (must be 12 digits)`;
+      }
+      return null;
+    };
+
+    // Run validations
+    const validationErrors = [];
+    
+    // Email validations
+    const emailError = validateEmail(data.email, 'student');
+    if (emailError) validationErrors.push(emailError);
+    
+    const fatherEmailError = validateEmail(data['father.email'], 'father');
+    if (fatherEmailError) validationErrors.push(fatherEmailError);
+    
+    const motherEmailError = validateEmail(data['mother.email'], 'mother');
+    if (motherEmailError) validationErrors.push(motherEmailError);
+
+    // Phone validations
+    const phoneError = validatePhone(data.mobileNumber, 'student mobile');
+    if (phoneError) validationErrors.push(phoneError);
+    
+    const fatherPhoneError = validatePhone(data['father.contactNumber'], 'father');
+    if (fatherPhoneError) validationErrors.push(fatherPhoneError);
+    
+    const motherPhoneError = validatePhone(data['mother.contactNumber'], 'mother');
+    if (motherPhoneError) validationErrors.push(motherPhoneError);
+
+    // Aadhaar validations
+    const aadhaarError = validateAadhaar(data.aadhaarNumber, 'student');
+    if (aadhaarError) validationErrors.push(aadhaarError);
+    
+    const fatherAadhaarError = validateAadhaar(data['father.aadhaarNo'], 'father');
+    if (fatherAadhaarError) validationErrors.push(fatherAadhaarError);
+    
+    const motherAadhaarError = validateAadhaar(data['mother.aadhaarNo'], 'mother');
+    if (motherAadhaarError) validationErrors.push(motherAadhaarError);
+
+    // APAAR ID validation
+    if (data.apaarId && !/^[0-9]{12}$/.test(data.apaarId)) {
+      validationErrors.push('Invalid APAAR ID format (must be 12 digits)');
+    }
+
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Validation errors: ${validationErrors.join(', ')}`,
       });
     }
 
@@ -359,26 +419,31 @@ router.post('/', upload, handleMulterError, async (req, res) => {
     // Create the student record with session info
     const student = await prisma.student.create({
       data: {
-        // Basic information
-        fullName: data.fullName,
-        admissionNo: data.admissionNo,
+        // Basic information - only required fields guaranteed to exist
+        fullName: data.fullName, // Required
+        admissionNo: data.admissionNo, // Required
+        fatherName: data['father.name'], // Required
+        
+        // Optional fields with proper null handling
         dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-        age: data.age ? parseInt(data.age) : 0,
-        gender: data.gender,
+        age: data.age ? parseInt(data.age) : null,
+        gender: data.gender || null,
         bloodGroup: data.bloodGroup || null,
-        nationality: data.nationality || 'Indian',
+        nationality: data.nationality || null,
         religion: data.religion || null,
         category: data.category || null,
         caste: data.caste || null,
-        aadhaarNumber: data.aadhaarNumber,
-        mobileNumber: data.mobileNumber,
-        email: data.email,
+        aadhaarNumber: data.aadhaarNumber || null,
+        apaarId: data.apaarId || null, // Added APAAR ID field
+        penNo: data.penNo || null,
+        mobileNumber: data.mobileNumber || null,
+        email: data.email || null,
         emailPassword: data.emailPassword || null,
         emergencyContact: data.emergencyContact || null,
         branchName: data.branchName || null,
-        studentPassword: data.emailPassword || '123456', // Default password if not provided
+        studentPassword: data.emailPassword || null, // Optional password
         
-        // Address information
+        // Address information - all optional
         houseNo: data['address.houseNo'] || null,
         street: data['address.street'] || null,
         city: data['address.city'] || null,
@@ -391,8 +456,7 @@ router.post('/', upload, handleMulterError, async (req, res) => {
         permanentPinCode: data['address.permanentPinCode'] || null,
         sameAsPresentAddress: data['address.sameAsPresentAddress'] === 'true',
         
-        // Parent information
-        fatherName: data['father.name'] || null,
+        // Parent information - father name is required, others optional
         fatherEmail: data['father.email'] || null,
         fatherEmailPassword: data['father.emailPassword'] || null,
         motherName: data['mother.name'] || null,
@@ -609,7 +673,7 @@ router.delete('/:id', async (req, res) => {
     
     // Delete the student (cascading delete will handle related records)
     const student = await prisma.student.delete({
-      where: { id: parseInt(id) }
+      where: { id: id.toString() } // Use string ID for UUID
     });
     
     return res.status(200).json({

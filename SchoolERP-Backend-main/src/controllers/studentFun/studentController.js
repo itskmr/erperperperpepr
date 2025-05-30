@@ -442,8 +442,16 @@ export const getStudentById = async (req, res) => {
     const { id } = req.params;
     console.log(`Fetching student with ID: ${id}`);
     
+    // Validate ID format
+    if (!id || id.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID is required'
+      });
+    }
+    
     const student = await prisma.student.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: id.toString() },
       include: {
         parentInfo: true,
         sessionInfo: true,
@@ -451,6 +459,9 @@ export const getStudentById = async (req, res) => {
         documents: true,
         educationInfo: true,
         otherInfo: true,
+        previousSchool: true,
+        siblings: true,
+        officeDetails: true
       }
     });
     
@@ -462,17 +473,29 @@ export const getStudentById = async (req, res) => {
       });
     }
     
+    console.log(`Student found: ${student.fullName} (ID: ${student.id})`);
+    
     return res.status(200).json({
       success: true,
-      student
+      data: student,
+      message: 'Student data retrieved successfully'
     });
     
   } catch (error) {
     console.error('Error getting student:', error);
+    
+    // Handle Prisma specific errors
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve student details',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
@@ -487,403 +510,168 @@ export const updateStudent = async (req, res) => {
     const { id } = req.params;
     const studentData = req.body;
     
-    console.log(`Updating student ${id} with data:`, studentData);
+    console.log(`Updating student ${id} with data:`, Object.keys(studentData));
     
     // Format dates if they exist in the request
     if (studentData.dateOfBirth) {
       studentData.dateOfBirth = new Date(studentData.dateOfBirth);
     }
     
-    if (studentData.admissionDate) {
-      studentData.admissionDate = new Date(studentData.admissionDate);
-    }
-    
-    if (studentData.tcDate) {
-      studentData.tcDate = new Date(studentData.tcDate);
-    }
-    
     // Handle the update in a transaction to ensure consistency
-    await prisma.$transaction(async (prisma) => {
+    const updatedStudent = await prisma.$transaction(async (prisma) => {
       // Update main student record with all fields
-      const updatedStudent = await prisma.student.update({
-        where: { id: parseInt(id) },
+      const student = await prisma.student.update({
+        where: { id: id.toString() }, // Use string ID for UUID
         data: {
-          // Basic Information
-          branchName: studentData.branchName,
-          fullName: studentData.fullName,
-          dateOfBirth: studentData.dateOfBirth,
-          age: studentData.age ? parseInt(studentData.age) : undefined,
-          height: studentData.height ? parseFloat(studentData.height) : undefined,
-          weight: studentData.weight ? parseFloat(studentData.weight) : undefined,
-          gender: studentData.gender,
-          bloodGroup: studentData.bloodGroup,
-          nationality: studentData.nationality,
-          religion: studentData.religion,
-          category: studentData.category,
-          caste: studentData.caste,
-          aadhaarNumber: studentData.aadhaarNumber,
-          penNo: studentData.penNo,
-          apaarId: studentData.apaarId,
+          // Basic Information - only update if provided
+          ...(studentData.fullName && { fullName: studentData.fullName }),
+          ...(studentData.admissionNo && { admissionNo: studentData.admissionNo }),
+          ...(studentData.dateOfBirth && { dateOfBirth: studentData.dateOfBirth }),
+          ...(studentData.age && { age: parseInt(studentData.age) }),
+          ...(studentData.gender && { gender: studentData.gender }),
+          ...(studentData.bloodGroup && { bloodGroup: studentData.bloodGroup }),
+          ...(studentData.nationality && { nationality: studentData.nationality }),
+          ...(studentData.religion && { religion: studentData.religion }),
+          ...(studentData.category && { category: studentData.category }),
+          ...(studentData.caste && { caste: studentData.caste }),
+          ...(studentData.aadhaarNumber && { aadhaarNumber: studentData.aadhaarNumber }),
+          ...(studentData.apaarId && { apaarId: studentData.apaarId }),
+          ...(studentData.penNo && { penNo: studentData.penNo }),
           
           // Contact Information
-          mobileNumber: studentData.mobileNumber,
-          email: studentData.email,
-          emailPassword: studentData.emailPassword,
-          studentPassword: studentData.studentEmailPassword,
-          emergencyContact: studentData.emergencyContact,
+          ...(studentData.mobileNumber && { mobileNumber: studentData.mobileNumber }),
+          ...(studentData.email && { email: studentData.email }),
+          ...(studentData.emailPassword && { emailPassword: studentData.emailPassword }),
+          ...(studentData.emergencyContact && { emergencyContact: studentData.emergencyContact }),
           
-          // Academic Information
-          admissionNo: studentData.admissionNo,
-          studentId: studentData.srNo,
-          admissionDate: studentData.admissionDate,
-          registrationNo: studentData.registrationNo,
+          // Address fields
+          ...(studentData['address.houseNo'] !== undefined && { houseNo: studentData['address.houseNo'] }),
+          ...(studentData['address.street'] !== undefined && { street: studentData['address.street'] }),
+          ...(studentData['address.city'] !== undefined && { city: studentData['address.city'] }),
+          ...(studentData['address.state'] !== undefined && { state: studentData['address.state'] }),
+          ...(studentData['address.pinCode'] !== undefined && { pinCode: studentData['address.pinCode'] }),
+          ...(studentData['address.permanentHouseNo'] !== undefined && { permanentHouseNo: studentData['address.permanentHouseNo'] }),
+          ...(studentData['address.permanentStreet'] !== undefined && { permanentStreet: studentData['address.permanentStreet'] }),
+          ...(studentData['address.permanentCity'] !== undefined && { permanentCity: studentData['address.permanentCity'] }),
+          ...(studentData['address.permanentState'] !== undefined && { permanentState: studentData['address.permanentState'] }),
+          ...(studentData['address.permanentPinCode'] !== undefined && { permanentPinCode: studentData['address.permanentPinCode'] }),
           
-          // Address fields - handle both nested and flat structure
-          houseNo: studentData.houseNo || studentData['address.houseNo'] || studentData.presentAddress?.houseNo,
-          street: studentData.street || studentData['address.street'] || studentData.presentAddress?.street,
-          city: studentData.city || studentData['address.city'] || studentData.presentAddress?.city,
-          state: studentData.state || studentData['address.state'] || studentData.presentAddress?.state,
-          pinCode: studentData.pinCode || studentData['address.pinCode'] || studentData.presentAddress?.pinCode,
-          permanentHouseNo: studentData.permanentHouseNo || studentData['address.permanentHouseNo'] || studentData.permanentAddress?.houseNo,
-          permanentStreet: studentData.permanentStreet || studentData['address.permanentStreet'] || studentData.permanentAddress?.street,
-          permanentCity: studentData.permanentCity || studentData['address.permanentCity'] || studentData.permanentAddress?.city,
-          permanentState: studentData.permanentState || studentData['address.permanentState'] || studentData.permanentAddress?.state,
-          permanentPinCode: studentData.permanentPinCode || studentData['address.permanentPinCode'] || studentData.permanentAddress?.pinCode,
-          sameAsPresentAddress: studentData.sameAsPresentAddress || false,
+          // Parent Information
+          ...(studentData['father.name'] && { fatherName: studentData['father.name'] }),
+          ...(studentData['father.email'] !== undefined && { fatherEmail: studentData['father.email'] }),
+          ...(studentData['mother.name'] !== undefined && { motherName: studentData['mother.name'] }),
+          ...(studentData['mother.email'] !== undefined && { motherEmail: studentData['mother.email'] }),
           
-          // Parent Information - basic fields
-          fatherName: studentData.fatherName || studentData['father.name'] || studentData.fatherDetails?.name,
-          motherName: studentData.motherName || studentData['mother.name'] || studentData.motherDetails?.name,
-          fatherEmail: studentData.fatherEmail || studentData['father.email'] || studentData.fatherDetails?.email,
-          motherEmail: studentData.motherEmail || studentData['mother.email'] || studentData.motherDetails?.email,
-          fatherEmailPassword: studentData.fatherEmailPassword,
-          motherEmailPassword: studentData.motherEmailPassword,
-          
-          // Transport Information
-          transportMode: studentData.transportMode,
-          transportArea: studentData.transportArea,
-          transportStand: studentData.transportStand,
-          transportRoute: studentData.transportRoute,
-          transportDriver: studentData.transportDriver,
-          
-          // Other Information
-          belongToBPL: studentData.belongToBPL || studentData.other?.belongToBPL || 'no',
-          typeOfDisability: studentData.typeOfDisability || studentData.other?.disability || '',
-          
-          lastLogin: new Date(),
           updatedAt: new Date()
         }
       });
 
-      // Update session information
+      // Update session information if provided
       if (studentData.admitSession || studentData.currentSession) {
         await prisma.sessionInfo.upsert({
           where: {
-            studentId: parseInt(id)
+            studentId: id.toString()
           },
           update: {
             // Admit Session
-            admitGroup: studentData.admitSession?.group,
-            admitStream: studentData.admitSession?.stream,
-            admitClass: studentData.admitSession?.class,
-            admitSection: studentData.admitSession?.section,
-            admitRollNo: studentData.admitSession?.rollNo,
-            admitSemester: studentData.admitSession?.semester,
-            admitFeeGroup: studentData.admitSession?.feeGroup,
-            admitHouse: studentData.admitSession?.house,
-            admitDate: studentData.admissionDate,
+            ...(studentData['admitSession.class'] && { admitClass: studentData['admitSession.class'] }),
+            ...(studentData['admitSession.section'] && { admitSection: studentData['admitSession.section'] }),
+            ...(studentData['admitSession.rollNo'] && { admitRollNo: studentData['admitSession.rollNo'] }),
+            ...(studentData['admitSession.group'] && { admitGroup: studentData['admitSession.group'] }),
+            ...(studentData['admitSession.stream'] && { admitStream: studentData['admitSession.stream'] }),
+            ...(studentData['admitSession.semester'] && { admitSemester: studentData['admitSession.semester'] }),
+            ...(studentData['admitSession.feeGroup'] && { admitFeeGroup: studentData['admitSession.feeGroup'] }),
+            ...(studentData['admitSession.house'] && { admitHouse: studentData['admitSession.house'] }),
             
             // Current Session
-            currentGroup: studentData.currentSession?.group,
-            currentStream: studentData.currentSession?.stream,
-            currentClass: studentData.currentSession?.class,
-            currentSection: studentData.currentSession?.section,
-            currentRollNo: studentData.currentSession?.rollNo,
-            currentSemester: studentData.currentSession?.semester,
-            currentFeeGroup: studentData.currentSession?.feeGroup,
-            currentHouse: studentData.currentSession?.house,
-            
-            previousSchool: studentData.previousEducation?.school || studentData.previousSchool
+            ...(studentData['currentSession.class'] && { currentClass: studentData['currentSession.class'] }),
+            ...(studentData['currentSession.section'] && { currentSection: studentData['currentSession.section'] }),
+            ...(studentData['currentSession.rollNo'] && { currentRollNo: studentData['currentSession.rollNo'] }),
+            ...(studentData['currentSession.group'] && { currentGroup: studentData['currentSession.group'] }),
+            ...(studentData['currentSession.stream'] && { currentStream: studentData['currentSession.stream'] }),
+            ...(studentData['currentSession.semester'] && { currentSemester: studentData['currentSession.semester'] }),
+            ...(studentData['currentSession.feeGroup'] && { currentFeeGroup: studentData['currentSession.feeGroup'] }),
+            ...(studentData['currentSession.house'] && { currentHouse: studentData['currentSession.house'] })
           },
           create: {
             // Admit Session
-            admitGroup: studentData.admitSession?.group || '',
-            admitStream: studentData.admitSession?.stream || '',
-            admitClass: studentData.admitSession?.class || '',
-            admitSection: studentData.admitSession?.section || '',
-            admitRollNo: studentData.admitSession?.rollNo || '',
-            admitSemester: studentData.admitSession?.semester || '',
-            admitFeeGroup: studentData.admitSession?.feeGroup || '',
-            admitHouse: studentData.admitSession?.house || '',
-            admitDate: studentData.admissionDate,
+            admitClass: studentData['admitSession.class'] || '',
+            admitSection: studentData['admitSession.section'] || '',
+            admitRollNo: studentData['admitSession.rollNo'] || '',
+            admitGroup: studentData['admitSession.group'] || '',
+            admitStream: studentData['admitSession.stream'] || '',
+            admitSemester: studentData['admitSession.semester'] || '',
+            admitFeeGroup: studentData['admitSession.feeGroup'] || '',
+            admitHouse: studentData['admitSession.house'] || '',
+            admitDate: new Date(),
             
             // Current Session
-            currentGroup: studentData.currentSession?.group || '',
-            currentStream: studentData.currentSession?.stream || '',
-            currentClass: studentData.currentSession?.class || '',
-            currentSection: studentData.currentSession?.section || '',
-            currentRollNo: studentData.currentSession?.rollNo || '',
-            currentSemester: studentData.currentSession?.semester || '',
-            currentFeeGroup: studentData.currentSession?.feeGroup || '',
-            currentHouse: studentData.currentSession?.house || '',
-            
-            previousSchool: studentData.previousEducation?.school || studentData.previousSchool || '',
+            currentClass: studentData['currentSession.class'] || '',
+            currentSection: studentData['currentSession.section'] || '',
+            currentRollNo: studentData['currentSession.rollNo'] || '',
+            currentGroup: studentData['currentSession.group'] || '',
+            currentStream: studentData['currentSession.stream'] || '',
+            currentSemester: studentData['currentSession.semester'] || '',
+            currentFeeGroup: studentData['currentSession.feeGroup'] || '',
+            currentHouse: studentData['currentSession.house'] || '',
             
             student: {
               connect: {
-                id: parseInt(id)
+                id: id.toString()
               }
             }
           }
         });
       }
       
-      // Update parent information
-      if (studentData.parentInfo || 
-          studentData.father || 
-          studentData.mother || 
-          studentData.guardian ||
-          studentData.fatherDetails ||
-          studentData.motherDetails ||
-          studentData.guardianDetails) {
-        
+      // Update parent information if provided
+      if (studentData['father.qualification'] || studentData['mother.qualification'] || 
+          studentData['father.contactNumber'] || studentData['mother.contactNumber']) {
         await prisma.parentInfo.upsert({
           where: {
-            studentId: parseInt(id)
+            studentId: id.toString()
           },
           update: {
-            // Father Information
-            fatherQualification: studentData['father.qualification'] || studentData.fatherDetails?.qualification,
-            fatherOccupation: studentData['father.occupation'] || studentData.fatherDetails?.occupation,
-            fatherContact: studentData['father.contactNumber'] || studentData.fatherDetails?.mobileNumber,
-            fatherEmail: studentData['father.email'] || studentData.fatherDetails?.email,
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherDetails?.aadhaarNumber,
-            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherDetails?.annualIncome,
-            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
+            ...(studentData['father.qualification'] && { fatherQualification: studentData['father.qualification'] }),
+            ...(studentData['father.occupation'] && { fatherOccupation: studentData['father.occupation'] }),
+            ...(studentData['father.contactNumber'] && { fatherContact: studentData['father.contactNumber'] }),
+            ...(studentData['father.aadhaarNo'] && { fatherAadhaarNo: studentData['father.aadhaarNo'] }),
+            ...(studentData['father.annualIncome'] && { fatherAnnualIncome: studentData['father.annualIncome'] }),
             
-            // Mother Information
-            motherQualification: studentData['mother.qualification'] || studentData.motherDetails?.qualification,
-            motherOccupation: studentData['mother.occupation'] || studentData.motherDetails?.occupation,
-            motherContact: studentData['mother.contactNumber'] || studentData.motherDetails?.contactNumber,
-            motherEmail: studentData['mother.email'] || studentData.motherDetails?.email,
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherDetails?.aadhaarNumber,
-            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherDetails?.annualIncome,
-            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
-            
-            // Guardian Information
-            guardianName: studentData['guardian.name'] || studentData.guardianDetails?.name,
-            guardianAddress: studentData['guardian.address'] || studentData.guardianDetails?.address,
-            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianDetails?.mobile,
-            guardianEmail: studentData['guardian.email'] || studentData.guardianDetails?.email,
-            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianDetails?.aadhaarNumber,
-            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianDetails?.occupation,
-            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianDetails?.annualIncome,
+            ...(studentData['mother.qualification'] && { motherQualification: studentData['mother.qualification'] }),
+            ...(studentData['mother.occupation'] && { motherOccupation: studentData['mother.occupation'] }),
+            ...(studentData['mother.contactNumber'] && { motherContact: studentData['mother.contactNumber'] }),
+            ...(studentData['mother.aadhaarNo'] && { motherAadhaarNo: studentData['mother.aadhaarNo'] }),
+            ...(studentData['mother.annualIncome'] && { motherAnnualIncome: studentData['mother.annualIncome'] })
           },
           create: {
-            // Father Information
-            fatherQualification: studentData['father.qualification'] || studentData.fatherDetails?.qualification || '',
-            fatherOccupation: studentData['father.occupation'] || studentData.fatherDetails?.occupation || '',
-            fatherContact: studentData['father.contactNumber'] || studentData.fatherDetails?.mobileNumber || '',
-            fatherEmail: studentData['father.email'] || studentData.fatherDetails?.email || '',
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherDetails?.aadhaarNumber || '',
-            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherDetails?.annualIncome || '',
-            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
+            fatherQualification: studentData['father.qualification'] || null,
+            fatherOccupation: studentData['father.occupation'] || null,
+            fatherContact: studentData['father.contactNumber'] || null,
+            fatherAadhaarNo: studentData['father.aadhaarNo'] || null,
+            fatherAnnualIncome: studentData['father.annualIncome'] || null,
             
-            // Mother Information
-            motherQualification: studentData['mother.qualification'] || studentData.motherDetails?.qualification || '',
-            motherOccupation: studentData['mother.occupation'] || studentData.motherDetails?.occupation || '',
-            motherContact: studentData['mother.contactNumber'] || studentData.motherDetails?.contactNumber || '',
-            motherEmail: studentData['mother.email'] || studentData.motherDetails?.email || '',
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherDetails?.aadhaarNumber || '',
-            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherDetails?.annualIncome || '',
-            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
-            
-            // Guardian Information
-            guardianName: studentData['guardian.name'] || studentData.guardianDetails?.name || '',
-            guardianAddress: studentData['guardian.address'] || studentData.guardianDetails?.address || '',
-            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianDetails?.mobile || '',
-            guardianEmail: studentData['guardian.email'] || studentData.guardianDetails?.email || '',
-            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianDetails?.aadhaarNumber || '',
-            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianDetails?.occupation || '',
-            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianDetails?.annualIncome || '',
+            motherQualification: studentData['mother.qualification'] || null,
+            motherOccupation: studentData['mother.occupation'] || null,
+            motherContact: studentData['mother.contactNumber'] || null,
+            motherAadhaarNo: studentData['mother.aadhaarNo'] || null,
+            motherAnnualIncome: studentData['mother.annualIncome'] || null,
             
             student: {
               connect: {
-                id: parseInt(id)
-              }
-            }
-          }
-        });
-      }
-      
-      // Update transport information
-      if (studentData.transportMode || studentData.transportArea || studentData.transportStand) {
-        await prisma.transportInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            transportMode: studentData.transportMode || 'Own Transport',
-            transportArea: studentData.transportArea || '',
-            transportStand: studentData.transportStand || '',
-            transportRoute: studentData.transportRoute || '',
-            transportDriver: studentData.transportDriver || '',
-            pickupLocation: studentData.pickupLocation || '',
-            dropLocation: studentData.dropLocation || ''
-          },
-          create: {
-            transportMode: studentData.transportMode || 'Own Transport',
-            transportArea: studentData.transportArea || '',
-            transportStand: studentData.transportStand || '',
-            transportRoute: studentData.transportRoute || '',
-            transportDriver: studentData.transportDriver || '',
-            pickupLocation: studentData.pickupLocation || '',
-            dropLocation: studentData.dropLocation || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
+                id: id.toString()
               }
             }
           }
         });
       }
 
-      // Update education information
-      if (studentData.previousEducation) {
-        await prisma.educationInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            lastSchool: studentData.previousEducation.school || '',
-            lastSchoolAddress: studentData.previousEducation.schoolAddress || '',
-            lastTcDate: studentData.previousEducation.tcDate ? new Date(studentData.previousEducation.tcDate) : null,
-            lastClass: studentData.previousEducation.previousClass || '',
-            lastPercentage: studentData.previousEducation.percentage || '',
-            lastAttendance: studentData.previousEducation.attendance || '',
-            lastExtraActivity: studentData.previousEducation.extraActivities || ''
-          },
-          create: {
-            lastSchool: studentData.previousEducation.school || '',
-            lastSchoolAddress: studentData.previousEducation.schoolAddress || '',
-            lastTcDate: studentData.previousEducation.tcDate ? new Date(studentData.previousEducation.tcDate) : null,
-            lastClass: studentData.previousEducation.previousClass || '',
-            lastPercentage: studentData.previousEducation.percentage || '',
-            lastAttendance: studentData.previousEducation.attendance || '',
-            lastExtraActivity: studentData.previousEducation.extraActivities || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
-            }
-          }
-        });
-      }
-
-      // Update other information
-      if (studentData.other) {
-        await prisma.otherInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            belongToBPL: studentData.other.belongToBPL || 'no',
-            minority: studentData.other.minority || 'no',
-            disability: studentData.other.disability || '',
-            accountNo: studentData.other.accountNo || '',
-            bank: studentData.other.bank || '',
-            ifscCode: studentData.other.ifscCode || '',
-            medium: studentData.other.medium || '',
-            lastYearResult: studentData.other.lastYearResult || '',
-            singleParent: studentData.other.singleParent || 'no',
-            onlyChild: studentData.other.onlyChild || 'no',
-            onlyGirlChild: studentData.other.onlyGirlChild || 'no',
-            adoptedChild: studentData.other.adoptedChild || 'no',
-            siblingAdmissionNo: studentData.other.siblingAdmissionNo || '',
-            transferCase: studentData.other.transferCase || 'no',
-            livingWith: studentData.other.livingWith || '',
-            motherTongue: studentData.other.motherTongue || '',
-            admissionType: studentData.other.admissionType || 'new',
-            udiseNo: studentData.other.udiseNo || ''
-          },
-          create: {
-            belongToBPL: studentData.other.belongToBPL || 'no',
-            minority: studentData.other.minority || 'no',
-            disability: studentData.other.disability || '',
-            accountNo: studentData.other.accountNo || '',
-            bank: studentData.other.bank || '',
-            ifscCode: studentData.other.ifscCode || '',
-            medium: studentData.other.medium || '',
-            lastYearResult: studentData.other.lastYearResult || '',
-            singleParent: studentData.other.singleParent || 'no',
-            onlyChild: studentData.other.onlyChild || 'no',
-            onlyGirlChild: studentData.other.onlyGirlChild || 'no',
-            adoptedChild: studentData.other.adoptedChild || 'no',
-            siblingAdmissionNo: studentData.other.siblingAdmissionNo || '',
-            transferCase: studentData.other.transferCase || 'no',
-            livingWith: studentData.other.livingWith || '',
-            motherTongue: studentData.other.motherTongue || '',
-            admissionType: studentData.other.admissionType || 'new',
-            udiseNo: studentData.other.udiseNo || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
-            }
-          }
-        });
-      }
-
-      // Update document information if provided
-      if (studentData.documents) {
-        await prisma.documents.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            studentImagePath: studentData.documents.studentImage,
-            fatherImagePath: studentData.documents.fatherImage,
-            motherImagePath: studentData.documents.motherImage,
-            guardianImagePath: studentData.documents.guardianImage,
-            signaturePath: studentData.documents.studentSignature,
-            parentSignaturePath: studentData.documents.parentSignature,
-            birthCertificatePath: studentData.documents.birthCertificate,
-            migrationCertificatePath: studentData.documents.transferCertificate,
-            aadhaarCardPath: studentData.documents.studentAadhaar,
-            fatherAadharPath: studentData.documents.fatherAadhaar,
-            motherAadharPath: studentData.documents.motherAadhaar,
-            // Add other document fields as needed
-          },
-          create: {
-            studentImagePath: studentData.documents.studentImage || '',
-            fatherImagePath: studentData.documents.fatherImage || '',
-            motherImagePath: studentData.documents.motherImage || '',
-            guardianImagePath: studentData.documents.guardianImage || '',
-            signaturePath: studentData.documents.studentSignature || '',
-            parentSignaturePath: studentData.documents.parentSignature || '',
-            birthCertificatePath: studentData.documents.birthCertificate || '',
-            migrationCertificatePath: studentData.documents.transferCertificate || '',
-            aadhaarCardPath: studentData.documents.studentAadhaar || '',
-            fatherAadharPath: studentData.documents.fatherAadhaar || '',
-            motherAadharPath: studentData.documents.motherAadhaar || '',
-            academicRegistrationNo: studentData.registrationNo || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
-            }
-          }
-        });
-      }
+      return student;
     });
     
     // Fetch the updated student with all relations to return
-    const updatedStudent = await prisma.student.findUnique({
-      where: { id: parseInt(id) },
+    const finalUpdatedStudent = await prisma.student.findUnique({
+      where: { id: id.toString() },
       include: {
         parentInfo: true,
         sessionInfo: true,
@@ -897,7 +685,7 @@ export const updateStudent = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Student information updated successfully',
-      student: updatedStudent
+      data: finalUpdatedStudent
     });
     
   } catch (error) {

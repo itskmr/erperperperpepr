@@ -52,6 +52,7 @@ model School {
   drivers     Driver[]
   buses       Bus[]
   routes      Route[]
+  expenses    Expense[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -126,20 +127,20 @@ model Teacher {
 
 model Student {
   id               String   @id @default(uuid())
-  // Student Information
+  // Student Information - Only these 3 fields are required
   branchName       String?
-  fullName         String
-  admissionNo      String   @unique
-  email            String   @unique
-  studentPassword  String   // Password for student login
+  fullName         String   // Required - Student name
+  admissionNo      String   @unique // Required - Admission number
+  email            String?  @unique // Optional
+  studentPassword  String?  // Optional - Password for student login
   emailPassword    String?  // Password for student email
   penNo            String?  // PEN Number field
-  aadhaarNumber    String?  // Aadhaar number field
-  apaarId          String?  // Apaar ID field
+  aadhaarNumber    String?  @db.VarChar(12) // Aadhaar number field - exactly 12 digits
+  apaarId          String?  @db.VarChar(12) // Apaar ID field - exactly 12 digits
   studentId        String?
-  dateOfBirth      DateTime
+  dateOfBirth      DateTime? // Optional
   age              Int?     // Calculated age field
-  gender           String
+  gender           String?  // Optional
   bloodGroup       String?
   nationality      String?
   religion         String?
@@ -149,7 +150,7 @@ model Student {
   weight           Float?   // Weight in kg
   belongToBPL      Boolean  @default(false)
   disability       String?
-  mobileNumber     String
+  mobileNumber     String?  @db.VarChar(10) // Optional - exactly 10 digits
   emergencyContact String?
   loginEnabled     Boolean  @default(false)
   lastLogin        DateTime?
@@ -194,11 +195,11 @@ model Student {
   // Office Use Information
   officeDetails    OfficeDetails?
 
-  // Address fields
+  // Address fields - all optional
   houseNo        String?
   street         String? @db.Text
-  city           String
-  state          String
+  city           String? // Optional
+  state          String? // Optional
   pinCode        String?
 
   permanentHouseNo String?
@@ -208,13 +209,13 @@ model Student {
   permanentPinCode String?
   sameAsPresentAddress Boolean @default(false)
 
-  // Parent information
-  fatherName     String
-  fatherEmail    String   @unique
-  fatherEmailPassword String?   // Added password field for father email
-  motherName     String
-  motherEmail    String?  // Made optional
-  motherEmailPassword String?   // Made optional
+  // Parent information - Only father name is required
+  fatherName     String   // Required - Father name
+  fatherEmail    String?  @unique // Optional
+  fatherEmailPassword String?   // Optional
+  motherName     String?  // Optional
+  motherEmail    String?  // Optional
+  motherEmailPassword String?   // Optional
 
   // Relations
   schoolId      Int
@@ -330,7 +331,7 @@ model SessionInfo {
   // Admit Session
   admitGroup    String?
   admitStream   String?
-  admitClass    String?
+  admitClass    String  // Required - Class is mandatory for admission
   admitSection  String?
   admitRollNo   String?
   admitSemester String?
@@ -467,16 +468,16 @@ model Fee {
   feeCategories   String?  @db.Text // Store array as JSON string in Text field
 
   // Discount fields
-  discountType    String? // Type of discount (percentage, fixed, etc.)
-  discountAmount  Float?  @default(0) // Discount amount or percentage value
+  discountType    String? // Type of discount (sibling_discount, full_payment_discount, etc.)
+  discountAmount  Float?  @default(0) // Discount percentage value
+  discountValue   Float?  @default(0) // Calculated discount amount in currency
+  amountAfterDiscount Float? @default(0) // Amount to be paid after discount
   
-  // School relationship
-  schoolId Int?
+  // School reference
+  schoolId        Int?
 
-  // School relationship
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // Fee Structure models for managing class fee structures
@@ -940,4 +941,46 @@ model Timetable {
   @@index([classId, sectionId])
   @@index([teacherId])
   @@index([day])
+}
+
+// Expense Model for tracking school expenses
+model Expense {
+  id              String    @id @default(uuid())
+  title           String
+  description     String?   @db.Text
+  category        String    // e.g., "Stationery", "Utilities", "Transport", "Maintenance", "Salary", "Infrastructure"
+  subCategory     String?   // More specific categorization
+  amount          Float
+  expenseDate     DateTime
+  paymentMethod   String    @default("Cash") // Cash, Cheque, Bank Transfer, UPI, Credit Card
+  vendor          String?   // Name of vendor/supplier
+  vendorContact   String?   // Contact number/email of vendor
+  invoiceNumber   String?   // Invoice/Bill reference number
+  receiptNumber   String?   // Receipt reference number
+  taxAmount       Float?    @default(0) // Tax amount if applicable
+  discountAmount  Float?    @default(0) // Discount received
+  totalAmount     Float     // Final amount paid (amount + tax - discount)
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED, PAID
+  approvedBy      String?   // ID or name of person who approved
+  approvedAt      DateTime?
+  notes           String?   @db.Text
+  attachments     String?   @db.Text // JSON string of file URLs/paths
+  
+  // School Association
+  schoolId        Int?
+  school          School?   @relation(fields: [schoolId], references: [id])
+  
+  // Budget tracking
+  budgetCategory  String?   // Link to budget category if applicable
+  isRecurring     Boolean   @default(false)
+  recurringType   String?   // MONTHLY, QUARTERLY, YEARLY
+  parentExpenseId String?   // For recurring expenses, link to parent
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([schoolId])
+  @@index([category])
+  @@index([expenseDate])
+  @@index([status])
 }

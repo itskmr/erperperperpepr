@@ -20,6 +20,7 @@ import transportRoutes from "./routes/transportRoutes.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
 import schoolRoutes from "./routes/schoolRoutes.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
+import expenseRoutes from "./routes/expenseRoutes.js";
 
 // Initialize environment variables
 dotenv.config();
@@ -193,6 +194,10 @@ app.use("/teachers", teacherRoutes);
 
 // Add school routes
 app.use("/api/schools", schoolRoutes);
+
+// Add expense routes
+app.use("/api/expenses", expenseRoutes);
+app.use("/expenses", expenseRoutes);
 
 // Add this before your admin routes registration:
 

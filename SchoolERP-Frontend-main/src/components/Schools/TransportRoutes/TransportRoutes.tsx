@@ -380,29 +380,66 @@ const TransportRoutes: React.FC = () => {
 
       {/* Statistics Section */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Total Routes</h3>
-          <p className="text-2xl font-semibold text-blue-600">{routes.length}</p>
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Routes</p>
+              <p className="text-2xl font-bold">{routes.length}</p>
+            </div>
+            <div className="bg-blue-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Active Routes</h3>
-          <p className="text-2xl font-semibold text-green-600">
-            {routes.filter(route => route.isActive).length}
-          </p>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Active Routes</p>
+              <p className="text-2xl font-bold">
+                {routes.filter(route => route.isActive).length}
+              </p>
+            </div>
+            <div className="bg-green-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Inactive Routes</h3>
-          <p className="text-2xl font-semibold text-red-600">
-            {routes.filter(route => !route.isActive).length}
-          </p>
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">Inactive Routes</p>
+              <p className="text-2xl font-bold">
+                {routes.filter(route => !route.isActive).length}
+              </p>
+            </div>
+            <div className="bg-yellow-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Avg Distance</h3>
-          <p className="text-2xl font-semibold text-purple-600">
-            {routes.length > 0 && routes.some(r => r.distance) 
-              ? Math.round(routes.filter(r => r.distance).reduce((sum, route) => sum + (route.distance || 0), 0) / routes.filter(r => r.distance).length) 
-              : 0} km
-          </p>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Avg Distance</p>
+              <p className="text-2xl font-bold">
+                {routes.length > 0 && routes.some(r => r.distance) 
+                  ? Math.round(routes.filter(r => r.distance).reduce((sum, route) => sum + (route.distance || 0), 0) / routes.filter(r => r.distance).length) 
+                  : 0} km
+              </p>
+            </div>
+            <div className="bg-purple-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

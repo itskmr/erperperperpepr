@@ -15,6 +15,7 @@ import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import StudentRegistrationForm from './pages/StudentForm';
+import StudentEdit from './pages/StudentEdit';
 // import AuthPage from './pages/AuthPage';
 import AccountsPage from './pages/AccountsPage';
 import UserManagement from './pages/UserManagement';
@@ -28,7 +29,7 @@ import Timetable from './components/Schools/Timetable';
 
 // import { ClassSectionManagement } from './components/Admin/Class'
 // import { ManageTeachers } from './pages/ManageTeachers'
-import { ManageStudent } from './pages/ManageStudents'
+// import { StudentManagement } from './`'
 // import  StudentFeeDetails  from './components/StudentFeeDetails'
 import TeacherProfile from './components/Teacher/TeacherProfile'
 import SchoolProfile from './components/Schools/SchoolProfile'
@@ -62,7 +63,8 @@ import BusTracking from "./components/Schools/Bustracking";
 import StudentRegistration from "./pages/StudentRegister";
 import AdminDashboard from "./components/Admin/AdminDashboard";
 import TeacherDashboard from "./components/Teacher/TeacherDashboard";
-import StudentDataPage from "./pages/RegisterStudentsData";
+import RegisterStudentDataTable from "./components/StudentForm/RegisterStudentDataTable";
+// import StudentFormProgress from "./components/StudentForm/StudentFormProgress";
 // Student components
 
 
@@ -346,7 +348,7 @@ function AppContent({
         />
 
         <Route
-          path="/school/students/financial-management/student-management"
+          path="/school/students/manage-students"
           element={
             <ProtectedRoute>
               <Layout userRole={userRole} onLogout={handleLogout}>
@@ -468,7 +470,7 @@ function AppContent({
           element={
             <ProtectedRoute allowedRoles={['school']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <StudentDataPage />
+                <RegisterStudentDataTable />
               </Layout>
             </ProtectedRoute>
           }
@@ -503,6 +505,17 @@ function AppContent({
             <ProtectedRoute allowedRoles={['admin', 'school']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <StudentRegistrationForm />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/student-edit/:id"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentEdit />
               </Layout>
             </ProtectedRoute>
           }
@@ -695,7 +708,7 @@ function AppContent({
 
 
 
-        < Route
+        {/* < Route
           path='/master/class-section'
           element={
             <ProtectedRoute>
@@ -704,9 +717,9 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
 
-        <Route
+        {/* <Route
           path='/school/students/manage-students'
           element={
             <ProtectedRoute>
@@ -715,7 +728,7 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
         {/* <Route
             path='/school/administration/manage-teachers'
             element={

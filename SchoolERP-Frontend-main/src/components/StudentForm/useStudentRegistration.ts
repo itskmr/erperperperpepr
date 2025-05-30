@@ -1,4 +1,4 @@
-import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import { useState, ChangeEvent, FormEvent, useEffect, useCallback } from 'react';
 import { 
   StudentFormData, 
   Documents, 
@@ -7,6 +7,22 @@ import {
 } from './StudentFormTypes';
 import { validateStep, validateForm, hasValidationErrors } from './StudentFormValidation';
 import { STUDENT_API, handleApiResponse } from '../../config/api';
+import axios from 'axios';
+
+interface TransportRoute {
+  id: string;
+  name: string;
+  fromLocation: string;
+  toLocation: string;
+}
+
+interface Driver {
+  id: string;
+  name: string;
+  contactNumber: string;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 /**
  * Custom hook for managing student registration form state and validation
@@ -177,6 +193,33 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+
+  // Fetch transport data
+  const fetchTransportData = useCallback(async () => {
+    try {
+      const [routesResponse, driversResponse] = await Promise.all([
+        axios.get(`${API_URL}/transport/routes`),
+        axios.get(`${API_URL}/transport/drivers`)
+      ]);
+
+      if (routesResponse.data?.success) {
+        setTransportRoutes(routesResponse.data.data || []);
+      }
+
+      if (driversResponse.data?.success) {
+        setDrivers(driversResponse.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching transport data:', error);
+    }
+  }, []);
+
+  // Fetch transport data on mount
+  useEffect(() => {
+    fetchTransportData();
+  }, [fetchTransportData]);
 
   /**
    * Updates nested object properties with dot notation
@@ -315,10 +358,11 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
         }
       });
       
-      // Add document files - without the 'documents.' prefix
+      // Add document files - with the correct field names expected by backend
       Object.entries(formData.documents).forEach(([key, file]) => {
         if (file instanceof File) {
-          formDataToSend.append(key, file);
+          // Send the file with the documents. prefix that the backend expects
+          formDataToSend.append(`documents.${key}`, file);
         }
       });
       
@@ -408,6 +452,8 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     success,
     steps,
     validationErrors,
+    transportRoutes,
+    drivers,
     handleChange,
     handleFileChange,
     handleSubmit,

@@ -11,6 +11,8 @@ interface StudentFormSectionsProps {
   currentStep: number;
   formData: StudentFormData;
   validationErrors: Record<string, string>;
+  transportRoutes: Array<{ id: string; name: string; fromLocation: string; toLocation: string; }>;
+  drivers: Array<{ id: string; name: string; contactNumber: string; }>;
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>, documentType: keyof Documents) => void;
 }
@@ -27,6 +29,8 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
   currentStep,
   formData,
   validationErrors,
+  transportRoutes,
+  drivers,
   handleChange,
   handleFileChange
 }) => {
@@ -39,11 +43,15 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     required: boolean = false,
     placeholder: string = '',
     onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void,
-    inputProps?: InputProps
+    inputProps?: InputProps,
+    readOnly: boolean = false
   ) => {
     const error = name.includes('.') 
       ? validationErrors[name] 
       : validationErrors[name as keyof typeof validationErrors];
+    
+    // Only these 4 fields are actually required
+    const isActuallyRequired = ['fullName', 'admissionNo', 'admitSession.class', 'currentSession.class', 'father.name'].includes(name);
     
     // Handle keypress for numeric fields
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -57,6 +65,15 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       }
     };
     
+    // Get maxLength based on field type
+    const getMaxLength = (fieldName: string): number | undefined => {
+      if (fieldName === 'aadhaarNumber' || fieldName.includes('aadhaarNo')) return 12;
+      if (fieldName === 'apaarId') return 12;
+      if (fieldName === 'mobileNumber' || fieldName.includes('contactNumber')) return 10;
+      if (fieldName.includes('pinCode')) return 6;
+      return undefined;
+    };
+    
     // Safely get the value from nested path
     const getValue = (name: string, data: StudentFormData): string => {
       if (!name.includes('.')) {
@@ -65,10 +82,14 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       } else {
         try {
           const parts = name.split('.');
-          let value: any = { ...data };
+          let value: unknown = { ...data };
           for (const part of parts) {
             if (value === null || value === undefined) return '';
-            value = value[part];
+            if (typeof value === 'object' && value !== null && part in value) {
+              value = (value as Record<string, unknown>)[part];
+            } else {
+              return '';
+            }
           }
           return value !== null && value !== undefined ? String(value) : '';
         } catch (e) {
@@ -88,58 +109,59 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     
     return (
       <label className="block mb-5">
-        <span className="text-gray-700 font-medium">{label} {required && <span className="text-red-500">*</span>}</span>
+        <span className="text-gray-700 font-medium">{label} {isActuallyRequired && <span className="text-red-500">*</span>}</span>
         <input
           type={type}
           name={name}
           value={getValue(name, formData)}
-          onChange={handleChange}
+          onChange={readOnly ? undefined : handleChange}
           onFocus={onFocus || (type === 'date' ? handleDateFocus : undefined)}
           onKeyPress={handleKeyPress}
           placeholder={placeholder}
           pattern={inputProps?.pattern}
           inputMode={inputProps?.inputMode}
-          className={`mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all bg-gray-50 ${
+          className={`mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all ${
+            readOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-gray-50'
+          } ${
             error ? 'border-red-300 bg-red-50' : 'hover:border-gray-400'
           }`}
           required={required}
+          maxLength={getMaxLength(name)}
+          readOnly={readOnly}
         />
         {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
       </label>
     );
   };
 
-  // Helper function to render select with validation
+  // Helper function to render select dropdown
   const renderSelect = (
     label: string, 
     name: string, 
-    options: { value: string; label: string }[], 
+    options: string[] | { value: string; label: string }[], 
     required: boolean = false,
-    placeholder: string = ''
+    placeholder: string = 'Select...'
   ) => {
     const error = name.includes('.') 
       ? validationErrors[name] 
       : validationErrors[name as keyof typeof validationErrors];
     
-    // Reuse the same getValue function logic to maintain consistency
     const getValue = (name: string, data: StudentFormData): string => {
       if (!name.includes('.')) {
-        // For simple properties
         const val = data[name as keyof StudentFormData];
         return val !== null && val !== undefined ? String(val) : '';
       } else {
-        // For nested properties
         try {
           const parts = name.split('.');
-          let value: any = { ...data };
-          
-          // Navigate the path
+          let value: unknown = { ...data };
           for (const part of parts) {
             if (value === null || value === undefined) return '';
-            value = value[part];
+            if (typeof value === 'object' && value !== null && part in value) {
+              value = (value as Record<string, unknown>)[part];
+            } else {
+              return '';
+            }
           }
-          
-          // Return empty string if value is null or undefined
           return value !== null && value !== undefined ? String(value) : '';
         } catch (e) {
           console.error(`Error accessing ${name}:`, e);
@@ -148,36 +170,38 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       }
     };
     
-    const currentValue = getValue(name, formData);
-    const placeholderText = placeholder || `Select ${label}`;
-    
     return (
-      <label className="block mb-5">
-        <span className="text-gray-700 font-medium">{label} {required && <span className="text-red-500">*</span>}</span>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
         <select
-          name={name}
-          value={currentValue}
-          onChange={handleChange}
-          className={`mt-1 block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-all bg-gray-50 ${
-            error ? 'border-red-300 bg-red-50' : 'border-gray-300'
+          value={getValue(name, formData)}
+          onChange={(e) => handleChange(e)}
+          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            error ? 'border-red-500' : 'border-gray-300'
           }`}
           required={required}
         >
-          {/* Show placeholder option only if no value is selected */}
-          {!currentValue && <option value="">{placeholderText}</option>}
-          
-          {/* Map through actual options (don't include the placeholder) */}
-          {options.map((option) => 
-            // Skip if this is the placeholder option that's already shown above
-            (option.value !== '' || option.label !== placeholderText) && (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            )
-          )}
+          <option value="">{placeholder}</option>
+          {options.map((option) => {
+            if (typeof option === 'string') {
+              return (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              );
+            } else {
+              return (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              );
+            }
+          })}
         </select>
         {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-      </label>
+      </div>
     );
   };
 
@@ -480,28 +504,28 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
 
   // Different form sections based on currentStep
   const formSections: { [key: number]: JSX.Element } = {
-    // Step 1: Basic Information
+    // Step 1: Student Information
     1: (
       <div className="space-y-6">
         <h3 className="text-lg font-medium mb-4 border-b pb-2">Student Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {renderInput('Branch Name', 'branchName', 'text', false)}
-          {renderInput('Admission No', 'admissionNo', 'text', true)}
+          {renderInput('Admission No', 'admissionNo', 'text', false)}
           {renderInput('PEN No', 'penNo', 'text')}
-          {renderInput('Apaar ID', 'apaarId', 'text', true)}
-          {renderInput('Full Name', 'fullName', 'text', true, 'Enter name in BLOCK LETTERS')}
-          {renderInput('Admission Date', 'admissionDate', 'date', true)}
+          {renderInput('Apaar ID', 'apaarId', 'text', false)}
+          {renderInput('Full Name', 'fullName', 'text', false, 'Enter name in BLOCK LETTERS')}
+          {renderInput('Admission Date', 'admissionDate', 'date', false)}
           {renderInput('SR No / Student ID', 'studentId')}
-          {renderInput('Date of Birth', 'dateOfBirth', 'date', true)}
-          {renderInput('Age', 'age', 'number', false, 'Auto-calculated')}
+          {renderInput('Date of Birth', 'dateOfBirth', 'date', false)}
+          {renderInput('Age', 'age', 'number', false, 'Auto-calculated from date of birth', undefined, { inputMode: 'numeric' }, true)}
           {renderInput('Height (cm)', 'height', 'number', false, '', undefined, { inputMode: 'numeric' })}
           {renderInput('Weight (kg)', 'weight', 'number', false, '', undefined, { inputMode: 'numeric' })}
           {renderInput('Religion', 'religion')}
           {renderSelect('Gender', 'gender', [
             { value: '', label: 'Select Gender' },
-            { value: 'male', label: 'Male' },
-            { value: 'female', label: 'Female' }
-          ], true)}
+            { value: 'Male', label: 'Male' },
+            { value: 'Female', label: 'Female' }
+          ], false)}
           {renderSelect('Category', 'category', [
             { value: '', label: 'Select Category' },
             { value: 'SC', label: 'SC' },
@@ -510,7 +534,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             { value: 'OBC', label: 'OBC' },
             { value: 'GEN', label: 'General' },
             { value: 'EWS', label: 'EWS' }
-          ], true)}
+          ], false)}
           {renderSelect('Blood Group', 'bloodGroup', [
             { value: '', label: 'Select Blood Group' },
             { value: 'A+', label: 'A+' },
@@ -528,8 +552,8 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             { value: 'no', label: 'No' }
           ])}
           {renderInput('Type of Disability', 'disability')}
-          {renderInput('Nationality', 'nationality', 'text', true)}
-          {renderInput('Aadhar Number', 'aadhaarNumber', 'text', true, '12-digit Aadhaar number', undefined, {
+          {renderInput('Nationality', 'nationality', 'text', false)}
+          {renderInput('Aadhar Number', 'aadhaarNumber', 'text', false, '12-digit Aadhaar number', undefined, {
             pattern: '^[0-9]{12}$',
             inputMode: 'numeric'
           })}
@@ -574,7 +598,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
                 value: cls, label: cls 
               }))
               
-            ], true)}
+            ], false)}
             {renderSelect('Section', 'admitSession.section', [
               { value: '', label: 'Select Section' },
               ...['A', 'B', 'C', 'D'].map(section => ({ 
@@ -582,16 +606,12 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               }))
             ])}
             {renderInput('Roll No.', 'admitSession.rollNo')}
-            {renderSelect('Semester', 'admitSession.semester', [
-              { value: '', label: 'Select Semester' },
-              { value: '1st sem', label: '1st Semester' },
-              { value: '2nd sem', label: '2nd Semester' }
-            ])}
+            {renderInput('Semester', 'admitSession.semester')}
             {renderInput('Fee Group', 'admitSession.feeGroup')}
             {renderInput('House', 'admitSession.house')}
           </div>
         </div>
-
+        
         <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Current Session</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -612,45 +632,37 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
                   'Class 3',
                   'Class 4',
                   'Class 5',
-                  'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
-                  'Class 11 (Science)', 'Class 11 (Commerce)', 'Class 11 (Arts)', 'Class 12 (Science)', 'Class 12 (Commerce)', 'Class 12 (Arts)'].map(cls => ({ 
+                  'Class 6',
+                  'Class 7',
+                  'Class 8',
+                  'Class 9',
+                  'Class 10',
+                  'Class 11 (Science)',
+                  'Class 11 (Commerce)',
+                  'Class 11 (Arts)',
+                  'Class 12 (Science)',
+                  'Class 12 (Commerce)',
+                  'Class 12 (Arts)'].map(cls => ({ 
                 value: cls, label: cls 
               }))
-            ], true)}
+            ])}
             {renderSelect('Section', 'currentSession.section', [
               { value: '', label: 'Select Section' },
-              ...['A', 'B', 'C', 'D', 'E', 'F'].map(section => ({ 
+              ...['A', 'B', 'C', 'D'].map(section => ({ 
                 value: section, label: section 
               }))
             ])}
             {renderInput('Roll No.', 'currentSession.rollNo')}
-            {renderSelect('Semester', 'currentSession.semester', [
-              { value: '', label: 'Select Semester' },
-              { value: '1st sem', label: '1st Semester' },
-              { value: '2nd sem', label: '2nd Semester' }
-            ])}
+            {renderInput('Semester', 'currentSession.semester')}
             {renderInput('Fee Group', 'currentSession.feeGroup')}
             {renderInput('House', 'currentSession.house')}
           </div>
         </div>
-
+        
         <div className="space-y-6">
-          <h3 className="text-lg font-medium mb-4 border-b pb-2">Previous Education</h3>
+          <h3 className="text-lg font-medium mb-4 border-b pb-2">Other Academic Info</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Previous School', 'lastEducation.school')}
-            {renderTextarea('School Address', 'lastEducation.address', false, 2)}
-            {renderInput('TC Date', 'lastEducation.tcDate', 'date')}
-            {renderInput('Previous Class', 'lastEducation.prevClass')}
-            {renderInput('Percentage/CGPA', 'lastEducation.percentage')}
-            {renderInput('Attendance', 'lastEducation.attendance')}
-            {renderTextarea('Extra Activities', 'lastEducation.extraActivity', false, 2)}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <h3 className="text-lg font-medium mb-4 border-b pb-2">Academic Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Registration No', 'academic.registrationNo')}
+            {renderInput('Academic Registration No', 'academic.registrationNo')}
           </div>
         </div>
       </div>
@@ -756,26 +768,36 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <div className="space-y-6">
           <h3 className="text-lg font-medium mb-4 border-b pb-2">Transport Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderSelect('Transport Mode', 'transportMode', [
+            {renderSelect('Transport Mode', 'transport.mode', [
               { value: '', label: 'Select Mode' },
               { value: 'Bus', label: 'School Bus' },
-              { value: 'Self', label: 'Own Transport' },
-              { value: 'Parent', label: 'Parent Drop/Pickup' }
+              { value: 'Van', label: 'School Van' },
+              { value: 'Auto', label: 'Auto Rickshaw' },
+              { value: 'Private', label: 'Private Vehicle' },
+              { value: 'Walking', label: 'Walking' }
             ])}
             
-            {/* Show these fields only if Bus is selected */}
-            {formData.transportMode === 'Bus' && (
+            {/* Show these fields only if Bus, Van, or Auto is selected */}
+            {['Bus', 'Van', 'Auto'].includes(formData.transport?.mode) && (
               <>
-                {renderInput('Area', 'transportArea', 'text', true)}
-                {renderInput('Stand', 'transportStand', 'text', true)}
-                {renderInput('Route', 'transportRoute', 'text', true)}
-                {renderInput('Driver', 'transportDriver', 'text', true)}
-                {renderInput('Driver Phone', 'driverPhone', 'tel', true, '10-digit mobile number', undefined, {
-                  pattern: '^[0-9]{10}$',
-                  inputMode: 'numeric'
-                })}
-                {renderInput('Pickup Location', 'pickupLocation', 'text', true)}
-                {renderInput('Drop Location', 'dropLocation', 'text', true)}
+                {renderInput('Area', 'transport.area', 'text', true)}
+                {renderInput('Stand', 'transport.stand', 'text', true)}
+                {renderSelect('Route', 'transport.route', [
+                  { value: '', label: 'Select Route' },
+                  ...(transportRoutes || []).map(route => ({
+                    value: route.id,
+                    label: `${route.name} (${route.fromLocation} - ${route.toLocation})`
+                  }))
+                ], true)}
+                {renderSelect('Driver', 'transport.driver', [
+                  { value: '', label: 'Select Driver' },
+                  ...(drivers || []).map(driver => ({
+                    value: driver.id,
+                    label: `${driver.name} (${driver.contactNumber})`
+                  }))
+                ], true)}
+                {renderInput('Pickup Location', 'transport.pickupLocation', 'text', true)}
+                {renderInput('Drop Location', 'transport.dropLocation', 'text', true)}
               </>
             )}
           </div>
@@ -789,18 +811,18 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <div className="border-b pb-4">
           <h3 className="text-lg font-medium mb-4">Father's Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Name', 'father.name', 'text', true)}
+            {renderInput('Name', 'father.name', 'text', false)}
             {renderInput('Qualification', 'father.qualification')}
             {renderInput('Occupation', 'father.occupation')}
             {renderInput('Organization', 'father.organization')}
             {renderInput('Designation', 'father.designation')}
-            {renderInput('Mobile Number', 'father.contactNumber', 'tel', true, '10-digit mobile number', undefined, {
+            {renderInput('Mobile Number', 'father.contactNumber', 'tel', false, '10-digit mobile number', undefined, {
               pattern: '^[0-9]{10}$',
               inputMode: 'numeric'
             })}
             {renderInput('Office Contact', 'father.officeContact', 'tel', false, 'Office number with extension')}
             {renderInput('Email', 'father.email', 'email')}
-            {renderInput('Aadhar Number', 'father.aadhaarNo', 'text', true, '12-digit Aadhaar number', undefined, {
+            {renderInput('Aadhar Number', 'father.aadhaarNo', 'text', false, '12-digit Aadhaar number', undefined, {
               pattern: '^[0-9]{12}$',
               inputMode: 'numeric'
             })}
@@ -813,11 +835,11 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <div className="border-b pb-4">
           <h3 className="text-lg font-medium mb-4">Mother's Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Name', 'mother.name', 'text', true)}
+            {renderInput('Name', 'mother.name', 'text', false)}
             {renderInput('Qualification', 'mother.qualification')}
             {renderInput('Occupation', 'mother.occupation')}
             {renderInput('Email', 'mother.email', 'email')}
-            {renderInput('Aadhar Number', 'mother.aadhaarNo', 'text', true, '12-digit Aadhaar number', undefined, {
+            {renderInput('Aadhar Number', 'mother.aadhaarNo', 'text', false, '12-digit Aadhaar number', undefined, {
               pattern: '^[0-9]{12}$',
               inputMode: 'numeric'
             })}

@@ -136,7 +136,7 @@ export interface StudentFormData {
   email: string;
   emailPassword?: string;
   penNo?: string;
-  apaarId: string;  // Apaar ID field
+  apaarId?: string;  // Made optional
   studentId?: string;
   dateOfBirth: string;
   age?: number;
@@ -272,6 +272,8 @@ export interface UseStudentRegistrationReturn {
   success: boolean;
   steps: Array<Step>;
   validationErrors: Record<string, string>;
+  transportRoutes: Array<{ id: string; name: string; fromLocation: string; toLocation: string; }>;
+  drivers: Array<{ id: string; name: string; contactNumber: string; }>;
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>, documentType: keyof Documents) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;

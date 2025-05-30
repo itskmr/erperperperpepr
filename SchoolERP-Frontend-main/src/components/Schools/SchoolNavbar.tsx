@@ -10,7 +10,7 @@ import {
   Calendar, 
   Users, 
   // Database, 
-  BarChart2,
+  // BarChart2,
   // HelpCircle,
   DollarSign,
   Book,
@@ -22,10 +22,10 @@ import {
   Menu,
   // Eye,
   //  EyeOff,
-  MessageSquare,
+  // MessageSquare,
   Truck,
-  MapPin,
-  UserCheck
+  // MapPin,
+  // UserCheck
 } from "lucide-react";
 
 interface SchoolNavbarProps {
@@ -58,34 +58,34 @@ interface NavLinkProps {
 }
 
 // Hook for tracking scroll direction
-const useScrollDirection = () => {
-  const [scrollDirection, setScrollDirection] = useState<'up' | 'down' | null>(null);
-  const [prevOffset, setPrevOffset] = useState(0);
-  const threshold = 10;
+// const useScrollDirection = () => {
+//   const [scrollDirection, setScrollDirection] = useState<'up' | 'down' | null>(null);
+//   const [prevOffset, setPrevOffset] = useState(0);
+//   const threshold = 10;
   
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentOffset = window.pageYOffset;
-      const isScrolledDown = currentOffset > prevOffset;
-      const isScrolledUp = currentOffset < prevOffset;
-      const isScrollingDown = isScrolledDown && currentOffset > threshold;
-      const isScrollingUp = isScrolledUp;
+//   useEffect(() => {
+//     const handleScroll = () => {
+//       const currentOffset = window.pageYOffset;
+//       const isScrolledDown = currentOffset > prevOffset;
+//       const isScrolledUp = currentOffset < prevOffset;
+//       const isScrollingDown = isScrolledDown && currentOffset > threshold;
+//       const isScrollingUp = isScrolledUp;
       
-      if (isScrollingDown && scrollDirection !== 'down') {
-        setScrollDirection('down');
-      } else if (isScrollingUp && scrollDirection !== 'up') {
-        setScrollDirection('up');
-      }
+//       if (isScrollingDown && scrollDirection !== 'down') {
+//         setScrollDirection('down');
+//       } else if (isScrollingUp && scrollDirection !== 'up') {
+//         setScrollDirection('up');
+//       }
       
-      setPrevOffset(currentOffset);
-    };
+//       setPrevOffset(currentOffset);
+//     };
     
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [prevOffset, scrollDirection]);
+//     window.addEventListener('scroll', handleScroll);
+//     return () => window.removeEventListener('scroll', handleScroll);
+//   }, [prevOffset, scrollDirection]);
   
-  return scrollDirection;
-};
+//   return scrollDirection;
+// };
 
 // Navigation dropdown component
 const NavDropdown: React.FC<NavDropdownProps> = ({ 
@@ -324,12 +324,12 @@ const SchoolNavbar = {
               onClick={() => toggleDropdown("administration")}
               isCollapsed={isCollapsed}
             >
-              <NavLink 
+              {/* <NavLink 
                 to="/school/administration/departments" 
                 label="Departments" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/administration/departments")}
-              />
+              /> */}
               <NavLink 
                 to="/school/administration/timetable" 
                 label="Timetable" 
@@ -395,24 +395,24 @@ const SchoolNavbar = {
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/faculty-management/teacher-directory")}
               />
-              <NavLink 
+              {/* <NavLink 
                 to="/school/BusTracking" 
                 label="Bus tracking" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/BusTracking")}
-              />
+              /> */}
               <NavLink 
                 to="/School/ClassAssignment" 
                 label="Class Assignments" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/School/ClassAssignment")}
               />
-              <NavLink 
+              {/* <NavLink 
                 to="/School/TeacherEvaluationPage" 
                 label="Teacher Evaluations" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/School/TeacherEvaluationPage")}
-              />
+              /> */}
             </NavDropdown>
 
             {/* Transport Management */}
@@ -463,7 +463,7 @@ const SchoolNavbar = {
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/School/FeeCollection")}
               />
-              <NavLink 
+              {/* <NavLink 
                 to="/School/CheckBounceSystem" 
                 label="Check Bounce " 
                 onClick={() => setIsMobileSidebarOpen(false)}
@@ -474,7 +474,7 @@ const SchoolNavbar = {
                 label="Budget Planning" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/School/BudgetPlanning")}
-              />
+              /> */}
               <NavLink 
                 to="/school/financial-management/fee-structure" 
                 label="Fee Structure" 
@@ -487,12 +487,12 @@ const SchoolNavbar = {
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/School/ExpenseTracker")}
               />
-              <NavLink 
+              {/* <NavLink 
                 to="/school/students/financial-management/student-management" 
                 label="Dues & Payments" 
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/students/financial-management/student-management")}
-              />
+              /> */}
             </NavDropdown>
 
             {/* School Calendar */}
@@ -514,17 +514,17 @@ const SchoolNavbar = {
             />
 
             {/* Analytics & Reports */}
-            <NavLink 
+            {/* <NavLink 
               to="/School/report" 
               icon={<BarChart2 className="h-5 w-5" />} 
               label="Analytics & Reports" 
               onClick={() => setIsMobileSidebarOpen(false)}
               isCollapsed={isCollapsed}
               isActive={isPathActive("/School/report")}
-            />
+            /> */}
 
             {/* Communication & Feedback */}
-            <NavDropdown 
+            {/* <NavDropdown 
               title="Communication" 
               icon={<MessageSquare className="h-5 w-5 text-blue-600" />}
               isOpen={activeDropdown === "communication"} 
@@ -549,7 +549,7 @@ const SchoolNavbar = {
                 onClick={() => setIsMobileSidebarOpen(false)}
                 isActive={isPathActive("/school/messages")}
               />
-            </NavDropdown>
+            </NavDropdown> */}
           </nav>
         </div>
       </div>

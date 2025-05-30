@@ -1175,6 +1175,15 @@ export const getRouteById = async (req, res) => {
  */
 export const createRoute = async (req, res) => {
   try {
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const {
       name,
       description,
@@ -1192,6 +1201,23 @@ export const createRoute = async (req, res) => {
         message: "Please provide name, start location, and end location"
       });
     }
+
+    // Validate bus belongs to the same school if provided
+    if (busId) {
+      const bus = await prisma.bus.findFirst({
+        where: {
+          id: busId,
+          schoolId: schoolId
+        }
+      });
+
+      if (!bus) {
+        return res.status(400).json({
+          success: false,
+          message: "Bus not found or doesn't belong to this school"
+        });
+      }
+    }
     
     const route = await prisma.route.create({
       data: {
@@ -1202,7 +1228,8 @@ export const createRoute = async (req, res) => {
         endLocation,
         distance: parseFloat(distance) || 0,
         estimatedTime: parseInt(estimatedTime) || 0,
-        busId
+        busId: busId || null,
+        schoolId: schoolId // Include schoolId when creating route
       }
     });
 
@@ -1252,7 +1279,8 @@ export const createRoute = async (req, res) => {
     
     res.status(201).json({
       success: true,
-      data: transformedRoute
+      data: transformedRoute,
+      message: "Route created successfully"
     });
   } catch (error) {
     console.error("Error creating route:", error);
@@ -1270,6 +1298,16 @@ export const createRoute = async (req, res) => {
 export const updateRoute = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+
     const {
       name,
       description,
@@ -1280,16 +1318,36 @@ export const updateRoute = async (req, res) => {
       busId
     } = req.body;
     
-    // Check if route exists
-    const routeExists = await prisma.route.findUnique({
-      where: { id }
+    // Check if route exists and belongs to the school
+    const routeExists = await prisma.route.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      }
     });
     
     if (!routeExists) {
       return res.status(404).json({
         success: false,
-        message: "Route not found"
+        message: "Route not found or doesn't belong to this school"
       });
+    }
+
+    // Validate bus belongs to the same school if provided
+    if (busId) {
+      const bus = await prisma.bus.findFirst({
+        where: {
+          id: busId,
+          schoolId: schoolId
+        }
+      });
+
+      if (!bus) {
+        return res.status(400).json({
+          success: false,
+          message: "Bus not found or doesn't belong to this school"
+        });
+      }
     }
     
     // Prepare update data
@@ -1354,7 +1412,8 @@ export const updateRoute = async (req, res) => {
     
     res.status(200).json({
       success: true,
-      data: transformedRoute
+      data: transformedRoute,
+      message: "Route updated successfully"
     });
   } catch (error) {
     console.error("Error updating route:", error);
@@ -1373,15 +1432,27 @@ export const deleteRoute = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if route exists
-    const route = await prisma.route.findUnique({
-      where: { id }
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
+    // Check if route exists and belongs to the school
+    const route = await prisma.route.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      }
     });
     
     if (!route) {
       return res.status(404).json({
         success: false,
-        message: "Route not found"
+        message: "Route not found or doesn't belong to this school"
       });
     }
     

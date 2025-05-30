@@ -22,6 +22,8 @@ interface FeeRecord {
   feeCategories?: string[];
   discountType?: string;
   discountAmount?: number;
+  discountValue?: number;
+  amountAfterDiscount?: number;
 }
 
 interface UpdateFeeRecordProps {
@@ -62,12 +64,15 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
     feeCategory: '',
     feeCategories: [],
     discountType: '',
-    discountAmount: 0
+    discountAmount: 0,
+    discountValue: 0,
+    amountAfterDiscount: 0
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [originalAmountPaid, setOriginalAmountPaid] = useState(0);
   const [originalFeeAmount, setOriginalFeeAmount] = useState(0);
+  const [customDiscountType, setCustomDiscountType] = useState('');
   
   // Initialize form data when record changes
   useEffect(() => {
@@ -83,8 +88,22 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
     setFormData(prev => {
       const updatedData = {
         ...prev,
-        [name]: ['feeAmount', 'totalFees', 'amountPaid'].includes(name) ? parseFloat(value) || 0 : value
+        [name]: ['feeAmount', 'totalFees', 'amountPaid', 'discountAmount'].includes(name) ? parseFloat(value) || 0 : value
       };
+
+      // Calculate discount values when discount type or amount changes
+      if (name === 'discountAmount' || name === 'discountType' || name === 'feeAmount') {
+        const discountPercent = parseFloat(String(updatedData.discountAmount)) || 0;
+        const totalAmount = updatedData.feeAmount || 0;
+        
+        if (updatedData.discountType && discountPercent > 0) {
+          updatedData.discountValue = (totalAmount * discountPercent) / 100;
+          updatedData.amountAfterDiscount = totalAmount - updatedData.discountValue;
+        } else {
+          updatedData.discountValue = 0;
+          updatedData.amountAfterDiscount = totalAmount;
+        }
+      }
 
       // When feeAmount changes, recalculate the amountPaid
       if (name === 'feeAmount') {
@@ -385,24 +404,42 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
                   <div className="flex space-x-2">
                     <select
                       name="discountType"
-                      value={formData.discountType || ''}
-                      onChange={handleChange}
+                      value={formData.discountType && !customDiscountType ? formData.discountType : (customDiscountType ? 'other' : formData.discountType)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'other') {
+                          setCustomDiscountType('');
+                          setFormData(prev => ({ ...prev, discountType: 'other' }));
+                        } else {
+                          setCustomDiscountType('');
+                          setFormData(prev => ({ ...prev, discountType: value }));
+                        }
+                      }}
                       className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">No Discount</option>
-                      <option value="percentage">Percentage (%)</option>
-                      <option value="fixed">Fixed Amount (₹)</option>
+                      <option value="sibling_discount">Sibling Discount</option>
+                      <option value="full_payment_discount">Full Payment Discount</option>
+                      <option value="parent_employee_discount">Parent is Campus Employee</option>
                       <option value="scholarship">Scholarship</option>
-                      <option value="sibling">Sibling Discount</option>
-                      <option value="early_payment">Early Payment</option>
+                      <option value="early_payment">Early Payment Discount</option>
+                      <option value="financial_aid">Financial Aid</option>
                       <option value="other">Other</option>
                     </select>
-                    {formData.discountType === 'other' && (
+                    {(formData.discountType === 'other' || customDiscountType) && (
                       <input
                         type="text"
-                        placeholder="Specify discount type"
+                        placeholder="Specify discount name"
+                        value={customDiscountType}
                         className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={(e) => setFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setCustomDiscountType(value);
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            discountType: value || 'other'
+                          }));
+                        }}
                       />
                     )}
                   </div>
@@ -410,7 +447,7 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Discount Amount {formData.discountType === 'percentage' ? '(%)' : formData.discountType === 'fixed' ? '(₹)' : ''}
+                    Discount Percentage (%)
                   </label>
                   <input
                     type="number"
@@ -418,19 +455,27 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
                     value={formData.discountAmount || 0}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder={formData.discountType === 'percentage' ? 'Enter percentage (0-100)' : 'Enter discount amount'}
+                    placeholder="Enter discount percentage (0-100)"
                     min="0"
-                    max={formData.discountType === 'percentage' ? '100' : undefined}
-                    step={formData.discountType === 'percentage' ? '0.1' : '0.01'}
+                    max="100"
+                    step="0.1"
                     disabled={!formData.discountType}
                   />
                   {formData.discountType && (formData.discountAmount || 0) > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formData.discountType === 'percentage' 
-                        ? `Discount: ₹${((formData.feeAmount * (formData.discountAmount || 0)) / 100).toFixed(2)}`
-                        : `Discount: ₹${(formData.discountAmount || 0).toFixed(2)}`
-                      }
-                    </p>
+                    <div className="mt-2 p-2 bg-blue-50 rounded-md text-sm">
+                      <div className="flex justify-between mb-1">
+                        <span>Total Fee Amount:</span>
+                        <span className="font-medium">₹{(formData.feeAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between mb-1 text-red-600">
+                        <span>Discount ({formData.discountAmount}%):</span>
+                        <span className="font-medium">- ₹{(formData.discountValue || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-bold text-green-600">
+                        <span>Amount After Discount:</span>
+                        <span>₹{(formData.amountAfterDiscount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
 

@@ -22,7 +22,9 @@ const StudentRegistrationForm: React.FC = () => {
     handleFileChange,
     handleSubmit,
     nextStep,
-    prevStep
+    prevStep,
+    transportRoutes,
+    drivers
   } = useStudentRegistration();
 
   // Show modal when registration is successful
@@ -237,6 +239,8 @@ const StudentRegistrationForm: React.FC = () => {
             currentStep={currentStep}
             formData={formData}
             validationErrors={validationErrors}
+            transportRoutes={transportRoutes}
+            drivers={drivers}
             handleChange={handleChange}
             handleFileChange={handleFileChange}
           />

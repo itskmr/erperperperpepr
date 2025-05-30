@@ -32,6 +32,8 @@ interface FeeRecord {
   feeCategories?: string[];
   discountType?: string;
   discountAmount?: number;
+  discountValue?: number; // Calculated discount amount in currency
+  amountAfterDiscount?: number; // Amount to be paid after discount
   studentDetails?: {
     fullName: string;
     fatherName: string;
@@ -41,6 +43,8 @@ interface FeeRecord {
     className: string;
     section: string;
     rollNumber: string;
+    fatherContact?: string;
+    motherContact?: string;
   };
 }
 
@@ -58,6 +62,10 @@ interface StudentResponse {
     currentSection?: string;
     currentRollNo?: string;
   };
+  parentInfo?: {
+    fatherContact?: string;
+    motherContact?: string;
+  };
   success?: boolean;
   data?: {
     id: number;
@@ -72,6 +80,10 @@ interface StudentResponse {
       currentClass?: string;
       currentSection?: string;
       currentRollNo?: string;
+    };
+    parentInfo?: {
+      fatherContact?: string;
+      motherContact?: string;
     };
   };
 }
@@ -108,7 +120,19 @@ interface StudentFeeAmount {
   amount: number;
 }
 
+interface SchoolDetails {
+  id: number;
+  schoolName: string;
+  address: string;
+  phone: string;
+  contact: string;
+  email: string;
+  principal: string;
+  image_url?: string;
+}
+
 const API_URL = 'http://localhost:5000/api/fees';
+const SCHOOL_API_URL = 'http://localhost:5000/api/transport/school-info';
 
 // Standardized class options to match the rest of the system
 const CLASS_OPTIONS = [
@@ -121,6 +145,95 @@ const CLASS_OPTIONS = [
 
 // Section options A to D
 const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+// Export functions
+const exportToCSV = (data: FeeRecord[]) => {
+  const headers = [
+    'Date',
+    'Admission Number',
+    'Student Name',
+    'Father Name',
+    'Class',
+    'Section',
+    'Fee Categories',
+    'Total Fees',
+    'Amount Paid',
+    'Fee Amount',
+    'Payment Mode',
+    'Receipt Number',
+    'Status',
+    'Discount Type',
+    'Discount Amount',
+    'Amount After Discount'
+  ];
+
+  const csvContent = [
+    headers.join(','),
+    ...data.map(record => [
+      new Date(record.paymentDate).toLocaleDateString(),
+      `"${record.admissionNumber || ''}"`,
+      `"${record.studentName || ''}"`,
+      `"${record.fatherName || ''}"`,
+      `"${record.class || ''}"`,
+      `"${record.section || ''}"`,
+      `"${record.feeCategory || ''}"`,
+      record.totalFees || 0,
+      record.amountPaid || 0,
+      record.feeAmount || 0,
+      record.paymentMode || '',
+      `"${record.receiptNumber || ''}"`,
+      record.status || '',
+      `"${record.discountType || ''}"`,
+      record.discountAmount || 0,
+      record.amountAfterDiscount || 0,
+    ].join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `fee_records_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const exportToPDF = async (data: FeeRecord[]) => {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  
+  // Add title
+  doc.setFontSize(20);
+  doc.text('Fee Collection Report', 20, 20);
+  
+  // Add date
+  doc.setFontSize(12);
+  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 35);
+  
+  // Add records
+  let yPosition = 50;
+  doc.setFontSize(10);
+  
+  data.forEach((record, index) => {
+    if (yPosition > 280) {
+      doc.addPage();
+      yPosition = 20;
+    }
+    
+    doc.text(`${index + 1}. ${record.studentName} (${record.admissionNumber})`, 20, yPosition);
+    doc.text(`Class: ${record.class}-${record.section}`, 30, yPosition + 8);
+    doc.text(`Fee Amount: ₹${record.feeAmount}`, 30, yPosition + 16);
+    doc.text(`Amount Paid: ₹${record.amountPaid}`, 30, yPosition + 24);
+    doc.text(`Status: ${record.status}`, 30, yPosition + 32);
+    doc.text(`Date: ${new Date(record.paymentDate).toLocaleDateString()}`, 30, yPosition + 40);
+    
+    yPosition += 55;
+  });
+  
+  doc.save(`fee_records_${new Date().toISOString().split('T')[0]}.pdf`);
+};
 
 const FeeCollectionApp: React.FC = () => {
   // State
@@ -141,12 +254,15 @@ const FeeCollectionApp: React.FC = () => {
     feeCategory: '',
     feeCategories: [],
     discountType: '',
-    discountAmount: 0
+    discountAmount: 0,
+    discountValue: 0,
+    amountAfterDiscount: 0
   });
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterSection, setFilterSection] = useState('');
+  const [filterStatus, setFilterStatus] = useState(''); // Add status filter state
   const [sortField, setSortField] = useState<keyof FeeRecord>('paymentDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
@@ -177,27 +293,85 @@ const FeeCollectionApp: React.FC = () => {
 
   // New state for student fee amounts
   const [studentFeeAmounts, setStudentFeeAmounts] = useState<StudentFeeAmount[]>([]);
-  const [isFullFeeForAll, setIsFullFeeForAll] = useState(false);
 
   // New state for view record
   const [selectedRecordForView, setSelectedRecordForView] = useState<FeeRecord | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Add school details state
-  const [schoolDetails] = useState({
-    name: 'SCHOOL NAME',
-    address: 'School Address',
-    contactNumber: '0123456789',
-    email: 'school@example.com',
-    principalName: 'Principal Name'
-  });
+  const [schoolDetails, setSchoolDetails] = useState<SchoolDetails | null>(null);
+
+  // Add state for custom discount type
+  const [customDiscountType, setCustomDiscountType] = useState('');
 
   // Load data from backend
   useEffect(() => {
     fetchFeeRecords();
     // Load available fee categories when component mounts
     loadFeeCategories();
+    // Load school details when component mounts
+    fetchSchoolDetails();
   }, []);
+
+  // Calculate summary statistics
+  const calculateSummaryStats = () => {
+    const totalRecords = records.length;
+    const totalAmountToBePaid = records.reduce((sum, record) => sum + (record.amountAfterDiscount || record.feeAmount || 0), 0);
+    const totalFeesPaid = records.reduce((sum, record) => sum + (record.amountPaid || 0), 0);
+    const feesLeftToBePaid = totalAmountToBePaid - totalFeesPaid;
+    
+    const fullyPaid = records.filter(record => record.status === 'Paid').length;
+    const partialPaid = records.filter(record => record.status === 'Partial').length;
+    const pending = records.filter(record => record.status === 'Pending').length;
+    
+    // Get unique students count
+    const uniqueStudents = new Set(records.map(record => record.admissionNumber)).size;
+    
+    return {
+      totalRecords,
+      totalAmountToBePaid,
+      totalFeesPaid,
+      feesLeftToBePaid,
+      fullyPaid,
+      partialPaid,
+      pending,
+      uniqueStudents
+    };
+  };
+
+  const summaryStats = calculateSummaryStats();
+
+  // Fetch school details from backend
+  const fetchSchoolDetails = async () => {
+    try {
+      const response = await axios.get(SCHOOL_API_URL);
+      if (response.data.success && response.data.data) {
+        const school = response.data.data;
+        setSchoolDetails({
+          id: school.id,
+          schoolName: school.schoolName || 'SCHOOL NAME',
+          address: school.address || 'School Address',
+          phone: school.phone || '0123456789',
+          contact: school.contact || school.phone || '0123456789',
+          email: school.email || 'school@example.com',
+          principal: school.principal || 'Principal Name',
+          image_url: school.image_url
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching school details:', err);
+      // Set default values if fetch fails
+      setSchoolDetails({
+        id: 1,
+        schoolName: 'SCHOOL NAME',
+        address: 'School Address',
+        phone: '0123456789',
+        contact: '0123456789',
+        email: 'school@example.com',
+        principal: 'Principal Name'
+      });
+    }
+  };
 
   // Fetch records from backend
   const fetchFeeRecords = async () => {
@@ -296,13 +470,28 @@ const FeeCollectionApp: React.FC = () => {
     setFormData(prev => {
       const updatedData = {
         ...prev,
-        [name]: ['feeAmount', 'totalFees', 'amountPaid'].includes(name) ? parseFloat(value) || 0 : value
+        [name]: ['feeAmount', 'totalFees', 'amountPaid', 'discountAmount'].includes(name) ? parseFloat(value) || 0 : value
       };
+
+      // Calculate discount values when discount type or amount changes
+      if (name === 'discountAmount' || name === 'discountType' || name === 'feeAmount') {
+        const discountPercent = parseFloat(String(updatedData.discountAmount)) || 0;
+        const totalAmount = updatedData.feeAmount || 0;
+        
+        if (updatedData.discountType && discountPercent > 0) {
+          updatedData.discountValue = (totalAmount * discountPercent) / 100;
+          updatedData.amountAfterDiscount = totalAmount - updatedData.discountValue;
+        } else {
+          updatedData.discountValue = 0;
+          updatedData.amountAfterDiscount = totalAmount;
+        }
+      }
 
       // When amountPaid changes, update the status automatically
       if (name === 'amountPaid') {
         const amountPaid = parseFloat(value) || 0;
-        if (amountPaid >= updatedData.totalFees) {
+        const finalAmount = updatedData.amountAfterDiscount || updatedData.feeAmount || 0;
+        if (amountPaid >= finalAmount) {
           updatedData.status = 'Paid';
         } else if (amountPaid > 0) {
           updatedData.status = 'Partial';
@@ -342,7 +531,9 @@ const FeeCollectionApp: React.FC = () => {
       feeCategory: '',
       feeCategories: [],
       discountType: '',
-      discountAmount: 0
+      discountAmount: 0,
+      discountValue: 0,
+      amountAfterDiscount: 0
     });
     setFeeStructureCategories([]); // Reset fee categories
     setSelectedCategories([]); // Reset selected categories
@@ -576,7 +767,9 @@ const FeeCollectionApp: React.FC = () => {
           mobileNumber: student.mobileNumber || '',
           className: student.sessionInfo?.currentClass || '',
           section: student.sessionInfo?.currentSection || '',
-          rollNumber: student.sessionInfo?.currentRollNo || ''
+          rollNumber: student.sessionInfo?.currentRollNo || '',
+          fatherContact: student.parentInfo?.fatherContact || '',
+          motherContact: student.parentInfo?.motherContact || ''
         });
 
         // Update form data with student details
@@ -603,7 +796,8 @@ const FeeCollectionApp: React.FC = () => {
        record.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
        record.fatherName.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (filterClass === '' || record.class === filterClass) &&
-      (filterSection === '' || record.section === filterSection)
+      (filterSection === '' || record.section === filterSection) &&
+      (filterStatus === '' || record.status === filterStatus)
     )
     .sort((a, b) => {
       const aValue = a[sortField];
@@ -746,7 +940,6 @@ const FeeCollectionApp: React.FC = () => {
       amount: totalAmount
     }));
     setStudentFeeAmounts(newAmounts);
-    setIsFullFeeForAll(true);
   };
 
   // Update handleMassFeeSubmit to use individual fee amounts
@@ -811,12 +1004,81 @@ const FeeCollectionApp: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
-  // Simple number to words function
+  // Comprehensive number to words function for Indian currency
   const numberToWords = (num: number): string => {
-    // Simple implementation - you can replace with a more comprehensive one
-    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
-    if (num < 11) return ones[num];
-    return `${num}`; // Fallback for now
+    if (num === 0) return 'Zero';
+    
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const convertHundreds = (n: number): string => {
+      let result = '';
+      if (n >= 100) {
+        result += ones[Math.floor(n / 100)] + ' Hundred ';
+        n %= 100;
+      }
+      if (n >= 20) {
+        result += tens[Math.floor(n / 10)] + ' ';
+        n %= 10;
+      } else if (n >= 10) {
+        result += teens[n - 10] + ' ';
+        return result.trim();
+      }
+      if (n > 0) {
+        result += ones[n] + ' ';
+      }
+      return result.trim();
+    };
+    
+    const convertIndianSystem = (n: number): string => {
+      if (n === 0) return '';
+      
+      let result = '';
+      
+      // Handle crores
+      if (n >= 10000000) {
+        const crores = Math.floor(n / 10000000);
+        result += convertHundreds(crores) + ' Crore ';
+        n %= 10000000;
+      }
+      
+      // Handle lakhs
+      if (n >= 100000) {
+        const lakhs = Math.floor(n / 100000);
+        result += convertHundreds(lakhs) + ' Lakh ';
+        n %= 100000;
+      }
+      
+      // Handle thousands
+      if (n >= 1000) {
+        const thousands = Math.floor(n / 1000);
+        result += convertHundreds(thousands) + ' Thousand ';
+        n %= 1000;
+      }
+      
+      // Handle remaining hundreds
+      if (n > 0) {
+        result += convertHundreds(n) + ' ';
+      }
+      
+      return result.trim();
+    };
+    
+    // Handle decimal part for paise
+    const wholePart = Math.floor(num);
+    const decimalPart = Math.round((num - wholePart) * 100);
+    
+    let result = convertIndianSystem(wholePart);
+    if (result) {
+      result += ' Rupees';
+    }
+    
+    if (decimalPart > 0) {
+      result += ' and ' + convertIndianSystem(decimalPart) + ' Paise';
+    }
+    
+    return result || 'Zero Rupees';
   };
 
   return (
@@ -841,6 +1103,25 @@ const FeeCollectionApp: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Fee Collection</h1>
         <div className="flex gap-4">
+          {/* Export Buttons */}
+          <button
+            onClick={() => exportToCSV(records)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Export CSV
+          </button>
+          <button
+            onClick={() => exportToPDF(records)}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+            Export PDF
+          </button>
           <button
             onClick={() => setIsMassFeeFormVisible(!isMassFeeFormVisible)}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
@@ -881,6 +1162,119 @@ const FeeCollectionApp: React.FC = () => {
             </>
           )}
         </button>
+        </div>
+      </div>
+
+      {/* Summary Statistics Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* Total Records */}
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Fee Records</p>
+              <p className="text-2xl font-bold">{summaryStats.totalRecords}</p>
+            </div>
+            <div className="bg-blue-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Students */}
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Total Students</p>
+              <p className="text-2xl font-bold">{summaryStats.uniqueStudents}</p>
+            </div>
+            <div className="bg-purple-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Amount Metrics */}
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Total Amount to be Paid</p>
+              <p className="text-xl font-bold">₹{summaryStats.totalAmountToBePaid.toLocaleString()}</p>
+              <p className="text-green-100 text-xs mt-1">Amount Paid: ₹{summaryStats.totalFeesPaid.toLocaleString()}</p>
+            </div>
+            <div className="bg-green-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Outstanding Amount */}
+        <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-red-100 text-sm font-medium">Outstanding Amount</p>
+              <p className="text-xl font-bold">₹{summaryStats.feesLeftToBePaid.toLocaleString()}</p>
+              <p className="text-red-100 text-xs mt-1">Fees Left to be Paid</p>
+            </div>
+            <div className="bg-red-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Status Summary */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Status Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-green-600">Fully Paid</p>
+                <p className="text-2xl font-bold text-green-900">{summaryStats.fullyPaid}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-8 w-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-yellow-600">Partial Paid</p>
+                <p className="text-2xl font-bold text-yellow-900">{summaryStats.partialPaid}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-red-600">Pending</p>
+                <p className="text-2xl font-bold text-red-900">{summaryStats.pending}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1104,24 +1498,44 @@ const FeeCollectionApp: React.FC = () => {
                   <div className="flex space-x-2">
                     <select
                       name="discountType"
-                      value={formData.discountType}
-                      onChange={handleChange}
+                      value={formData.discountType && !customDiscountType ? formData.discountType : (customDiscountType ? 'other' : formData.discountType)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'other') {
+                          setCustomDiscountType('');
+                          setFormData(prev => ({ ...prev, discountType: 'other' }));
+                        } else {
+                          setCustomDiscountType('');
+                          setFormData(prev => ({ ...prev, discountType: value }));
+                        }
+                      }}
                       className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">No Discount</option>
-                      <option value="percentage">Percentage (%)</option>
-                      <option value="fixed">Fixed Amount (₹)</option>
+                      <option value="sibling_discount">Sibling Discount</option>
+                      <option value="full_payment_discount">Full Payment Discount</option>
+                      <option value="parent_employee_discount">Parent is Campus Employee</option>
                       <option value="scholarship">Scholarship</option>
-                      <option value="sibling">Sibling Discount</option>
-                      <option value="early_payment">Early Payment</option>
+                      <option value="early_payment">Early Payment Discount</option>
+                      <option value="financial_aid">Financial Aid</option>
                       <option value="other">Other</option>
                     </select>
-                    {formData.discountType === 'other' && (
+                    {(formData.discountType === 'other' || customDiscountType) && (
                       <input
                         type="text"
-                        placeholder="Specify discount type"
+                        name="customDiscountType"
+                        placeholder="Specify discount name"
+                        value={customDiscountType}
                         className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={(e) => setFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setCustomDiscountType(value);
+                          // Update the actual discount type with the custom value, but keep 'other' for UI logic
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            discountType: value || 'other'
+                          }));
+                        }}
                       />
                     )}
                   </div>
@@ -1129,7 +1543,7 @@ const FeeCollectionApp: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Discount Amount {formData.discountType === 'percentage' ? '(%)' : formData.discountType === 'fixed' ? '(₹)' : ''}
+                    Discount Percentage (%)
                   </label>
                   <input
                     type="number"
@@ -1137,19 +1551,27 @@ const FeeCollectionApp: React.FC = () => {
                     value={formData.discountAmount || 0}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder={formData.discountType === 'percentage' ? 'Enter percentage (0-100)' : 'Enter discount amount'}
+                    placeholder="Enter discount percentage (0-100)"
                     min="0"
-                    max={formData.discountType === 'percentage' ? '100' : undefined}
-                    step={formData.discountType === 'percentage' ? '0.1' : '0.01'}
+                    max="100"
+                    step="0.1"
                     disabled={!formData.discountType}
                   />
                   {formData.discountType && (formData.discountAmount || 0) > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formData.discountType === 'percentage' 
-                        ? `Discount: ₹${((formData.feeAmount * (formData.discountAmount || 0)) / 100).toFixed(2)}`
-                        : `Discount: ₹${(formData.discountAmount || 0).toFixed(2)}`
-                      }
-                    </p>
+                    <div className="mt-2 p-2 bg-blue-50 rounded-md text-sm">
+                      <div className="flex justify-between mb-1">
+                        <span>Total Fee Amount:</span>
+                        <span className="font-medium">₹{(formData.feeAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between mb-1 text-red-600">
+                        <span>Discount ({formData.discountAmount}%):</span>
+                        <span className="font-medium">- ₹{(formData.discountValue || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-bold text-green-600">
+                        <span>Amount After Discount:</span>
+                        <span>₹{(formData.amountAfterDiscount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1458,24 +1880,44 @@ const FeeCollectionApp: React.FC = () => {
                   <div className="flex space-x-2">
                     <select
                       name="discountType"
-                      value={formData.discountType}
-                      onChange={handleChange}
+                      value={formData.discountType && !customDiscountType ? formData.discountType : (customDiscountType ? 'other' : formData.discountType)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'other') {
+                          setCustomDiscountType('');
+                          setFormData(prev => ({ ...prev, discountType: 'other' }));
+                        } else {
+                          setCustomDiscountType('');
+                          setFormData(prev => ({ ...prev, discountType: value }));
+                        }
+                      }}
                       className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">No Discount</option>
-                      <option value="percentage">Percentage (%)</option>
-                      <option value="fixed">Fixed Amount (₹)</option>
+                      <option value="sibling_discount">Sibling Discount</option>
+                      <option value="full_payment_discount">Full Payment Discount</option>
+                      <option value="parent_employee_discount">Parent is Campus Employee</option>
                       <option value="scholarship">Scholarship</option>
-                      <option value="sibling">Sibling Discount</option>
-                      <option value="early_payment">Early Payment</option>
+                      <option value="early_payment">Early Payment Discount</option>
+                      <option value="financial_aid">Financial Aid</option>
                       <option value="other">Other</option>
                     </select>
-                    {formData.discountType === 'other' && (
+                    {(formData.discountType === 'other' || customDiscountType) && (
                       <input
                         type="text"
-                        placeholder="Specify discount type"
+                        name="customDiscountType"
+                        placeholder="Specify discount name"
+                        value={customDiscountType}
                         className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        onChange={(e) => setFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setCustomDiscountType(value);
+                          // Update the actual discount type with the custom value, but keep 'other' for UI logic
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            discountType: value || 'other'
+                          }));
+                        }}
                       />
                     )}
                   </div>
@@ -1483,7 +1925,7 @@ const FeeCollectionApp: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Discount Amount {formData.discountType === 'percentage' ? '(%)' : formData.discountType === 'fixed' ? '(₹)' : ''}
+                    Discount Percentage (%)
                   </label>
                   <input
                     type="number"
@@ -1491,19 +1933,27 @@ const FeeCollectionApp: React.FC = () => {
                     value={formData.discountAmount || 0}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder={formData.discountType === 'percentage' ? 'Enter percentage (0-100)' : 'Enter discount amount'}
+                    placeholder="Enter discount percentage (0-100)"
                     min="0"
-                    max={formData.discountType === 'percentage' ? '100' : undefined}
-                    step={formData.discountType === 'percentage' ? '0.1' : '0.01'}
+                    max="100"
+                    step="0.1"
                     disabled={!formData.discountType}
                   />
                   {formData.discountType && (formData.discountAmount || 0) > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formData.discountType === 'percentage' 
-                        ? `Discount: ₹${((formData.feeAmount * (formData.discountAmount || 0)) / 100).toFixed(2)}`
-                        : `Discount: ₹${(formData.discountAmount || 0).toFixed(2)}`
-                      }
-                    </p>
+                    <div className="mt-2 p-2 bg-blue-50 rounded-md text-sm">
+                      <div className="flex justify-between mb-1">
+                        <span>Total Fee Amount:</span>
+                        <span className="font-medium">₹{(formData.feeAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between mb-1 text-red-600">
+                        <span>Discount ({formData.discountAmount}%):</span>
+                        <span className="font-medium">- ₹{(formData.discountValue || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-bold text-green-600">
+                        <span>Amount After Discount:</span>
+                        <span>₹{(formData.amountAfterDiscount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1579,18 +2029,33 @@ const FeeCollectionApp: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-end">
-            <button 
-              onClick={() => {
-                setSearchTerm('');
-                setFilterClass('');
-                setFilterSection('');
-              }}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-md transition duration-300 ease-in-out"
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              Clear Filters
-            </button>
+              <option value="">All Status</option>
+              <option value="Paid">Paid</option>
+              <option value="Partial">Partial</option>
+              <option value="Pending">Pending</option>
+            </select>
           </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button 
+            onClick={() => {
+              setSearchTerm('');
+              setFilterClass('');
+              setFilterSection('');
+              setFilterStatus('');
+            }}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-md transition duration-300 ease-in-out"
+          >
+            Clear Filters
+          </button>
         </div>
       </div>
 
@@ -1717,14 +2182,29 @@ const FeeCollectionApp: React.FC = () => {
             <div className="bg-white border border-black rounded-lg p-6 print:border print:rounded-none print:p-4">
               {/* School Header */}
               <div className="flex flex-col items-center text-center mb-2">
-                {/* Logo (optional, use a placeholder or actual logo if available) */}
+                {/* Logo (use school logo if available) */}
                 <div className="mb-2">
-                  <img src="/school-logo.png" alt="School Logo" className="h-16 w-16 object-contain mx-auto" onError={e => (e.currentTarget.style.display = 'none')} />
+                  {schoolDetails?.image_url ? (
+                    <img 
+                      src={schoolDetails.image_url} 
+                      alt="School Logo" 
+                      className="h-16 w-16 object-contain mx-auto" 
+                      onError={(e) => {
+                        // Fallback to default logo if school image fails
+                        e.currentTarget.src = '/school-logo.png';
+                        e.currentTarget.onerror = () => {
+                          e.currentTarget.style.display = 'none';
+                        };
+                      }} 
+                    />
+                  ) : (
+                    <img src="/school-logo.png" alt="School Logo" className="h-16 w-16 object-contain mx-auto" onError={e => (e.currentTarget.style.display = 'none')} />
+                  )}
                 </div>
-                <h2 className="text-2xl font-bold uppercase tracking-wide">{schoolDetails?.name || 'SCHOOL NAME'}</h2>
+                <h2 className="text-2xl font-bold uppercase tracking-wide">{schoolDetails?.schoolName || 'SCHOOL NAME'}</h2>
                 <div className="text-sm font-medium">{schoolDetails?.address || 'School Address'}</div>
-                <div className="text-sm">Contact Nos.: {schoolDetails?.contactNumber || '-'}</div>
-                <div className="text-sm">Email : {schoolDetails?.email || '-'}{schoolDetails?.principalName ? `, Principal: ${schoolDetails.principalName}` : ''}</div>
+                <div className="text-sm">Contact Nos.: {schoolDetails?.phone || '-'}</div>
+                <div className="text-sm">Email : {schoolDetails?.email || '-'}{schoolDetails?.principal ? `, Principal: ${schoolDetails.principal}` : ''}</div>
               </div>
               <hr className="my-2 border-black" />
               <div className="text-center font-semibold text-lg mb-2">FEE RECEIPT (2025-2026)</div>
@@ -1733,15 +2213,66 @@ const FeeCollectionApp: React.FC = () => {
                   <div className="flex mb-1"><span className="w-32 font-semibold">Receipt No</span>: <span className="ml-2">{selectedRecordForView.receiptNumber || '-'}</span></div>
                   <div className="flex mb-1"><span className="w-32 font-semibold">Name</span>: <span className="ml-2">{selectedRecordForView.studentName} {selectedRecordForView.fatherName ? `S/D/O ${selectedRecordForView.fatherName}` : ''} {selectedRecordForView.studentDetails?.motherName ? `/ ${selectedRecordForView.studentDetails.motherName}` : ''}</span></div>
                   <div className="flex mb-1"><span className="w-32 font-semibold">Admn No</span>: <span className="ml-2">{selectedRecordForView.admissionNumber}</span></div>
+                  <div className="flex mb-1">
+                    <span className="w-32 font-semibold">Contact No</span>: 
+                    <span className="ml-2">
+                      {selectedRecordForView.studentDetails?.fatherContact || 
+                       selectedRecordForView.studentDetails?.mobileNumber || 
+                       'N/A'}
+                      {selectedRecordForView.studentDetails?.motherContact && 
+                       selectedRecordForView.studentDetails.fatherContact !== selectedRecordForView.studentDetails.motherContact && 
+                       `, ${selectedRecordForView.studentDetails.motherContact}`}
+                    </span>
+                  </div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Fee Month</span>: <span className="ml-2">{selectedRecordForView.paymentDate ? new Date(selectedRecordForView.paymentDate).toLocaleString('default', { month: 'long' }) : '-'}</span></div>
+                </div>
+                <div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Date</span>: <span className="ml-2">{selectedRecordForView.paymentDate ? new Date(selectedRecordForView.paymentDate).toLocaleDateString() : '-'}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Class</span>: <span className="ml-2">{selectedRecordForView.class} - {selectedRecordForView.section}</span></div>
+                  {/* Add discount information if applicable */}
+                  {selectedRecordForView.discountType && selectedRecordForView.discountType !== '' && (
+                    <>
+                      <div className="flex mb-1"><span className="w-32 font-semibold">Discount Type</span>: <span className="ml-2">{selectedRecordForView.discountType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span></div>
+                      <div className="flex mb-1"><span className="w-32 font-semibold">Discount (%)</span>: <span className="ml-2">{selectedRecordForView.discountAmount || 0}%</span></div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Discount Summary (if applicable) */}
+              {selectedRecordForView.discountType && selectedRecordForView.discountType !== '' && (
+                <div className="bg-blue-50 p-3 rounded-lg mb-2 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-800 mb-2">Discount Summary</h4>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="font-medium text-gray-700">Total Fee Amount</div>
+                      <div className="text-lg font-bold text-gray-900">₹{selectedRecordForView.feeAmount?.toLocaleString()}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium text-gray-700">Discount ({selectedRecordForView.discountAmount || 0}%)</div>
+                      <div className="text-lg font-bold text-red-600">-₹{selectedRecordForView.discountValue?.toLocaleString() || '0'}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium text-gray-700">Amount After Discount</div>
+                      <div className="text-lg font-bold text-green-600">₹{selectedRecordForView.amountAfterDiscount?.toLocaleString() || selectedRecordForView.feeAmount?.toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* <div className="text-center font-semibold text-lg mb-2">FEE RECEIPT (2025-2026)</div>
+              <div className="grid grid-cols-2 gap-4 text-sm mb-2">
+                <div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Receipt No</span>: <span className="ml-2">{selectedRecordForView.receiptNumber || '-'}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Name</span>: <span className="ml-2">{selectedRecordForView.studentName} {selectedRecordForView.fatherName ? `S/D/O ${selectedRecordForView.fatherName}` : ''} {selectedRecordForView.studentDetails?.motherName ? `/ ${selectedRecordForView.studentDetails.motherName}` : ''}</span></div>
+                  <div className="flex mb-1"><span className="w-32 font-semibold">Admn No</span>: <span className="ml-2">{selectedRecordForView.admissionNumber}</span></div>
                   <div className="flex mb-1"><span className="w-32 font-semibold">Contact No</span>: <span className="ml-2">{selectedRecordForView.studentDetails?.mobileNumber || 'N/A'}</span></div>
-                  <div className="flex mb-1"><span className="w-32 font-semibold">Address</span>: <span className="ml-2">{selectedRecordForView.studentDetails?.address || 'N/A'}</span></div>
                   <div className="flex mb-1"><span className="w-32 font-semibold">Fee Month</span>: <span className="ml-2">{selectedRecordForView.paymentDate ? new Date(selectedRecordForView.paymentDate).toLocaleString('default', { month: 'long' }) : '-'}</span></div>
                 </div>
                 <div>
                   <div className="flex mb-1"><span className="w-32 font-semibold">Date</span>: <span className="ml-2">{selectedRecordForView.paymentDate ? new Date(selectedRecordForView.paymentDate).toLocaleDateString() : '-'}</span></div>
                   <div className="flex mb-1"><span className="w-32 font-semibold">Class</span>: <span className="ml-2">{selectedRecordForView.class} - {selectedRecordForView.section}</span></div>
                 </div>
-              </div>
+              </div> */}
               {/* Fee Table */}
               <div className="mt-2 mb-2">
                 <table className="w-full border border-black text-sm">
@@ -1751,30 +2282,43 @@ const FeeCollectionApp: React.FC = () => {
                       <th className="border border-black px-2 py-1">Previous Due</th>
                       <th className="border border-black px-2 py-1">Previous Adv</th>
                       <th className="border border-black px-2 py-1">Fees</th>
+                      <th className="border border-black px-2 py-1">Discount</th>
                       <th className="border border-black px-2 py-1">To Pay</th>
                       <th className="border border-black px-2 py-1">Fee Paid</th>
                     </tr>
                   </thead>
                   <tbody>
                     {/* Example: Map over fee categories if available, else show a single row */}
-                    {(selectedRecordForView.feeCategories && selectedRecordForView.feeCategories.length > 0 ? selectedRecordForView.feeCategories : ['TUITION FEE']).map(cat => (
-                      <tr key={cat}>
-                        <td className="border border-black px-2 py-1">{cat}</td>
-                        <td className="border border-black px-2 py-1 text-right">0</td>
-                        <td className="border border-black px-2 py-1 text-right">0</td>
-                        <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
-                        <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
-                        <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.amountPaid.toLocaleString()}</td>
-                      </tr>
-                    ))}
+                    {(selectedRecordForView.feeCategories && selectedRecordForView.feeCategories.length > 0 ? selectedRecordForView.feeCategories : ['TUITION FEE']).map(cat => {
+                      const originalFeeAmount = selectedRecordForView.feeAmount || 0;
+                      const discountAmount = selectedRecordForView.discountValue || 0;
+                      const amountToPay = originalFeeAmount - discountAmount;
+                      
+                      return (
+                        <tr key={cat}>
+                          <td className="border border-black px-2 py-1">{cat}</td>
+                          <td className="border border-black px-2 py-1 text-right">0</td>
+                          <td className="border border-black px-2 py-1 text-right">0</td>
+                          <td className="border border-black px-2 py-1 text-right">₹{originalFeeAmount.toLocaleString()}</td>
+                          <td className="border border-black px-2 py-1 text-right">
+                            {discountAmount > 0 ? `-₹${discountAmount.toLocaleString()}` : '0'}
+                          </td>
+                          <td className="border border-black px-2 py-1 text-right">₹{amountToPay.toLocaleString()}</td>
+                          <td className="border border-black px-2 py-1 text-right">₹{(selectedRecordForView.amountPaid || 0).toLocaleString()}</td>
+                        </tr>
+                      );
+                    })}
                     {/* Total row */}
                     <tr className="font-bold">
                       <td className="border border-black px-2 py-1 text-right">Total :</td>
                       <td className="border border-black px-2 py-1 text-right">0</td>
                       <td className="border border-black px-2 py-1 text-right">0</td>
-                      <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
-                      <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.feeAmount.toLocaleString()}</td>
-                      <td className="border border-black px-2 py-1 text-right">{selectedRecordForView.amountPaid.toLocaleString()}</td>
+                      <td className="border border-black px-2 py-1 text-right">₹{(selectedRecordForView.feeAmount || 0).toLocaleString()}</td>
+                      <td className="border border-black px-2 py-1 text-right">
+                        {(selectedRecordForView.discountValue || 0) > 0 ? `-₹${(selectedRecordForView.discountValue || 0).toLocaleString()}` : '0'}
+                      </td>
+                      <td className="border border-black px-2 py-1 text-right">₹{(selectedRecordForView.amountAfterDiscount || selectedRecordForView.feeAmount || 0).toLocaleString()}</td>
+                      <td className="border border-black px-2 py-1 text-right">₹{(selectedRecordForView.amountPaid || 0).toLocaleString()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1787,7 +2331,9 @@ const FeeCollectionApp: React.FC = () => {
                   <div>Balance : <span className="font-semibold">0</span></div>
                   <div>Advance : <span className="font-semibold">0</span></div>
                   <div>Bank : <span className="font-semibold">-</span></div>
-                  <div>Concession : <span className="font-semibold">0</span></div>
+                  <div>Concession : <span className="font-semibold">
+                    {selectedRecordForView.discountValue ? selectedRecordForView.discountValue.toLocaleString() : '0'}
+                  </span></div>
                   <div>Cheque/CC/DB/DD & Inst. Date : <span className="font-semibold">,</span></div>
                   <div>Remarks : <span className="font-semibold">-</span></div>
                 </div>
