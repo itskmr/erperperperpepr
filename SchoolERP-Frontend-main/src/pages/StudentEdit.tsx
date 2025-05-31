@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Save, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, X, Printer } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { generateAdmissionFormPrint } from '../utils/printUtils';
 
 // Student interface
 interface Student {
@@ -23,7 +24,6 @@ interface Student {
   mobileNumber?: string;
   email?: string;
   emailPassword?: string; // Added email password
-  studentPassword?: string; // Added student password
   emergencyContact?: string;
   
   // Added image fields
@@ -178,13 +178,18 @@ const StudentEdit: React.FC = () => {
   const navigate = useNavigate();
   
   // State
-  const [student, setStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState<Student>({} as Student);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  
+  // State to track password changes - only store new passwords
+  const [passwordUpdates, setPasswordUpdates] = useState<{
+    emailPassword?: string;
+    [key: string]: string | undefined;
+  }>({});
 
   const totalSteps = 7;
 
@@ -253,7 +258,6 @@ const StudentEdit: React.FC = () => {
           admissionNo: studentData.admissionNo || '',
           email: studentData.email || '',
           emailPassword: studentData.emailPassword || '',
-          studentPassword: studentData.studentPassword || '',
           dateOfBirth: studentData.dateOfBirth ? studentData.dateOfBirth.split('T')[0] : '',
           age: studentData.age || 0,
           gender: studentData.gender || '',
@@ -401,7 +405,6 @@ const StudentEdit: React.FC = () => {
         
         console.log('Mapped student data:', mappedData);
         setFormData(mappedData);
-        setStudent(studentData);
         showToast('success', 'Student data loaded successfully!');
       } else {
         console.error('Invalid API response structure:', response.data);
@@ -428,7 +431,7 @@ const StudentEdit: React.FC = () => {
 
   // Auto-calculate age when date of birth changes
   useEffect(() => {
-    if (formData.dateOfBirth) {
+    if (formData?.dateOfBirth) {
       const birthDate = new Date(formData.dateOfBirth);
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
@@ -442,26 +445,35 @@ const StudentEdit: React.FC = () => {
         setFormData(prev => ({ ...prev, age }));
       }
     }
-  }, [formData.dateOfBirth]);
+  }, [formData?.dateOfBirth]);
 
   // Handle input changes
   const handleInputChange = (field: string, value: string | number | boolean) => {
-    setFormData(prev => {
-      const keys = field.split('.');
-      if (keys.length === 1) {
-        return { ...prev, [field]: value };
-      } else {
-        const [parent, child] = keys;
-        const currentParent = prev[parent as keyof Student] as Record<string, unknown> || {};
-        return {
-          ...prev,
-          [parent]: {
-            ...currentParent,
-            [child]: value
-          }
-        };
-      }
-    });
+    // Handle password fields separately
+    if (field === 'emailPassword' || field.includes('emailPassword')) {
+      setPasswordUpdates(prev => ({
+        ...prev,
+        [field]: value as string
+      }));
+      return;
+    }
+
+    // Handle nested fields
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.');
+      setFormData(prev => ({
+        ...prev,
+        [parent]: {
+          ...(prev[parent as keyof Student] as Record<string, unknown>),
+          [child]: value
+        }
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   // Handle form submission
@@ -470,7 +482,27 @@ const StudentEdit: React.FC = () => {
     
     try {
       setSaving(true);
-      const response = await axios.put(`${API_URL}/students/${id}`, formData);
+      
+      // Prepare submission data, including only changed passwords
+      const submissionData: Record<string, unknown> = { ...formData };
+      
+      // Add password updates if they exist
+      Object.keys(passwordUpdates).forEach(key => {
+        const value = passwordUpdates[key];
+        if (value && value.trim()) {
+          if (key.includes('.')) {
+            const [parent, child] = key.split('.');
+            if (!submissionData[parent]) {
+              submissionData[parent] = {};
+            }
+            (submissionData[parent] as Record<string, unknown>)[child] = value;
+          } else {
+            submissionData[key] = value;
+          }
+        }
+      });
+      
+      const response = await axios.put(`${API_URL}/students/${id}`, submissionData);
       
       if (response.data.success) {
         showToast('success', 'Student updated successfully');
@@ -499,6 +531,16 @@ const StudentEdit: React.FC = () => {
     }
   };
 
+  // Print function
+  const handlePrint = async () => {
+    try {
+      await generateAdmissionFormPrint(formData);
+    } catch (error) {
+      console.error('Error printing student profile:', error);
+      showToast('error', 'Failed to print student profile');
+    }
+  };
+
   // Render form field helper
   const renderInput = (
     label: string, 
@@ -507,24 +549,36 @@ const StudentEdit: React.FC = () => {
     required: boolean = false,
     placeholder?: string,
     readOnly: boolean = false
-  ) => (
-    <div className="space-y-1">
-      <label className="block text-sm font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <input
-        type={type}
-        value={getFieldValue(field) || ''}
-        onChange={readOnly ? undefined : (e) => handleInputChange(field, e.target.value)}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-          readOnly ? 'bg-gray-100 cursor-not-allowed' : ''
-        }`}
-        placeholder={placeholder}
-        required={required}
-        readOnly={readOnly}
-      />
-    </div>
-  );
+  ) => {
+    const isPasswordField = type === 'password';
+    
+    // Get password value from passwordUpdates if it's a password field
+    const passwordValue = isPasswordField ? (passwordUpdates[field] || '') : '';
+    
+    return (
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <input
+          type={type}
+          value={isPasswordField ? passwordValue : (getFieldValue(field) || '')}
+          onChange={readOnly ? undefined : (e) => handleInputChange(field, e.target.value)}
+          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            readOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+          }`}
+          placeholder={isPasswordField ? 'Enter new password (leave blank to keep current)' : placeholder}
+          required={required}
+          readOnly={readOnly}
+        />
+        {isPasswordField && (
+          <p className="text-xs text-gray-500">
+            Leave blank to keep current password. Enter new password to change.
+          </p>
+        )}
+      </div>
+    );
+  };
 
   // Render select field helper
   const renderSelect = (
@@ -620,7 +674,6 @@ const StudentEdit: React.FC = () => {
               
               {/* Password Fields */}
               {renderInput('Student Email Password', 'emailPassword', 'password')}
-              {renderInput('Student Login Password', 'studentPassword', 'password')}
             </div>
             
             {/* Document Upload Section */}
@@ -843,17 +896,29 @@ const StudentEdit: React.FC = () => {
               >
                 <ArrowLeft className="h-6 w-6" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Edit Student</h1>
-                <p className="text-gray-600">{student?.fullName} ({student?.admissionNo})</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Edit Student</h1>
+                  <p className="text-gray-600">{formData?.fullName} ({formData?.admissionNo})</p>
+                </div>
               </div>
             </div>
-            <button
-              onClick={() => navigate('/school/students/manage-students')}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handlePrint}
+                className="flex items-center px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+                title="Print Student Profile"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </button>
+              <button
+                onClick={() => navigate('/school/students/manage-students')}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
         </div>
 

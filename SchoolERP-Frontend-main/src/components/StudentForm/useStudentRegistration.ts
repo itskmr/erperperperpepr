@@ -5,8 +5,8 @@ import {
   UseStudentRegistrationReturn, 
   Step 
 } from './StudentFormTypes';
-import { validateStep, validateForm, hasValidationErrors } from './StudentFormValidation';
-import { STUDENT_API, handleApiResponse } from '../../config/api';
+import { validateStep, hasValidationErrors } from './StudentFormValidation';
+import { STUDENT_API } from '../../config/api';
 import axios from 'axios';
 
 interface TransportRoute {
@@ -30,43 +30,36 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   // Form steps
   const steps: Step[] = [
-    { id: 1, title: 'Basic Details', icon: '👤' },
+    { id: 1, title: 'Basic Info', icon: '👤' },
     { id: 2, title: 'Academic', icon: '📚' },
-    { id: 3, title: 'Contact', icon: '📱' },
+    { id: 3, title: 'Contact', icon: '📞' },
     { id: 4, title: 'Address', icon: '🏠' },
-    { id: 5, title: 'Parents', icon: '👨‍👩‍👦' },
+    { id: 5, title: 'Parents', icon: '👨‍👩‍👧‍👦' },
     { id: 6, title: 'Documents', icon: '📄' },
-    { id: 7, title: 'Other', icon: '✅' }
+    { id: 7, title: 'Others', icon: '📝' }
   ];
 
   // Initial form state
   const initialFormData: StudentFormData = {
-    branchName: '',
     fullName: '',
-    dateOfBirth: '',
-    age: '',
+    admissionNo: '',
+    email: '',
+    emailPassword: '',
     penNo: '',
+    apaarId: '',
+    studentId: '',
+    dateOfBirth: '',
+    age: 0,
     gender: '',
     bloodGroup: '',
-    nationality: '',
+    nationality: 'Indian',
     religion: '',
     category: '',
     caste: '',
     aadhaarNumber: '',
     mobileNumber: '',
-    email: '',
-    emailPassword: '',
-    studentPassword: '',
     emergencyContact: '',
-    admissionNo: '',
-    studentId: '',
-    rollNumber: '',
-    className: '',
-    section: '',
-    stream: '',
-    semester: '',
-    admissionDate: new Date().toISOString().split('T')[0],
-    previousSchool: '',
+    sameAsPresentAddress: false,
     address: {
       houseNo: '',
       street: '',
@@ -80,6 +73,14 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       permanentPinCode: '',
       sameAsPresentAddress: false
     },
+    transportMode: '',
+    transportArea: '',
+    transportStand: '',
+    transportRoute: '',
+    transportDriver: '',
+    driverPhone: '',
+    pickupLocation: '',
+    dropLocation: '',
     father: {
       name: '',
       qualification: '',
@@ -294,7 +295,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   // Step navigation with validation
   const nextStep = (): void => {
     // Validate current step
-    const errors = validateStep(formData, currentStep);
+    const errors = validateStep(currentStep, formData);
     
     if (Object.keys(errors).length === 0) {
       setCurrentStep(prev => Math.min(prev + 1, steps.length));
@@ -318,7 +319,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     // Validate all steps before submitting
     const allErrors = { ...validationErrors };
     for (let step = 1; step <= steps.length; step++) {
-      const stepErrors = validateStep(formData, step);
+      const stepErrors = validateStep(step, formData);
       Object.assign(allErrors, stepErrors);
     }
     
@@ -438,7 +439,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       if (age >= 0) {
         setFormData(prev => ({
           ...prev,
-          age: age.toString()
+          age: age
         }));
       }
     }

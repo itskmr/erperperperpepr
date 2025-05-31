@@ -320,14 +320,11 @@ const TeacherDirectory: React.FC = () => {
       };
 
       // Validate required fields before sending
-      type RequiredField = keyof Pick<Teacher, 'fullName' | 'email' | 'gender' | 'phone' | 'subjects' | 'sections'>;
-      const requiredFields: RequiredField[] = ['fullName', 'email', 'gender', 'phone', 'subjects', 'sections'];
+      type RequiredField = keyof Pick<Teacher, 'fullName' | 'gender'>;
+      const requiredFields: RequiredField[] = ['fullName', 'gender']; // Only fullName and gender are required
       const missingFields = requiredFields.filter(field => {
         const value = formData[field];
-        if (field === 'subjects' || field === 'sections') {
-          return !value || !Array.isArray(value) || value.length === 0;
-        }
-        return !value;
+        return !value || (typeof value === 'string' && value.trim() === '');
       });
 
       if (missingFields.length > 0) {

@@ -292,7 +292,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
   // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['fullName', 'email', 'gender', 'phone'];
+    const requiredFields = ['fullName', 'gender']; // Only fullName and gender are required
     
     // Check required fields
     requiredFields.forEach(field => {
@@ -302,16 +302,8 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
       }
     });
 
-    // Check subjects
-    if (!Array.isArray(teacherData.subjects) || teacherData.subjects.length === 0) {
-      newErrors.subjects = 'At least one subject is required';
-    }
-
-    // Check sections
-    if (!Array.isArray(teacherData.sections) || teacherData.sections.length === 0) {
-      newErrors.sections = 'At least one section is required';
-    }
-
+    // All other fields are optional - remove previous validations for subjects, sections, etc.
+    
     // Check class incharge fields only if isClassIncharge is true
     if (teacherData.isClassIncharge) {
       if (!teacherData.inchargeClass) {
@@ -430,11 +422,10 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email <span className="text-red-500">*</span>
+              Email
               </label>
               <input
                 type="email"
-                required
                 placeholder="Enter email address"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.email ? 'border-red-500' : 'border-gray-300'
@@ -476,11 +467,10 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone <span className="text-red-500">*</span>
+              Phone
               </label>
               <input
                 type="tel"
-                required
               placeholder="Enter phone number"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.phone ? 'border-red-500' : 'border-gray-300'
@@ -585,24 +575,23 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
           {/* Subjects */}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Subjects <span className="text-red-500">*</span>
+              Subjects
             </label>
             <input
               type="text"
-                required
               placeholder="Enter subjects (comma separated)"
-                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                 errors.subjects ? 'border-red-500' : 'border-gray-300'
-                }`}
+              }`}
               value={Array.isArray(teacherData.subjects) ? teacherData.subjects.join(', ') : ''}
               onChange={(e) => handleInputChange('subjects', e.target.value.split(',').map(s => s.trim()))}
-              />
+            />
             {errors.subjects && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">
                 <AlertCircle className="w-3 h-3 mr-1" /> {errors.subjects}
                 </p>
               )}
-            </div>
+          </div>
 
           {/* Class and Section Selection */}
           <div className="col-span-2">

@@ -441,7 +441,6 @@ router.post('/', upload, handleMulterError, async (req, res) => {
         emailPassword: data.emailPassword || null,
         emergencyContact: data.emergencyContact || null,
         branchName: data.branchName || null,
-        studentPassword: data.emailPassword || null, // Optional password
         
         // Address information - all optional
         houseNo: data['address.houseNo'] || null,
@@ -502,7 +501,6 @@ router.post('/', upload, handleMulterError, async (req, res) => {
             fatherQualification: data['father.qualification'] || null,
             fatherOccupation: data['father.occupation'] || null,
             fatherContact: data['father.contactNumber'] || null,
-            fatherEmail: data['father.email'] || null,
             fatherAadhaarNo: data['father.aadhaarNo'] || null,
             fatherAnnualIncome: data['father.annualIncome'] || null,
             fatherIsCampusEmployee: data['father.isCampusEmployee'] === 'true' ? 'yes' : 'no',
@@ -511,7 +509,6 @@ router.post('/', upload, handleMulterError, async (req, res) => {
             motherQualification: data['mother.qualification'] || null,
             motherOccupation: data['mother.occupation'] || null,
             motherContact: data['mother.contactNumber'] || null,
-            motherEmail: data['mother.email'] || null,
             motherAadhaarNo: data['mother.aadhaarNo'] || null,
             motherAnnualIncome: data['mother.annualIncome'] || null,
             motherIsCampusEmployee: data['mother.isCampusEmployee'] === 'true' ? 'yes' : 'no',

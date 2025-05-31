@@ -33,7 +33,7 @@ model School {
   schoolName  String       @default("Unknown")
   email       String       @unique
   password    String
-   username    String       @unique @default(cuid())
+  username    String       @unique @default(cuid())
   code        String       @unique @default("SC000")
   address     String       @default("Not Provided")
   contact     BigInt       @default(0)
@@ -59,23 +59,23 @@ model School {
 
 model Teacher {
   id               Int       @id @default(autoincrement())
-  fullName         String
-  email            String    @unique
-  password         String
-  username         String    @unique @default(cuid())
-  phone            String    @default("0123456789") @db.VarChar(15)
+  fullName         String    // Required field
+  email            String?   @unique // Made optional
+  password         String?   // Made optional
+  username         String?   @unique @default(cuid()) // Made optional
+  phone            String?   @db.VarChar(15) // Made optional
   gender           String    // Required field
-  dateOfBirth      DateTime? // Added date of birth field
-  age              Int?      // Added age field
+  dateOfBirth      DateTime? // Optional
+  age              Int?      // Optional
   
   // Professional details
-  designation      String    @default("Teacher")
-  qualification    String?   @db.Text  // Changed from education
-  address          String?   @db.Text
+  designation      String?   // Made optional
+  qualification    String?   @db.Text  // Optional
+  address          String?   @db.Text  // Optional
   
   // Teaching details
-  subjects         String    @db.Text  // JSON string of subjects taught
-  sections         String    @db.Text  // JSON string of class and section combinations
+  subjects         String?   @db.Text  // Made optional - JSON string of subjects taught
+  sections         String?   @db.Text  // Made optional - JSON string of class and section combinations
 
   // Class incharge details
   isClassIncharge  Boolean   @default(false)
@@ -84,8 +84,8 @@ model Teacher {
   
   // Additional details
   profileImage     String?   @db.Text
-  joining_year     DateTime  @default(now())
-  experience       String    @default("0")
+  joining_year     DateTime? // Made optional
+  experience       String?   // Made optional
   
   // New personal details
   religion         String?
@@ -132,7 +132,6 @@ model Student {
   fullName         String   // Required - Student name
   admissionNo      String   @unique // Required - Admission number
   email            String?  @unique // Optional
-  studentPassword  String?  // Optional - Password for student login
   emailPassword    String?  // Password for student email
   penNo            String?  // PEN Number field
   aadhaarNumber    String?  @db.VarChar(12) // Aadhaar number field - exactly 12 digits
@@ -158,11 +157,11 @@ model Student {
   passwordResetToken String?
   passwordResetExpires DateTime?
 
-  // Parent Login Credentials
-  fatherLoginId    String?  @unique
-  fatherPassword   String?
-  motherLoginId    String?  @unique
-  motherPassword   String?
+  // // Parent Login Credentials
+  // fatherLoginId    String?  @unique
+  // fatherPassword   String?
+  // motherLoginId    String?  @unique
+  // motherPassword   String?
 
   // Document Verification Status
   documentsVerified Boolean @default(false)
@@ -239,8 +238,8 @@ model Student {
   @@index([email])
   @@index([mobileNumber])
   @@index([aadhaarNumber])
-  @@index([fatherLoginId])
-  @@index([motherLoginId])
+  // @@index([fatherLoginId])
+  // @@index([motherLoginId])
 }
 
 model PreviousSchool {
@@ -298,7 +297,7 @@ model ParentInfo {
   fatherQualification    String?
   fatherOccupation       String?
   fatherContact          String?
-  fatherEmail            String?
+  // fatherEmail            String?
   fatherAadhaarNo        String?
   fatherAnnualIncome     String?
   fatherIsCampusEmployee String? @default("no")
@@ -307,7 +306,7 @@ model ParentInfo {
   motherQualification    String?
   motherOccupation       String?
   motherContact          String?
-  motherEmail            String?
+  // motherEmail            String?
   motherAadhaarNo        String?
   motherAnnualIncome     String?
   motherIsCampusEmployee String? @default("no")
@@ -681,48 +680,49 @@ model Attendance {
 }
 
 model Registration {
-  // student information
+  // student information - Only these 3 fields are required now (testDate made optional, formNo made required)
   registrationId      String  @id @default(uuid())
-  fullName           String
-  gender              String
-  formNo              String  @unique
-  dob                 String
-  category            String
-  religion            String
-  // schoolId            Int
-  // school              School    @relation(fields: [schoolId], references: [id], onDelete: Cascade),
-  registerForClass    String
-  admissionCategory   String
-  bloodGroup          String
-  regnDate            String
-  testDate            String
-  transactionNo       String
-  singleParent        Boolean
-  contactNo           String
-  studentEmail        String
-  address             String
-  city                String
-  state               String
-  pincode             String
-  studentAadharCardNo String
-  regnCharge          String
-  examSubject         String
-  paymentStatus       String
+  fullName           String   // Required
+  formNo             String   @unique // Required - changed from optional to required
+  testDate           String?  // Optional - changed from required to optional
+  regnDate           String   // Required (registration date)
+  registerForClass   String   // Required
+  
+  // Optional student fields
+  branchName         String?
+  gender             String?
+  dob                String?
+  category           String?
+  religion           String?
+  admissionCategory  String?
+  bloodGroup         String?
+  transactionNo      String?
+  singleParent       Boolean  @default(false)
+  contactNo          String?
+  studentEmail       String?
+  address            String?
+  city               String?
+  state              String?
+  pincode            String?
+  studentAadharCardNo String?
+  regnCharge         String?
+  examSubject        String?
+  paymentStatus      String?
 
-  // father Details
-  fatherName             String
-  fatherMobileNo         String
-  smsAlert               Boolean
-  fatherEmail            String
-  fatherAadharCardNo     String
-  isFatherCampusEmployee Boolean
+  // Optional father Details
+  fatherName             String?
+  fatherMobileNo         String?
+  smsAlert               Boolean  @default(false)
+  fatherEmail            String?
+  fatherAadharCardNo     String?
+  isFatherCampusEmployee Boolean  @default(false)
 
-  // mother Details
-  motherName         String
-  motherMobileNo     String
-  motherAadharCardNo String
+  // Optional mother Details
+  motherName         String?
+  motherMobileNo     String?
+  motherAadharCardNo String?
 
-  // documents 
+  // Optional documents 
   casteCertificate              String?
   studentAadharCard             String?
   fatherAadharCard              String?
@@ -789,7 +789,7 @@ model Maintenance {
 // Bus Model
 model Bus {
   id                  String        @id @default(uuid())
-  registrationNumber  String        @unique
+  registrationNumber  String?       @unique // Made optional
   make                String
   model               String
   year                Int?

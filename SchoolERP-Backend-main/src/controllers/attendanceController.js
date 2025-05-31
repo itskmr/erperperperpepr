@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { getSchoolIdFromContext } from "../middlewares/authMiddleware.js";
 
 const prisma = new PrismaClient();
 
@@ -7,10 +8,22 @@ const prisma = new PrismaClient();
  */
 export const getStudentsByClass = async (req, res) => {
   try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { className, section } = req.query;
     
-    // Make className optional
-    let whereCondition = {};
+    // Build where condition with school context
+    let whereCondition = {
+      schoolId: schoolId // Always filter by school
+    };
     
     if (className) {
       whereCondition.className = className;
@@ -19,22 +32,40 @@ export const getStudentsByClass = async (req, res) => {
       }
     }
 
+    // For non-admin users, restrict to their school only
+    if (req.user?.role !== 'admin') {
+      whereCondition.schoolId = schoolId;
+    } else if (req.query.schoolId) {
+      // Admin can override school context
+      whereCondition.schoolId = parseInt(req.query.schoolId);
+    }
+
     // Get students from the database
     const students = await prisma.student.findMany({
       where: whereCondition,
       select: {
         id: true,
         fullName: true,
-        rollNumber: true,
+        sessionInfo: {
+          select: {
+            currentRollNo: true,
+            currentClass: true,
+            currentSection: true
+          }
+        },
         admissionNo: true,
-        className: true,
-        section: true,
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       },
       orderBy: {
         // If no className provided, order by className first, then rollNumber
-        ...(className ? { rollNumber: 'asc' } : [
-          { className: 'asc' },
-          { rollNumber: 'asc' }
+        ...(className ? { admissionNo: 'asc' } : [
+          { sessionInfo: { currentClass: 'asc' } },
+          { admissionNo: 'asc' }
         ]),
       },
       // Limit results if no className specified to prevent large response
@@ -46,37 +77,61 @@ export const getStudentsByClass = async (req, res) => {
         success: false,
         message: className 
           ? "No students found in the specified class" 
-          : "No students found in the database",
+          : "No students found in your school",
       });
     }
 
-    // Format student names to include full name
+    // Format student data to match expected format
     const formattedStudents = students.map(student => ({
-      ...student,
+      id: student.id,
       name: student.fullName,
+      fullName: student.fullName,
+      rollNumber: student.sessionInfo?.currentRollNo || '',
+      admissionNo: student.admissionNo,
+      className: student.sessionInfo?.currentClass || className || '',
+      section: student.sessionInfo?.currentSection || section || '',
+      schoolId: student.school.id,
+      schoolName: student.school.schoolName
     }));
 
     return res.status(200).json({
       success: true,
       message: "Students retrieved successfully",
       data: formattedStudents,
+      meta: {
+        schoolId: whereCondition.schoolId,
+        totalCount: formattedStudents.length,
+        className: className || 'All Classes',
+        section: section || 'All Sections'
+      }
     });
   } catch (error) {
     console.error('Error fetching students:', error);
     return res.status(500).json({
       success: false,
       message: "Error fetching students",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
 
 /**
- * Mark attendance for students - simplified approach with detailed logging
+ * Mark attendance for students - with school context validation
  */
 export const markAttendance = async (req, res) => {
   try {
     console.log("Received attendance request body:", JSON.stringify(req.body, null, 2));
+    
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { date, className, section, attendanceData, teacherId } = req.body;
 
     // Basic validation
@@ -100,55 +155,67 @@ export const markAttendance = async (req, res) => {
       });
     }
 
-    // Convert and validate teacherId
+    // Convert and validate teacherId with school context
     let teacherIdNum;
     try {
-      teacherIdNum = Number(teacherId);
-      if (isNaN(teacherIdNum) || teacherIdNum <= 0) {
-        // If teacherId is invalid, we'll try to find a valid teacher
-        const firstTeacher = await prisma.teacher.findFirst();
-        if (firstTeacher) {
-          teacherIdNum = firstTeacher.id;
-          console.log(`Using default teacher ID: ${teacherIdNum}`);
-        } else {
-          return res.status(400).json({
-            success: false,
-            message: "No valid teacher found in the system. Please add a teacher first."
-          });
-        }
-      } else {
-        // Verify teacher exists
-        const teacherExists = await prisma.teacher.findUnique({
-          where: { id: teacherIdNum },
-          select: { id: true }
+      if (teacherId && !isNaN(Number(teacherId)) && Number(teacherId) > 0) {
+        teacherIdNum = Number(teacherId);
+        
+        // Verify teacher exists and belongs to the same school
+        const teacherExists = await prisma.teacher.findFirst({
+          where: { 
+            id: teacherIdNum,
+            schoolId: schoolId
+          },
+          select: { id: true, fullName: true }
         });
         
         if (!teacherExists) {
-          // Try to find any valid teacher as fallback
-          const fallbackTeacher = await prisma.teacher.findFirst();
+          // Try to find any valid teacher in the school as fallback
+          const fallbackTeacher = await prisma.teacher.findFirst({
+            where: { schoolId: schoolId },
+            select: { id: true, fullName: true }
+          });
+          
           if (fallbackTeacher) {
             teacherIdNum = fallbackTeacher.id;
-            console.log(`Teacher ID ${teacherId} not found, using fallback teacher: ${teacherIdNum}`);
+            console.log(`Teacher ID ${teacherId} not found in school, using fallback teacher: ${fallbackTeacher.fullName} (${teacherIdNum})`);
           } else {
             return res.status(400).json({
               success: false,
-              message: "Teacher ID does not exist and no fallback teacher found."
+              message: "No teachers found in your school. Please add a teacher first."
             });
           }
+        }
+      } else {
+        // Try to find any valid teacher in the school
+        const defaultTeacher = await prisma.teacher.findFirst({
+          where: { schoolId: schoolId },
+          select: { id: true, fullName: true }
+        });
+        
+        if (defaultTeacher) {
+          teacherIdNum = defaultTeacher.id;
+          console.log(`Using default teacher: ${defaultTeacher.fullName} (${teacherIdNum})`);
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: "No teachers found in your school. Please add a teacher first."
+          });
         }
       }
     } catch (error) {
       console.error("Error validating teacher:", error);
       return res.status(400).json({
         success: false,
-        message: "Invalid teacher ID format",
+        message: "Error validating teacher information",
         error: error.message
       });
     }
     
-    // Delete any existing attendance records for this date and class
+    // Delete any existing attendance records for this date and class (with school context)
     try {
-      console.log(`Deleting existing attendance records for ${date}, ${className}`);
+      console.log(`Deleting existing attendance records for ${date}, ${className} in school ${schoolId}`);
       const deleteResult = await prisma.attendance.deleteMany({
         where: {
           date: {
@@ -157,6 +224,9 @@ export const markAttendance = async (req, res) => {
           },
           className,
           ...(section && { section }),
+          student: {
+            schoolId: schoolId // Ensure we only delete attendance for students in this school
+          }
         },
       });
       console.log("Deleted records:", deleteResult);
@@ -165,11 +235,11 @@ export const markAttendance = async (req, res) => {
       // Continue processing even if delete fails
     }
 
-    // Create attendance records one by one without a transaction
+    // Create attendance records with school validation
     const createdRecords = [];
     const errors = [];
 
-    console.log(`Processing ${attendanceData.length} attendance records with teacher ID: ${teacherIdNum}`);
+    console.log(`Processing ${attendanceData.length} attendance records with teacher ID: ${teacherIdNum} for school: ${schoolId}`);
     
     for (const item of attendanceData) {
       try {
@@ -179,115 +249,122 @@ export const markAttendance = async (req, res) => {
           continue;
         }
         
-        // Validate studentId
-        let studentId;
-        try {
-          studentId = Number(item.studentId);
-          if (isNaN(studentId) || studentId <= 0) {
-            throw new Error("Invalid student ID");
-          }
-        } catch (err) {
-          console.error(`Invalid student ID: ${item.studentId}`);
+        // Validate student belongs to the school
+        const student = await prisma.student.findFirst({
+          where: {
+            id: item.studentId,
+            schoolId: schoolId
+          },
+          select: { id: true, fullName: true, schoolId: true }
+        });
+        
+        if (!student) {
+          console.error(`Student ${item.studentId} not found in school ${schoolId}`);
           errors.push({
             studentId: item.studentId,
-            error: "Invalid student ID format",
-            details: { message: err.message }
+            error: "Student not found in your school",
+            details: { message: "Student does not belong to your school" }
           });
           continue;
         }
         
         // Validate status enum value
         let status = item.status;
-        try {
-          if (!['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'].includes(status)) {
-            console.log(`Invalid status "${status}" for student ${studentId}, defaulting to PRESENT`);
-            status = 'PRESENT';
-          }
-        } catch (statusError) {
-          console.error(`Status validation error for student ${studentId}:`, statusError);
-          status = 'PRESENT'; // Safe default
+        if (!['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'].includes(status)) {
+          status = 'PRESENT'; // Default to present if invalid
         }
 
-        console.log(`Creating attendance for student ${studentId}, status ${status}`);
-        
-        // Verify student exists
-        const studentExists = await prisma.student.findUnique({
-          where: { id: studentId },
-          select: { id: true }
+        // Create attendance record
+        const attendanceRecord = await prisma.attendance.create({
+          data: {
+            studentId: student.id,
+            teacherId: teacherIdNum,
+            date: new Date(date),
+            status: status,
+            className: className,
+            section: section || '',
+            notes: item.notes || ''
+          },
+          include: {
+            student: {
+              select: { fullName: true, admissionNo: true }
+            },
+            teacher: {
+              select: { fullName: true }
+            }
+          }
         });
 
-        if (!studentExists) {
-          throw new Error(`Student with ID ${studentId} does not exist`);
-        }
-        
-        // Create the record with minimal fields and explicit type conversions
-        try {
-          const record = await prisma.attendance.create({
-            data: {
-              date: new Date(date),
-              status: status,
-              notes: item.notes || null,
-              studentId: studentId,
-              teacherId: teacherIdNum,
-              className: className,
-              section: section || null,
-            },
-          });
-          
-          console.log(`Successfully created record ID ${record.id}`);
-          createdRecords.push(record);
-        } catch (createError) {
-          console.error(`Database error creating attendance for student ${studentId}:`, createError);
-          
-          // Detailed error handling
-          if (createError.code === 'P2003') {
-            const constraintField = createError.meta?.field_name || '';
-            if (constraintField.includes('teacherId')) {
-              throw new Error(`Teacher with ID ${teacherIdNum} does not exist. Please use a valid teacher ID.`);
-            } else if (constraintField.includes('studentId')) {
-              throw new Error(`Student with ID ${studentId} does not exist. Please check student ID.`);
-            } else {
-              throw new Error(`Foreign key constraint failed: ${constraintField}`);
-            }
-          } else if (createError.code === 'P2002') {
-            throw new Error(`Unique constraint violation - record may already exist`);
-          } else if (createError.message.includes('Enumeration')) {
-            throw new Error(`Invalid status value: ${status}. Must be one of: PRESENT, ABSENT, LATE, EXCUSED`);
-          } else {
-            throw createError; // Re-throw if it's not a specific error we want to handle
-          }
-        }
-      } catch (itemError) {
-        console.error(`Error creating attendance for student ${item.studentId}:`, itemError);
+        createdRecords.push({
+          id: attendanceRecord.id,
+          studentId: attendanceRecord.studentId,
+          studentName: attendanceRecord.student.fullName,
+          admissionNo: attendanceRecord.student.admissionNo,
+          status: attendanceRecord.status,
+          teacherName: attendanceRecord.teacher.fullName
+        });
+
+      } catch (recordError) {
+        console.error(`Error creating attendance record for student ${item.studentId}:`, recordError);
         errors.push({
           studentId: item.studentId,
-          error: itemError.message,
-          details: itemError.meta || {}
+          error: "Failed to create attendance record",
+          details: { message: recordError.message }
         });
       }
     }
 
-    if (createdRecords.length === 0) {
-      return res.status(500).json({
-        success: false,
-        message: "Failed to create any attendance records",
-        errors: errors
-      });
+    // Log the activity for production
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        await prisma.activityLog.create({
+          data: {
+            action: 'ATTENDANCE_MARKED',
+            entityType: 'ATTENDANCE',
+            entityId: `${date}-${className}`,
+            userId: req.user?.id,
+            userRole: req.user?.role,
+            schoolId: schoolId,
+            details: `Attendance marked for ${className} on ${date} by teacher ${teacherIdNum}. ${createdRecords.length} records created.`,
+            ipAddress: req.ip || req.connection?.remoteAddress,
+            userAgent: req.headers['user-agent']
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('Failed to log attendance activity:', logError);
     }
 
-    return res.status(201).json({
+    const response = {
       success: true,
-      message: `Attendance marked successfully. Created ${createdRecords.length} records.`,
-      data: createdRecords,
-      errors: errors.length > 0 ? errors : undefined
-    });
+      message: `Attendance marked successfully for ${createdRecords.length} students`,
+      data: {
+        created: createdRecords,
+        errors: errors,
+        summary: {
+          totalProcessed: attendanceData.length,
+          successfullyCreated: createdRecords.length,
+          errors: errors.length,
+          date: date,
+          className: className,
+          section: section || 'N/A',
+          schoolId: schoolId,
+          teacherId: teacherIdNum
+        }
+      }
+    };
+
+    if (errors.length > 0) {
+      response.message += ` (${errors.length} errors occurred)`;
+    }
+
+    return res.status(201).json(response);
   } catch (error) {
     console.error("Error marking attendance:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to mark attendance due to server error",
-      error: error.message,
-      details: error.meta || {}
+      message: "Error marking attendance",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };

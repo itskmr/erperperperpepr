@@ -1,6 +1,15 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import {
+  getAllTeachers,
+  getTeacherById,
+  createTeacher,
+  updateTeacher,
+  deleteTeacher,
+  getTeacherStats
+} from '../controllers/teacherController.js';
+import { protect, authorize, requireSchoolContext } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -18,6 +27,65 @@ const calculateAge = (dateOfBirth) => {
   
   return age;
 };
+
+// Protected routes with authentication and authorization
+
+// Get all teachers
+router.get('/', 
+  protect, 
+  authorize('admin', 'school', 'teacher'),
+  requireSchoolContext,
+  getAllTeachers
+);
+
+// Get teacher by ID
+router.get('/:id', 
+  protect, 
+  authorize('admin', 'school', 'teacher'),
+  requireSchoolContext,
+  getTeacherById
+);
+
+// Create new teacher
+router.post('/', 
+  protect, 
+  authorize('admin', 'school'),
+  requireSchoolContext,
+  createTeacher
+);
+
+// Update teacher
+router.put('/:id', 
+  protect, 
+  authorize('admin', 'school'),
+  requireSchoolContext,
+  updateTeacher
+);
+
+// Delete teacher
+router.delete('/:id', 
+  protect, 
+  authorize('admin', 'school'),
+  requireSchoolContext,
+  deleteTeacher
+);
+
+// Get teacher statistics
+router.get('/stats/overview', 
+  protect, 
+  authorize('admin', 'school', 'teacher'),
+  requireSchoolContext,
+  getTeacherStats
+);
+
+// Health check route (no auth required)
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Teacher service is running",
+    timestamp: new Date().toISOString()
+  });
+});
 
 // GET all teachers for a school
 router.get('/school/:schoolId', async (req, res) => {

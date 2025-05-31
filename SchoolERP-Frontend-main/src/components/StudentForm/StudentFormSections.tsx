@@ -51,7 +51,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       : validationErrors[name as keyof typeof validationErrors];
     
     // Only these 4 fields are actually required
-    const isActuallyRequired = ['fullName', 'admissionNo', 'admitSession.class', 'currentSession.class', 'father.name'].includes(name);
+    const isActuallyRequired = ['fullName', 'admissionNo', 'admitSession.class', 'father.name'].includes(name);
     
     // Handle keypress for numeric fields
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -108,8 +108,11 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     };
     
     return (
-      <label className="block mb-5">
-        <span className="text-gray-700 font-medium">{label} {isActuallyRequired && <span className="text-red-500">*</span>}</span>
+      <div className="mb-4">
+        <label className={`block text-sm font-medium mb-2 ${error ? 'text-red-600' : 'text-gray-700'}`}>
+          {label}
+          {isActuallyRequired && <span className="text-red-500 ml-1">*</span>}
+        </label>
         <input
           type={type}
           name={name}
@@ -130,7 +133,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           readOnly={readOnly}
         />
         {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-      </label>
+      </div>
     );
   };
 
@@ -176,6 +179,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
           {label} {required && <span className="text-red-500">*</span>}
         </label>
         <select
+          name={name}
           value={getValue(name, formData)}
           onChange={(e) => handleChange(e)}
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -509,11 +513,10 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
       <div className="space-y-6">
         <h3 className="text-lg font-medium mb-4 border-b pb-2">Student Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderInput('Branch Name', 'branchName', 'text', false)}
-          {renderInput('Admission No', 'admissionNo', 'text', false)}
+          {renderInput('Admission No', 'admissionNo', 'text', true)}
           {renderInput('PEN No', 'penNo', 'text')}
           {renderInput('Apaar ID', 'apaarId', 'text', false)}
-          {renderInput('Full Name', 'fullName', 'text', false, 'Enter name in BLOCK LETTERS')}
+          {renderInput('Full Name', 'fullName', 'text', true, 'Enter name in BLOCK LETTERS')}
           {renderInput('Admission Date', 'admissionDate', 'date', false)}
           {renderInput('SR No / Student ID', 'studentId')}
           {renderInput('Date of Birth', 'dateOfBirth', 'date', false)}
@@ -565,40 +568,39 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
     2: (
       <div className="space-y-8">
         <div className="space-y-6">
-          <h3 className="text-lg font-medium mb-4 border-b pb-2">Admit Session</h3>
+          <h3 className="text-lg font-medium mb-4 border-b pb-2">Admission Session</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Group', 'admitSession.group')}
+            {renderSelect('Group', 'admitSession.group', [
+              { value: '', label: 'Select Group' },
+              { value: 'Primary', label: 'Primary' },
+              { value: 'Secondary', label: 'Secondary' },
+              { value: 'Senior Secondary', label: 'Senior Secondary' }
+            ])}
             {renderSelect('Stream', 'admitSession.stream', [
               { value: '', label: 'Select Stream' },
-              ...['Science', 'Commerce', 'Arts', 'Vocational', 'General'].map(stream => ({ 
-                value: stream.toLowerCase(), label: stream 
-              }))
+              { value: 'Science', label: 'Science' },
+              { value: 'Commerce', label: 'Commerce' },
+              { value: 'Arts', label: 'Arts' },
+              { value: 'Vocational', label: 'Vocational' }
             ])}
             {renderSelect('Class', 'admitSession.class', [
               { value: '', label: 'Select Class' },
-              ...['Nursery',
-                  'LKG',
-                  'UKG',
-                  'Class 1',
-                  'Class 2',
-                  'Class 3',
-                  'Class 4',
-                  'Class 5',
-                  'Class 6',
-                  'Class 7',
-                  'Class 8',
-                  'Class 9',
-                  'Class 10',
-                  'Class 11 (Science)',
-                  'Class 11 (Commerce)',
-                  'Class 11 (Arts)',
-                  'Class 12 (Science)',
-                  'Class 12 (Commerce)',
-                  'Class 12 (Arts)'].map(cls => ({ 
-                value: cls, label: cls 
-              }))
-              
-            ], false)}
+              { value: 'Nursery', label: 'Nursery' },
+              { value: 'LKG', label: 'LKG' },
+              { value: 'UKG', label: 'UKG' },
+              { value: 'Class 1', label: 'Class 1' },
+              { value: 'Class 2', label: 'Class 2' },
+              { value: 'Class 3', label: 'Class 3' },
+              { value: 'Class 4', label: 'Class 4' },
+              { value: 'Class 5', label: 'Class 5' },
+              { value: 'Class 6', label: 'Class 6' },
+              { value: 'Class 7', label: 'Class 7' },
+              { value: 'Class 8', label: 'Class 8' },
+              { value: 'Class 9', label: 'Class 9' },
+              { value: 'Class 10', label: 'Class 10' },
+              { value: 'Class 11', label: 'Class 11' },
+              { value: 'Class 12', label: 'Class 12' }
+            ], true)}
             {renderSelect('Section', 'admitSession.section', [
               { value: '', label: 'Select Section' },
               ...['A', 'B', 'C', 'D'].map(section => ({ 
@@ -811,7 +813,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         <div className="border-b pb-4">
           <h3 className="text-lg font-medium mb-4">Father's Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('Name', 'father.name', 'text', false)}
+            {renderInput('Name', 'father.name', 'text', true)}
             {renderInput('Qualification', 'father.qualification')}
             {renderInput('Occupation', 'father.occupation')}
             {renderInput('Organization', 'father.organization')}

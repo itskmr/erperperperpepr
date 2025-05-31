@@ -29,8 +29,7 @@ interface Student {
 
   // Contact Information
   mobileNumber: string;
-  email: string;
-  studentEmailPassword: string;
+  email: string;    
   emailPassword: string;
   emergencyContact: string;
   fatherMobile: string;
@@ -411,25 +410,32 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
         }
       }
     };
+    
+    const isPasswordField = type === 'password';
 
-  return (
+    return (
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-600 mb-1">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
-                  <input
+        <input
           type={type}
           name={name}
-          value={getValue(name)}
-                    onChange={handleChange}
-          placeholder={placeholder}
+          value={isPasswordField ? '' : getValue(name)}
+          onChange={handleChange}
+          placeholder={isPasswordField ? 'Enter new password (leave blank to keep current)' : placeholder}
           readOnly={readonly}
           className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
             readonly ? 'bg-gray-100' : ''
           }`}
           required={required}
-                  />
-              </div>
+        />
+        {isPasswordField && (
+          <p className="text-xs text-gray-500 mt-1">
+            Leave blank to keep current password. Enter new password to change.
+          </p>
+        )}
+      </div>
     );
   };
 
@@ -603,7 +609,7 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {renderInput('Mobile Number', 'mobileNumber', 'tel', true, '10-digit number')}
               {renderInput('Student Email', 'email', 'email', true)}
-              {renderInput('Student Email Password', 'studentEmailPassword', 'password')}
+              {renderInput('Student Email Password', 'emailPassword', 'password')}
               {renderInput('Emergency Contact', 'emergencyContact', 'tel', true)}
               {renderInput('Father Mobile', 'fatherMobile', 'tel')}
               {renderInput('Mother Mobile', 'motherMobile', 'tel')}

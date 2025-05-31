@@ -7,8 +7,6 @@ import SchoolLogin from './pages/auth/SchoolLogin';
 import TeacherLogin from './pages/auth/TeacherLogin';
 import ParentLogin from './pages/auth/ParentLogin';
 import StudentLogin from './pages/auth/StudentLogin';
-import ParentSignup from './pages/auth/ParentSignup';
-import StudentSignup from './pages/auth/StudentSignup';
 import StudentManagement from './pages/StudentManagement';
 import FeeStructure from './pages/FeeStructure';
 import Notifications from './pages/Notifications';
@@ -110,26 +108,43 @@ import StudentDashboard from "./components/Student/StudentDashboard";
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Add loading state
 
   // Function to check authentication from localStorage
   const checkAuthFromStorage = () => {
     const storedToken = localStorage.getItem('authToken') || localStorage.getItem('token');
     const storedRole = localStorage.getItem('userRole') || localStorage.getItem('role');
 
-    console.log("Checking auth state:", { storedToken, storedRole });
+    console.log("Checking auth state:", { storedToken: storedToken ? '***' : null, storedRole });
 
     if (storedToken && storedRole) {
-      setToken(storedToken);
+      // Validate token is not expired (basic check)
+      try {
+        const tokenPayload = JSON.parse(atob(storedToken.split('.')[1]));
+        const isExpired = tokenPayload.exp * 1000 < Date.now();
+        
+        if (isExpired) {
+          console.log("Token is expired, clearing auth data");
+          handleLogout();
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log("Invalid token format, clearing auth data", error);
+        handleLogout();
+        setIsLoading(false);
+        return;
+      }
+      
       setUserRole(storedRole);
       setIsAuthenticated(true);
       console.log("User authenticated as:", storedRole);
     } else {
-      setToken(null);
       setUserRole(null);
       setIsAuthenticated(false);
       console.log("No authentication found in localStorage");
     }
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -159,11 +174,10 @@ function App() {
     localStorage.setItem('role', role); // For backward compatibility
 
     // Update state
-    setToken(token);
     setUserRole(role);
     setIsAuthenticated(true);
     
-    console.log("Authentication successful:", { token, role });
+    console.log("Authentication successful:", { token: token ? '***' : null, role });
   };
 
   const handleLogout = () => {
@@ -182,12 +196,23 @@ function App() {
     document.cookie = 'authCookie=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     
     // Reset state
-    setToken(null);
     setUserRole(null);
     setIsAuthenticated(false);
     
     console.log("Logout successful");
   };
+
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // The main App component that provides authentication state
   return (
@@ -305,12 +330,12 @@ function AppContent({
               <StudentLogin />
         } />
         
-        <Route path="/auth/parent-signup" element={
+        {/* <Route path="/auth/parent-signup" element={
           isAuthenticated && userRole === 'parent' ?
             <Navigate to="/parent/dashboard" replace /> :
             isAuthenticated ?
               <Navigate to={`/${userRole}/dashboard`} replace /> :
-              <ParentSignup />
+              <ParentSignup />  
         } />
         
         <Route path="/auth/student-signup" element={
@@ -319,7 +344,7 @@ function AppContent({
             isAuthenticated ?
               <Navigate to={`/${userRole}/dashboard`} replace /> :
               <StudentSignup />
-        } />
+        } /> */}
 
         {/* Default route - redirect to login if not authenticated, dashboard if authenticated */}
         <Route

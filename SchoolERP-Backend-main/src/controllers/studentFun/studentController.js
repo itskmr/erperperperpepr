@@ -403,6 +403,7 @@ export const getAllStudents = async (req, res) => {
         documents: true,
         educationInfo: true,
         otherInfo: true,
+        school: true, 
       }
     });
     
@@ -461,7 +462,8 @@ export const getStudentById = async (req, res) => {
         otherInfo: true,
         previousSchool: true,
         siblings: true,
-        officeDetails: true
+        officeDetails: true,
+        school: true,
       }
     });
     

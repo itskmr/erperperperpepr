@@ -21,6 +21,7 @@ import teacherRoutes from "./routes/teacherRoutes.js";
 import schoolRoutes from "./routes/schoolRoutes.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
+import financialRoutes from "./routes/financialRoutes.js";
 
 // Initialize environment variables
 dotenv.config();
@@ -198,6 +199,39 @@ app.use("/api/schools", schoolRoutes);
 // Add expense routes
 app.use("/api/expenses", expenseRoutes);
 app.use("/expenses", expenseRoutes);
+
+// Add financial routes
+app.use("/api/financial", financialRoutes);
+app.use("/financial", financialRoutes);
+
+// Direct route mappings for school endpoints
+app.post("/api/schools/student/login", (req, res) => {
+  console.log("School student login (admission) attempt received");
+  // Forward to schoolRoutes
+  req.url = '/student/login';
+  schoolRoutes(req, res);
+});
+
+app.post("/api/schools/student/email-login", (req, res) => {
+  console.log("School student email login attempt received");
+  // Forward to schoolRoutes
+  req.url = '/student/email-login';
+  schoolRoutes(req, res);
+});
+
+app.post("/api/schools/parent/email-login", (req, res) => {
+  console.log("School parent email login attempt received");
+  // Forward to schoolRoutes
+  req.url = '/parent/email-login';
+  schoolRoutes(req, res);
+});
+
+app.get("/api/schools/info", (req, res) => {
+  console.log("School info request received");
+  // Forward to schoolRoutes
+  req.url = '/info';
+  schoolRoutes(req, res);
+});
 
 // Add this before your admin routes registration:
 

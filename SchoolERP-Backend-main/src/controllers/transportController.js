@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
 import cors from "cors";
 import axios from 'axios';
+import { getSchoolIdFromContext } from "../middlewares/authMiddleware.js";
 
 // Create a new prisma client instance with proper error handling
 let prisma;
@@ -9,74 +10,49 @@ try {
   prisma = new PrismaClient();
 } catch (error) {
   console.error("Failed to initialize Prisma client:", error);
-  // Create a fallback object with empty methods to prevent crashes
-  prisma = {
-    driver: { findMany: async () => [] },
-    bus: { findMany: async () => [] },
-    route: { findMany: async () => [] },
-    trip: { findMany: async () => [] },
-    maintenance: { findMany: async () => [] },
-    studentTransport: { findMany: async () => [] },
-    school: { findFirst: async () => null }
-  };
+  throw new Error("Database initialization failed");
 }
 
-// Helper function to get school_id from request and validate it exists in database
+// Helper function to get school_id from authenticated context and validate it
 const getAndValidateSchoolId = async (req) => {
-  let schoolId = null;
-  
-  // Try to get schoolId from different sources
-  if (req.params.schoolId) {
-    schoolId = parseInt(req.params.schoolId);
-  } else if (req.query.schoolId) {
-    schoolId = parseInt(req.query.schoolId);
-  } else if (req.body.schoolId) {
-    schoolId = parseInt(req.body.schoolId);
-  } else if (req.user && req.user.schoolId) {
-    // From authenticated user context
-    schoolId = parseInt(req.user.schoolId);
-  } else if (req.user && req.user.role === 'school') {
-    // If user is a school, use their ID
-    schoolId = parseInt(req.user.id);
-  }
-
-  // If no schoolId provided or found, check if there's a default school
-  if (!schoolId) {
-    try {
-      const defaultSchool = await prisma.school.findFirst({
-        select: { id: true }
-      });
-      if (defaultSchool) {
-        schoolId = defaultSchool.id;
-        console.log(`Using default school ID: ${schoolId}`);
-      } else {
-        return { schoolId: null, error: "No school found in database. Please ensure at least one school exists." };
-      }
-    } catch (error) {
-      console.error("Error fetching default school:", error);
-      return { schoolId: null, error: "Database error while fetching school information" };
-    }
-  }
-
-  // Validate that the school exists in the database
   try {
+    // Use the authentication middleware helper to get school context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return { 
+        schoolId: null, 
+        error: "School context is required. Please ensure you're logged in properly." 
+      };
+    }
+
+    // Validate that the school exists and is active in the database
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
       select: { id: true, schoolName: true, status: true }
     });
 
     if (!school) {
-      return { schoolId: null, error: `School with ID ${schoolId} not found in database` };
+      return { 
+        schoolId: null, 
+        error: `School with ID ${schoolId} not found in database` 
+      };
     }
 
     if (school.status === 'inactive') {
-      return { schoolId: null, error: `School with ID ${schoolId} is inactive` };
+      return { 
+        schoolId: null, 
+        error: `School with ID ${schoolId} is inactive` 
+      };
     }
 
     return { schoolId: school.id, school: school, error: null };
   } catch (error) {
     console.error("Error validating school:", error);
-    return { schoolId: null, error: "Database error while validating school" };
+    return { 
+      schoolId: null, 
+      error: "Database error while validating school" 
+    };
   }
 };
 
@@ -128,7 +104,7 @@ export const getAllDrivers = async (req, res) => {
       });
     }
 
-    // Get and validate school ID
+    // Get and validate school ID from authenticated context
     const { schoolId, error } = await getAndValidateSchoolId(req);
     if (error) {
       return res.status(400).json({
@@ -137,35 +113,70 @@ export const getAllDrivers = async (req, res) => {
       });
     }
 
-    const drivers = await prisma.driver.findMany({
-      where: {
-        schoolId: schoolId
-      },
-      include: {
-        school: {
-          select: {
-            id: true,
-            schoolName: true
+    // Build where clause based on user role
+    let whereClause = { schoolId: schoolId };
+    
+    // Allow admins to see drivers from specific schools or all schools
+    if (req.query.schoolId) {
+      whereClause.schoolId = parseInt(req.query.schoolId);
+    } else if (req.query.all === 'true') {
+      whereClause = {}; // Admin can see all drivers across schools
+    }
+
+    // Add search functionality
+    if (req.query.search) {
+      whereClause.OR = [
+        { name: { contains: req.query.search, mode: 'insensitive' } },
+        { licenseNumber: { contains: req.query.search, mode: 'insensitive' } },
+        { phone: { contains: req.query.search } }
+      ];
+    }
+
+    // Add pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const skip = (page - 1) * limit;
+
+    const [drivers, totalCount] = await Promise.all([
+      prisma.driver.findMany({
+        where: whereClause,
+        include: {
+          school: {
+            select: {
+              id: true,
+              schoolName: true
+            }
           }
-        }
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+        },
+        orderBy: {
+          name: 'asc'
+        },
+        skip: skip,
+        take: limit
+      }),
+      prisma.driver.count({ where: whereClause })
+    ]);
     
     res.status(200).json({
       success: true,
-      count: drivers.length,
       data: drivers,
-      schoolId: schoolId
+      pagination: {
+        page: page,
+        limit: limit,
+        total: totalCount,
+        pages: Math.ceil(totalCount / limit)
+      },
+      meta: {
+        schoolId: whereClause.schoolId || 'all',
+        userRole: req.user?.role
+      }
     });
   } catch (error) {
     console.error("Error fetching drivers:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch drivers",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -725,11 +736,11 @@ export const createBus = async (req, res) => {
       });
     }
     
-    // Check if bus with the same registration number already exists in the same school
-    if (registrationNumber) {
+    // Check if bus with the same registration number already exists in the same school (only if registration number is provided)
+    if (registrationNumber && registrationNumber.trim()) {
       const existingBus = await prisma.bus.findFirst({
         where: { 
-          registrationNumber: registrationNumber,
+          registrationNumber: registrationNumber.trim(),
           schoolId: schoolId
         }
       });
@@ -779,7 +790,7 @@ export const createBus = async (req, res) => {
     const bus = await prisma.bus.create({
       data: {
         id: uuidv4(),
-        registrationNumber: registrationNumber || null,
+        registrationNumber: registrationNumber && registrationNumber.trim() ? registrationNumber.trim() : null,
         make,
         model: model || 'Unknown',
         capacity: parseInt(capacity),

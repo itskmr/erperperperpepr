@@ -1,31 +1,24 @@
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
+import { getSchoolIdFromContext } from "../middlewares/authMiddleware.js";
 
 const prisma = new PrismaClient();
 
-// Helper function to get school_id from request
-const getSchoolId = (req) => {
-  // Try to get schoolId from different sources
-  if (req.params.schoolId) {
-    return parseInt(req.params.schoolId);
-  } else if (req.query.schoolId) {
-    return parseInt(req.query.schoolId);
-  } else if (req.body.schoolId) {
-    return parseInt(req.body.schoolId);
-  } else if (req.user && req.user.schoolId) {
-    return parseInt(req.user.schoolId);
-  }
-  
-  // Default to first school if no specific school ID
-  return 1; // This should be improved with proper authentication
-};
-
 /**
- * Get all expenses for a school
+ * Get all expenses for a school with authentication
  */
 export const getAllExpenses = async (req, res) => {
   try {
-    const schoolId = getSchoolId(req);
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { 
       page = 1, 
       limit = 50, 
@@ -36,10 +29,19 @@ export const getAllExpenses = async (req, res) => {
       search 
     } = req.query;
 
-    // Build where clause
-    const where = {
+    // Build where clause with school context
+    let where = {
       schoolId: schoolId
     };
+
+    // Allow admins to see expenses from specific schools or all schools
+    if (req.user?.role === 'admin') {
+      if (req.query.schoolId) {
+        where.schoolId = parseInt(req.query.schoolId);
+      } else if (req.query.all === 'true') {
+        where = {}; // Admin can see all expenses across schools
+      }
+    }
 
     if (category) {
       where.category = category;
@@ -78,7 +80,8 @@ export const getAllExpenses = async (req, res) => {
           school: {
             select: {
               id: true,
-              schoolName: true
+              schoolName: true,
+              code: true
             }
           }
         }
@@ -88,6 +91,7 @@ export const getAllExpenses = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: "Expenses retrieved successfully",
       data: expenses,
       pagination: {
         currentPage: parseInt(page),
@@ -95,36 +99,62 @@ export const getAllExpenses = async (req, res) => {
         totalCount,
         limit: parseInt(limit)
       },
-      schoolId
+      meta: {
+        schoolId: where.schoolId || 'all',
+        userRole: req.user?.role,
+        filters: {
+          category: category || 'all',
+          status: status || 'all',
+          dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'all'
+        }
+      }
     });
   } catch (error) {
     console.error("Error fetching expenses:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch expenses",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
 
 /**
- * Get expense by ID
+ * Get expense by ID with school context validation
  */
 export const getExpenseById = async (req, res) => {
   try {
     const { id } = req.params;
-    const schoolId = getSchoolId(req);
+    
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    // Build where clause based on user role
+    let whereClause = {
+      id: id,
+      schoolId: schoolId
+    };
+    
+    // Allow admins to access any expense
+    if (req.user?.role === 'admin') {
+      whereClause = { id: id };
+    }
 
     const expense = await prisma.expense.findFirst({
-      where: {
-        id,
-        schoolId
-      },
+      where: whereClause,
       include: {
         school: {
           select: {
             id: true,
-            schoolName: true
+            schoolName: true,
+            code: true
           }
         }
       }
@@ -133,12 +163,13 @@ export const getExpenseById = async (req, res) => {
     if (!expense) {
       return res.status(404).json({
         success: false,
-        message: "Expense not found"
+        message: "Expense not found or you do not have permission to access it"
       });
     }
 
     res.status(200).json({
       success: true,
+      message: "Expense retrieved successfully",
       data: expense
     });
   } catch (error) {
@@ -146,17 +177,26 @@ export const getExpenseById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch expense",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
 
 /**
- * Create new expense
+ * Create new expense with school context
  */
 export const createExpense = async (req, res) => {
   try {
-    const schoolId = getSchoolId(req);
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const {
       title,
       description,
@@ -187,6 +227,26 @@ export const createExpense = async (req, res) => {
       });
     }
 
+    // Verify the school exists and is active
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, schoolName: true, status: true }
+    });
+
+    if (!school) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "School not found"
+      });
+    }
+
+    if (school.status === 'inactive') {
+      return res.status(403).json({ 
+        success: false, 
+        message: "School is inactive. Contact administrator."
+      });
+    }
+
     // Calculate total amount
     const totalAmount = parseFloat(amount) + (parseFloat(taxAmount) || 0) - (parseFloat(discountAmount) || 0);
 
@@ -206,36 +266,69 @@ export const createExpense = async (req, res) => {
         receiptNumber,
         taxAmount: parseFloat(taxAmount) || 0,
         discountAmount: parseFloat(discountAmount) || 0,
-        totalAmount,
-        status: status || 'PENDING',
+        totalAmount: totalAmount,
+        status: status || 'Pending',
         notes,
-        attachments,
+        attachments: attachments ? JSON.stringify(attachments) : null,
         budgetCategory,
-        isRecurring: Boolean(isRecurring),
+        isRecurring: isRecurring || false,
         recurringType,
-        schoolId
+        schoolId: schoolId,
+        createdBy: req.user?.id,
+        createdAt: new Date()
       },
       include: {
         school: {
           select: {
             id: true,
-            schoolName: true
+            schoolName: true,
+            code: true
           }
         }
       }
     });
 
+    // Log the activity for production
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        await prisma.activityLog.create({
+          data: {
+            action: 'EXPENSE_CREATED',
+            entityType: 'EXPENSE',
+            entityId: expense.id,
+            userId: req.user?.id,
+            userRole: req.user?.role,
+            schoolId: schoolId,
+            details: `Expense created: ${title} - ${category} - $${amount}`,
+            ipAddress: req.ip || req.connection?.remoteAddress,
+            userAgent: req.headers['user-agent']
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('Failed to log expense creation activity:', logError);
+    }
+
     res.status(201).json({
       success: true,
-      data: expense,
-      message: "Expense created successfully"
+      message: "Expense created successfully",
+      data: expense
     });
   } catch (error) {
     console.error("Error creating expense:", error);
+    
+    // Handle specific database errors
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        success: false,
+        message: "An expense with this invoice number already exists"
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: "Failed to create expense",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
