@@ -8,7 +8,7 @@ import { formatDateForInput } from '../../utils/dateUtils';
 // Define Bus interface based on API structure
 interface Bus {
   id: string;
-  registrationNumber: string;
+  registrationNumber?: string;
   make: string;
   model: string;
   capacity: number;
@@ -98,8 +98,7 @@ const BusForm: React.FC<BusFormProps> = ({
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     
-    // Required fields
-    if (!formData.registrationNumber) errors.registrationNumber = 'Registration number is required';
+    // Required fields - removed registrationNumber from required fields
     if (!formData.make) errors.make = 'Make is required';
     if (!formData.model) errors.model = 'Model is required';
     if (!formData.capacity) errors.capacity = 'Seating capacity is required';
@@ -145,14 +144,13 @@ const BusForm: React.FC<BusFormProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="registrationNumber" className="block text-sm font-medium text-gray-700">
-              Registration Number *
+              Registration Number
             </label>
             <input
               type="text"
               name="registrationNumber"
               id="registrationNumber"
-              placeholder="e.g. KA-01-MX-1234"
-              required
+              placeholder="e.g. KA-01-MX-1234 (Optional)"
               className={`mt-1 block w-full border ${formErrors.registrationNumber ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
               value={formData.registrationNumber}
               onChange={handleChange}
@@ -425,7 +423,7 @@ const BusFleetManagement: React.FC = () => {
   // Filter buses based on search query and status
   const filteredBuses = buses.filter(bus => {
     const matchesSearch = 
-      bus.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bus.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bus.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bus.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (bus.status && bus.status.toLowerCase().includes(searchQuery.toLowerCase()));

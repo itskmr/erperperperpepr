@@ -61,7 +61,7 @@ export const createTC = async (req, res) => {
       dateOfAdmission: z.string().min(1, "Date of admission is required"),
       currentClass: z.string().min(1, "Current class is required"),
       whetherFailed: z.enum(['Yes', 'No', 'NA', 'CBSEBoard']).default('No'),
-      section: z.string().default(""),
+      section: z.string().optional().default("A"),
       rollNumber: z.string().optional(),
       examAppearedIn: z.enum(['School', 'Board', 'NA', 'CBSEBoard', 'SchoolFailed', 'SchoolPassed', 'SchoolCompartment', 'BoardPassed', 'BoardFailed', 'BoardCompartment']).default('School'),
       qualifiedForPromotion: z.enum(['Yes', 'No', 'NA', 'Pass', 'Fail', 'Compartment', 'AsperCBSEBoardResult', 'AppearedinclassXExam', 'AppearedinclassXIIExam']).default('Yes'),
@@ -141,9 +141,7 @@ export const createTC = async (req, res) => {
       gamesPlayed: req.body.gamesPlayed ? JSON.stringify(req.body.gamesPlayed) : null,
       extraActivities: req.body.extraActivity ? JSON.stringify(req.body.extraActivity) : null,
       schoolId: schoolId,
-      studentId: student.id,
-      createdBy: req.user?.id,
-      createdAt: new Date()
+      studentId: student.id
     };
     
     // Create the certificate in the database
@@ -585,10 +583,7 @@ export const updateTC = async (req, res) => {
       gamesPlayed: req.body.gamesPlayed ? JSON.stringify(req.body.gamesPlayed) : undefined,
       extraActivities: req.body.extraActivity ? JSON.stringify(req.body.extraActivity) : undefined,
       // Update issued date if provided
-      issuedDate: validatedData.issuedDate ? new Date(validatedData.issuedDate) : undefined,
-      // Add audit fields
-      updatedBy: req.user?.id,
-      updatedAt: new Date()
+      issuedDate: validatedData.issuedDate ? new Date(validatedData.issuedDate) : undefined
     };
 
     // Remove undefined values
@@ -840,29 +835,19 @@ export const getStudentByAdmissionNumber = async (req, res) => {
       });
     }
 
-    // Parse class information for special formats (like "Nur" for nursery)
-    let classInfo = student.className || '';
+    // Parse class information from sessionInfo or other fields
+    let classInfo = student.sessionInfo?.currentClass || '';
     console.log(`[DEBUG] Original class value: "${classInfo}"`);
     
-    // Standardize class name format for consistent handling
-    if (classInfo.toLowerCase().includes('nur')) {
-      console.log(`[DEBUG] Nursery class detected: "${classInfo}"`);
-      classInfo = 'Nursery';
-    } else if (/^[0-9]+$/.test(classInfo)) {
-      console.log(`[DEBUG] Numeric class detected: "${classInfo}"`);
-      classInfo = `Class ${classInfo}`;
-    }
-    console.log(`[DEBUG] Formatted class value: "${classInfo}"`);
-
     // Return the student ID along with relevant details
     res.json({
       success: true,
       data: {
         id: student.id,
-        fullName: `${student.firstName} ${student.middleName || ''} ${student.lastName}`.trim(),
+        fullName: student.fullName,
         admissionNumber: student.admissionNo,
         class: classInfo,
-        section: student.section || '',
+        section: student.sessionInfo?.currentSection || '',
         schoolId: student.schoolId
       }
     });
@@ -932,26 +917,16 @@ export const fetchStudentDetails = async (req, res) => {
     console.log(`[DEBUG] Query result:`, student ? `Student details found with ID: ${student.id}` : 'No student details found');
 
     if (!student) {
-      console.log(`[DEBUG] Student details not found with admission number: "${admissionNumber}" in accessible scope`);
       return res.status(404).json({ 
         success: false,
         error: 'Student not found',
-        detail: `No student found with admission number: ${admissionNumber} in your accessible scope`
+        details: `No student found with admission number ${admissionNumber} in your school context`
       });
     }
-    
-    // Handle class name standardization (Nursery, Class 1, etc.)
-    let classInfo = student.sessionInfo?.currentClass || '';
-    console.log(`[DEBUG] Student class value: "${classInfo}"`);
-    
-    // Standardize class name format for consistent handling
-    if (classInfo.toLowerCase().includes('nur')) {
-      console.log(`[DEBUG] Nursery class detected: "${classInfo}"`);
-      classInfo = 'Nursery';
-    } else if (/^[0-9]+$/.test(classInfo)) {
-      console.log(`[DEBUG] Numeric class detected: "${classInfo}"`);
-      classInfo = `Class ${classInfo}`;
-    }
+
+    // Parse class information
+    const classInfo = student.sessionInfo?.currentClass || student.sessionInfo?.admitClass || '';
+    console.log(`[DEBUG] Original class value: "${classInfo}"`);
     console.log(`[DEBUG] Formatted class value: "${classInfo}"`);
 
     // Format the data for the TC form
@@ -963,8 +938,8 @@ export const fetchStudentDetails = async (req, res) => {
       motherName: student.motherName || '',
       nationality: student.nationality || 'Indian',
       category: student.category || 'General',
-      dateOfBirth: student.dateOfBirth.toISOString(),
-      dateOfAdmission: student.admissionDate.toISOString(),
+      dateOfBirth: student.dateOfBirth ? student.dateOfBirth.toISOString() : new Date().toISOString(),
+      dateOfAdmission: student.createdAt ? student.createdAt.toISOString() : new Date().toISOString(),
       section: student.sessionInfo?.currentSection || student.sessionInfo?.admitSection || '',
       admissionNo: student.admissionNo,
       currentClass: student.sessionInfo?.currentClass || classInfo,
@@ -987,7 +962,7 @@ export const fetchStudentDetails = async (req, res) => {
         schoolName: student.school?.schoolName || '',
         address: student.school?.address || '',
         recognitionId: student.school?.code || '',
-        affiliationNo: '',
+        affiliationNo: '', // Set to empty string since it's not in the schema
         contact: student.school?.contact ? student.school.contact.toString() : '',
         email: student.school?.email || '',
         imageUrl: student.school?.image_url || ''
@@ -1003,7 +978,7 @@ export const fetchStudentDetails = async (req, res) => {
     res.status(500).json({ 
       success: false,
       error: 'Internal server error',
-      detail: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch student details'
     });
   }
 };

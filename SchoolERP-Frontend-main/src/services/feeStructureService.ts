@@ -1,24 +1,50 @@
-import { ClassFeeStructure, FeeCategory } from '../types/FeeStructureTypes';
+import { ClassFeeStructure } from '../types/FeeStructureTypes';
 import axios from 'axios';
 
 const API_URL = 'http://localhost:5000/api';
 
-// Configure axios defaults
+// Create axios instance with authentication
 const axiosInstance = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+    'Content-Type': 'application/json'
+  },
+  withCredentials: true
 });
+
+// Request interceptor for API calls
+axiosInstance.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for handling auth errors
+axiosInstance.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Get all fee structures
 export const getFeeStructures = async (schoolId?: number): Promise<ClassFeeStructure[]> => {
   try {
     const queryParam = schoolId ? `?schoolId=${schoolId}` : '';
-    const response = await axiosInstance.get(`/fee-structures${queryParam}`);
-    return response.data;
+    const response = await axiosInstance.get(`/fee-structure${queryParam}`);
+    return response.data.data || response.data;
   } catch (error) {
     console.error('Error fetching fee structures:', error);
     throw error;
@@ -42,8 +68,8 @@ export const getFeeStructureByClassName = async (className: string): Promise<Cla
 // Get fee structure by ID
 export const getFeeStructureById = async (id: string): Promise<ClassFeeStructure> => {
   try {
-    const response = await axiosInstance.get(`/fee-structures/${id}`);
-    return response.data;
+    const response = await axiosInstance.get(`/fee-structure/${id}`);
+    return response.data.data || response.data;
   } catch (error) {
     console.error(`Error fetching fee structure ${id}:`, error);
     throw error;
@@ -53,11 +79,11 @@ export const getFeeStructureById = async (id: string): Promise<ClassFeeStructure
 // Create fee structure
 export const createFeeStructure = async (feeStructure: Partial<ClassFeeStructure>): Promise<ClassFeeStructure> => {
   try {
-    const response = await axiosInstance.post('/fee-structures', {
+    const response = await axiosInstance.post('/fee-structure', {
       ...feeStructure,
       schoolId: 1
     });
-    return response.data;
+    return response.data.data || response.data;
   } catch (error) {
     console.error('Error creating fee structure:', error);
     throw error;
@@ -67,11 +93,11 @@ export const createFeeStructure = async (feeStructure: Partial<ClassFeeStructure
 // Update fee structure
 export const updateFeeStructure = async (id: string, feeStructure: Partial<ClassFeeStructure>): Promise<ClassFeeStructure> => {
   try {
-    const response = await axiosInstance.put(`/fee-structures/${id}`, {
+    const response = await axiosInstance.put(`/fee-structure/${id}`, {
       ...feeStructure,
       schoolId: feeStructure.schoolId || 1
     });
-    return response.data;
+    return response.data.data || response.data;
   } catch (error) {
     console.error(`Error updating fee structure ${id}:`, error);
     throw error;
@@ -81,7 +107,7 @@ export const updateFeeStructure = async (id: string, feeStructure: Partial<Class
 // Delete fee structure
 export const deleteFeeStructure = async (id: string): Promise<boolean> => {
   try {
-    await axiosInstance.delete(`/fee-structures/${id}`);
+    await axiosInstance.delete(`/fee-structure/${id}`);
     return true;
   } catch (error) {
     console.error(`Error deleting fee structure ${id}:`, error);
@@ -92,27 +118,41 @@ export const deleteFeeStructure = async (id: string): Promise<boolean> => {
 // Get all fee categories
 export const getFeeCategories = async (): Promise<string[]> => {
   try {
-    const response = await axiosInstance.get('/fee-categories');
+    const response = await axiosInstance.get('/fee-structure/categories/all');
     if (Array.isArray(response.data)) {
       return response.data;
+    } else if (response.data.data && Array.isArray(response.data.data)) {
+      return response.data.data;
     } else {
-      return await getFallbackCategories();
+      return getFallbackCategories();
     }
-  } catch (error) {
-    return await getFallbackCategories();
+  } catch {
+    return getFallbackCategories();
   }
 };
 
 // Fallback method to get categories
-const getFallbackCategories = async (): Promise<string[]> => {
-  try {
-    const response = await axiosInstance.get('/fee-categories/check');
-    if (response.data.available_categories && Array.isArray(response.data.available_categories)) {
-      return response.data.available_categories;
-    } else {
-      throw new Error("Invalid data from fallback endpoint");
-    }
-  } catch (error) {
-    throw error;
-  }
+const getFallbackCategories = (): string[] => {
+  // Use default categories if API fails
+  const defaultCategories = [
+    'Registration Fee',
+    'Admission Fee',
+    'Tuition Fee',
+    'Monthly Fee',
+    'Annual Charges',
+    'Development Fund',
+    'Computer Lab Fee',
+    'Transport Fee',
+    'Library Fee',
+    'Laboratory Fee',
+    'Sports Fee',
+    'Readmission Charge',
+    'PTA Fee',
+    'Smart Class Fee',
+    'Security and Safety Fee',
+    'Activities Fee',
+    'Examination Fee',
+    'Maintenance Fee'
+  ];
+  return defaultCategories;
 }; 

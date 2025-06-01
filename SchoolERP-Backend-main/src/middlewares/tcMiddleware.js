@@ -14,7 +14,7 @@ const LocalTCCreateSchema = z.object({
   dateOfAdmission: z.string().min(1, "Date of admission is required"),
   currentClass: z.string().min(1, "Current class is required"),
   whetherFailed: z.enum(['Yes', 'No', 'NA', 'CBSEBoard']).default('No'),
-  section: z.string().default(""),
+  section: z.string().optional().default("A"),
   rollNumber: z.string().optional(),
   examAppearedIn: z.enum(['School', 'Board', 'NA', 'CBSEBoard', 'SchoolFailed', 'SchoolPassed', 'SchoolCompartment', 'BoardPassed', 'BoardFailed', 'BoardCompartment']).default('School'),
   qualifiedForPromotion: z.enum(['Yes', 'No', 'NA', 'Pass', 'Fail', 'Compartment', 'AsperCBSEBoardResult', 'AppearedinclassXExam', 'AppearedinclassXIIExam']).default('Yes'),

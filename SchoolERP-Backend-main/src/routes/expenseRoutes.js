@@ -12,6 +12,15 @@ import { protect, authorize, requireSchoolContext } from '../middlewares/authMid
 
 const router = express.Router();
 
+// Health check route (no auth required) - MUST be before protected routes
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Expense service is running",
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Protected routes with authentication and authorization
 
 // Get all expenses
@@ -69,14 +78,5 @@ router.get('/categories/all',
   requireSchoolContext,
   getExpenseCategories
 );
-
-// Health check route (no auth required)
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Expense service is running",
-    timestamp: new Date().toISOString()
-  });
-});
 
 export default router; 

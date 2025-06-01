@@ -462,11 +462,11 @@ const StudentEdit: React.FC = () => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
       setFormData(prev => ({
-        ...prev,
-        [parent]: {
+          ...prev,
+          [parent]: {
           ...(prev[parent as keyof Student] as Record<string, unknown>),
-          [child]: value
-        }
+            [child]: value
+          }
       }));
     } else {
       setFormData(prev => ({
@@ -556,28 +556,28 @@ const StudentEdit: React.FC = () => {
     const passwordValue = isPasswordField ? (passwordUpdates[field] || '') : '';
     
     return (
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-        <input
-          type={type}
+    <div className="space-y-1">
+      <label className="block text-sm font-medium text-gray-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        type={type}
           value={isPasswordField ? passwordValue : (getFieldValue(field) || '')}
-          onChange={readOnly ? undefined : (e) => handleInputChange(field, e.target.value)}
-          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            readOnly ? 'bg-gray-100 cursor-not-allowed' : ''
-          }`}
+        onChange={readOnly ? undefined : (e) => handleInputChange(field, e.target.value)}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+          readOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+        }`}
           placeholder={isPasswordField ? 'Enter new password (leave blank to keep current)' : placeholder}
-          required={required}
-          readOnly={readOnly}
-        />
+        required={required}
+        readOnly={readOnly}
+      />
         {isPasswordField && (
           <p className="text-xs text-gray-500">
             Leave blank to keep current password. Enter new password to change.
           </p>
         )}
-      </div>
-    );
+    </div>
+  );
   };
 
   // Render select field helper
@@ -897,11 +897,11 @@ const StudentEdit: React.FC = () => {
                 <ArrowLeft className="h-6 w-6" />
               </button>
               <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Edit Student</h1>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Edit Student</h1>
                   <p className="text-gray-600">{formData?.fullName} ({formData?.admissionNo})</p>
-                </div>
               </div>
+            </div>
             </div>
             <div className="flex items-center space-x-3">
               <button
@@ -912,12 +912,12 @@ const StudentEdit: React.FC = () => {
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </button>
-              <button
-                onClick={() => navigate('/school/students/manage-students')}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-6 w-6" />
-              </button>
+            <button
+              onClick={() => navigate('/school/students/manage-students')}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-6 w-6" />
+            </button>
             </div>
           </div>
         </div>

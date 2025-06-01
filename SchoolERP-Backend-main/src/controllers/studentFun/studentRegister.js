@@ -18,12 +18,11 @@ const registerStudent = async (req, res) => {
       });
     }
     
-    // Validate required fields (only 4 fields are required now)
+    // Validate required fields - Updated per user request: only admission number, full name, and father name are required
     const requiredFields = {
-      fullName: formFields.fullName?.trim(),
-      formNo: formFields.formNo?.trim(),
-      regnDate: formFields.regnDate?.trim(),
-      registerForClass: formFields.registerForClass?.trim()
+      formNo: formFields.formNo?.trim(),        // Admission number (required)
+      fullName: formFields.fullName?.trim(),    // Full name (required)
+      fatherName: formFields.fatherName?.trim() // Father name (required)
     };
 
     // Check for missing required fields
@@ -99,8 +98,8 @@ const registerStudent = async (req, res) => {
       // Required fields
       fullName: formFields.fullName.trim(),
       formNo: formFields.formNo.trim(),
-      regnDate: formFields.regnDate.trim(),
-      registerForClass: formFields.registerForClass.trim(),
+      regnDate: formFields.regnDate?.trim(),
+      registerForClass: formFields.registerForClass?.trim(),
       
       // School ID (from authenticated context) - Important: schoolId is optional in schema
       schoolId: schoolId,
@@ -148,7 +147,7 @@ const registerStudent = async (req, res) => {
     let registeredStudent;
     try {
       registeredStudent = await prisma.registration.create({
-        data: registerStudentData,
+      data: registerStudentData,
         include: {
           School: {
             select: {
@@ -340,7 +339,6 @@ const getAllRegisteredStudents = async (req, res) => {
           transferCertificate: true,
           studentDateOfBirthCertificate: true,
           schoolId: true,
-          createdAt: true,
           School: {
             select: {
               id: true,
@@ -350,7 +348,6 @@ const getAllRegisteredStudents = async (req, res) => {
           }
         },
         orderBy: [
-          { createdAt: 'desc' },
           { formNo: 'asc' }
         ],
         skip: skip,

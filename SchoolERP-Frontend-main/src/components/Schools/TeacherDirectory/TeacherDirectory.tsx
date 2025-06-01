@@ -321,10 +321,10 @@ const TeacherDirectory: React.FC = () => {
 
       // Validate required fields before sending
       type RequiredField = keyof Pick<Teacher, 'fullName' | 'gender'>;
-      const requiredFields: RequiredField[] = ['fullName', 'gender']; // Only fullName and gender are required
+      const requiredFields: RequiredField[] = ['fullName', 'gender'];
       const missingFields = requiredFields.filter(field => {
         const value = formData[field];
-        return !value || (typeof value === 'string' && value.trim() === '');
+        return !value;
       });
 
       if (missingFields.length > 0) {
@@ -523,13 +523,10 @@ const TeacherDirectory: React.FC = () => {
   const handleEditSubmit = async () => {
     try {
       // Validate required fields
-      type RequiredField = keyof Pick<Teacher, 'fullName' | 'email' | 'gender' | 'phone' | 'subjects' | 'sections'>;
-      const requiredFields: RequiredField[] = ['fullName', 'email', 'gender', 'phone', 'subjects', 'sections'];
+      type RequiredField = keyof Pick<Teacher, 'fullName' | 'gender'>;
+      const requiredFields: RequiredField[] = ['fullName', 'gender'];
       const missingFields = requiredFields.filter(field => {
         const value = editTeacher[field];
-        if (field === 'subjects' || field === 'sections') {
-          return !value || !Array.isArray(value) || value.length === 0;
-        }
         return !value;
       });
 

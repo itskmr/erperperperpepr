@@ -11,6 +11,15 @@ import { protect, authorize, requireSchoolContext } from '../middlewares/authMid
 
 const router = express.Router();
 
+// Health check route (no auth required) - MUST be before protected routes
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Fee structure service is running",
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Protected routes with authentication and authorization
 
 // Get all fee structures
@@ -60,14 +69,5 @@ router.get('/categories/all',
   requireSchoolContext,
   getAllFeeCategories
 );
-
-// Health check route (no auth required)
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Fee structure service is running",
-    timestamp: new Date().toISOString()
-  });
-});
 
 export default router; 

@@ -21,7 +21,6 @@ import teacherRoutes from "./routes/teacherRoutes.js";
 import schoolRoutes from "./routes/schoolRoutes.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
-import financialRoutes from "./routes/financialRoutes.js";
 
 // Initialize environment variables
 dotenv.config();
@@ -173,7 +172,7 @@ app.use("/api/fees", feeRoutes);
 app.use("/fees", feeRoutes);
 
 // Fee Structure routes
-app.use("/api", feeStructureRoutes);
+app.use("/api/fee-structure", feeStructureRoutes);
 
 // Add TC form routes to the API
 app.use("/api", tcformRoutes);
@@ -199,10 +198,6 @@ app.use("/api/schools", schoolRoutes);
 // Add expense routes
 app.use("/api/expenses", expenseRoutes);
 app.use("/expenses", expenseRoutes);
-
-// Add financial routes
-app.use("/api/financial", financialRoutes);
-app.use("/financial", financialRoutes);
 
 // Direct route mappings for school endpoints
 app.post("/api/schools/student/login", (req, res) => {

@@ -267,15 +267,17 @@ export const createExpense = async (req, res) => {
         taxAmount: parseFloat(taxAmount) || 0,
         discountAmount: parseFloat(discountAmount) || 0,
         totalAmount: totalAmount,
-        status: status || 'Pending',
+        status: status || 'PENDING',
         notes,
         attachments: attachments ? JSON.stringify(attachments) : null,
         budgetCategory,
         isRecurring: isRecurring || false,
         recurringType,
-        schoolId: schoolId,
-        createdBy: req.user?.id,
-        createdAt: new Date()
+        school: {
+          connect: {
+            id: schoolId
+          }
+        }
       },
       include: {
         school: {
@@ -339,7 +341,17 @@ export const createExpense = async (req, res) => {
 export const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const schoolId = getSchoolId(req);
+    
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const {
       title,
       description,
@@ -363,18 +375,26 @@ export const updateExpense = async (req, res) => {
       recurringType
     } = req.body;
 
-    // Check if expense exists and belongs to school
+    // Build where clause based on user role
+    let whereClause = {
+      id: id,
+      schoolId: schoolId
+    };
+    
+    // Allow admins to update any expense
+    if (req.user?.role === 'admin') {
+      whereClause = { id: id };
+    }
+
+    // Check if expense exists and user has permission
     const existingExpense = await prisma.expense.findFirst({
-      where: {
-        id,
-        schoolId
-      }
+      where: whereClause
     });
 
     if (!existingExpense) {
       return res.status(404).json({
         success: false,
-        message: "Expense not found"
+        message: "Expense not found or you do not have permission to update it"
       });
     }
 
@@ -422,7 +442,8 @@ export const updateExpense = async (req, res) => {
         school: {
           select: {
             id: true,
-            schoolName: true
+            schoolName: true,
+            code: true
           }
         }
       }
@@ -438,7 +459,7 @@ export const updateExpense = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update expense",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -449,20 +470,37 @@ export const updateExpense = async (req, res) => {
 export const deleteExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const schoolId = getSchoolId(req);
+    
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
 
-    // Check if expense exists and belongs to school
+    // Build where clause based on user role
+    let whereClause = {
+      id: id,
+      schoolId: schoolId
+    };
+    
+    // Allow admins to delete any expense
+    if (req.user?.role === 'admin') {
+      whereClause = { id: id };
+    }
+
+    // Check if expense exists and user has permission
     const expense = await prisma.expense.findFirst({
-      where: {
-        id,
-        schoolId
-      }
+      where: whereClause
     });
 
     if (!expense) {
       return res.status(404).json({
         success: false,
-        message: "Expense not found"
+        message: "Expense not found or you do not have permission to delete it"
       });
     }
 
@@ -479,7 +517,7 @@ export const deleteExpense = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete expense",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -489,11 +527,31 @@ export const deleteExpense = async (req, res) => {
  */
 export const getExpenseAnalytics = async (req, res) => {
   try {
-    const schoolId = getSchoolId(req);
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { startDate, endDate, category } = req.query;
 
-    // Build where clause
-    const where = { schoolId };
+    // Build where clause with school context
+    let where = {
+      schoolId: schoolId
+    };
+
+    // Allow admins to see analytics from specific schools or all schools
+    if (req.user?.role === 'admin') {
+      if (req.query.schoolId) {
+        where.schoolId = parseInt(req.query.schoolId);
+      } else if (req.query.all === 'true') {
+        where = {}; // Admin can see all expenses across schools
+      }
+    }
 
     if (startDate && endDate) {
       where.expenseDate = {
@@ -542,7 +600,7 @@ export const getExpenseAnalytics = async (req, res) => {
         MONTH(expenseDate) as month,
         SUM(totalAmount) as total
       FROM Expense
-      WHERE schoolId = ${schoolId}
+      WHERE schoolId = ${where.schoolId || schoolId}
         AND YEAR(expenseDate) = ${currentYear}
       GROUP BY MONTH(expenseDate)
       ORDER BY month
@@ -573,6 +631,14 @@ export const getExpenseAnalytics = async (req, res) => {
         monthlyExpenses,
         totalExpenses: totalExpenseResult._sum.totalAmount || 0,
         totalCount: totalExpenseResult._count.id || 0
+      },
+      meta: {
+        schoolId: where.schoolId || schoolId,
+        userRole: req.user?.role,
+        filters: {
+          category: category || 'all',
+          dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'all'
+        }
       }
     });
   } catch (error) {
@@ -580,7 +646,7 @@ export const getExpenseAnalytics = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch expense analytics",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };

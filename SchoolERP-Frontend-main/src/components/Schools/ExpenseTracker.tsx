@@ -8,6 +8,56 @@ import { Chart, ChartConfiguration, registerables } from 'chart.js';
 // Register Chart.js components
 Chart.register(...registerables);
 
+// Create axios instance with authentication
+const apiClient = axios.create({
+  baseURL: 'http://localhost:5000/api/expenses',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  withCredentials: true
+});
+
+// Request interceptor for API calls
+apiClient.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    console.error('Request configuration error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for API calls
+apiClient.interceptors.response.use(
+  response => response,
+  async error => {
+    const originalRequest = error.config;
+    
+    if (error.response) {
+      if (error.response.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+        // Redirect to login if unauthorized
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      } else if (error.response.status === 500) {
+        console.error('Server error:', error.response.data);
+      }
+    } else if (error.request) {
+      console.error('Network error - no response received:', error.request);
+    } else {
+      console.error('Error setting up request:', error.message);
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // Export functions
 const exportToCSV = (data: Expense[]) => {
   const headers = [
@@ -163,7 +213,6 @@ interface ExpenseFormData {
 }
 
 // Constants
-const API_URL = 'http://localhost:5000/api/expenses';
 const CATEGORIES = [
   'Stationery',
   'Utilities',
@@ -489,7 +538,7 @@ const ExpenseTracker: React.FC = () => {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       
-      const response = await axios.get(`${API_URL}?${params}`);
+      const response = await apiClient.get(`?${params}`);
       
       if (response.data.success) {
         setExpenses(response.data.data);
@@ -517,7 +566,7 @@ const ExpenseTracker: React.FC = () => {
       if (endDate) params.append('endDate', endDate);
       if (filterCategory) params.append('category', filterCategory);
       
-      const response = await axios.get(`${API_URL}/analytics?${params}`);
+      const response = await apiClient.get(`/analytics/overview?${params}`);
       
       if (response.data.success) {
         setAnalytics(response.data.data);
@@ -562,13 +611,13 @@ const ExpenseTracker: React.FC = () => {
         amount: parseFloat(formData.amount),
         taxAmount: parseFloat(formData.taxAmount) || 0,
         discountAmount: parseFloat(formData.discountAmount) || 0,
-        expenseDate: formData.expenseDate,
-        schoolId: 1 // You might want to get this from authentication context
+        expenseDate: formData.expenseDate
+        // Removed schoolId - backend gets it from authentication context
       };
       
       if (editingExpense) {
         // Update existing expense
-        const response = await axios.put(`${API_URL}/${editingExpense.id}`, payload);
+        const response = await apiClient.put(`/${editingExpense.id}`, payload);
         if (response.data.success) {
           toast.success('Expense updated successfully');
           setEditingExpense(null);
@@ -576,7 +625,7 @@ const ExpenseTracker: React.FC = () => {
         }
       } else {
         // Create new expense
-        const response = await axios.post(API_URL, payload);
+        const response = await apiClient.post('', payload);
         if (response.data.success) {
           toast.success('Expense created successfully');
         }
@@ -666,7 +715,7 @@ const ExpenseTracker: React.FC = () => {
     
     try {
       setIsLoading(true);
-      const response = await axios.delete(`${API_URL}/${expenseToDelete}`);
+      const response = await apiClient.delete(`/${expenseToDelete}`);
       
       if (response.data.success) {
         toast.success('Expense deleted successfully');

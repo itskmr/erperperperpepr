@@ -1,15 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import {
-  getAllTeachers,
-  getTeacherById,
-  createTeacher,
-  updateTeacher,
-  deleteTeacher,
-  getTeacherStats
-} from '../controllers/teacherController.js';
-import { protect, authorize, requireSchoolContext } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -27,65 +18,6 @@ const calculateAge = (dateOfBirth) => {
   
   return age;
 };
-
-// Protected routes with authentication and authorization
-
-// Get all teachers
-router.get('/', 
-  protect, 
-  authorize('admin', 'school', 'teacher'),
-  requireSchoolContext,
-  getAllTeachers
-);
-
-// Get teacher by ID
-router.get('/:id', 
-  protect, 
-  authorize('admin', 'school', 'teacher'),
-  requireSchoolContext,
-  getTeacherById
-);
-
-// Create new teacher
-router.post('/', 
-  protect, 
-  authorize('admin', 'school'),
-  requireSchoolContext,
-  createTeacher
-);
-
-// Update teacher
-router.put('/:id', 
-  protect, 
-  authorize('admin', 'school'),
-  requireSchoolContext,
-  updateTeacher
-);
-
-// Delete teacher
-router.delete('/:id', 
-  protect, 
-  authorize('admin', 'school'),
-  requireSchoolContext,
-  deleteTeacher
-);
-
-// Get teacher statistics
-router.get('/stats/overview', 
-  protect, 
-  authorize('admin', 'school', 'teacher'),
-  requireSchoolContext,
-  getTeacherStats
-);
-
-// Health check route (no auth required)
-router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Teacher service is running",
-    timestamp: new Date().toISOString()
-  });
-});
 
 // GET all teachers for a school
 router.get('/school/:schoolId', async (req, res) => {
@@ -273,82 +205,106 @@ router.post('/', async (req, res) => {
       schoolId
     } = req.body;
 
-    // Validate required fields
-    if (!fullName || !email || !password || !phone || !gender || !schoolId) {
+    // Validate required fields - only fullName and gender are required
+    if (!fullName || !gender) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Please provide fullName and gender'
       });
     }
 
-    // Check if teacher with same email exists
-    const existingTeacher = await prisma.teacher.findUnique({
-      where: { email }
-    });
+    // Set default schoolId if not provided (from auth context)
+    const teacherSchoolId = schoolId || 1; // You can get this from auth context
 
-    if (existingTeacher) {
-      return res.status(400).json({
-        success: false,
-        message: 'Teacher with this email already exists'
+    // Check if teacher with same email exists (only if email is provided)
+    if (email) {
+      const existingTeacher = await prisma.teacher.findUnique({
+        where: { email }
       });
+
+      if (existingTeacher) {
+        return res.status(400).json({
+          success: false,
+          message: 'Teacher with this email already exists'
+        });
+      }
     }
 
     // Calculate age if date of birth is provided
     const age = dateOfBirth ? calculateAge(dateOfBirth) : null;
 
-    // Create new teacher
+    // Generate username from email or use a default
+    const username = email ? email.split('@')[0] : `teacher_${Date.now()}`;
+
+    // Hash password if provided, otherwise use default
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : await bcrypt.hash('123456', 10);
+
+    // Process subjects and sections arrays
+    const processedSubjects = Array.isArray(subjects) ? JSON.stringify(subjects) : (subjects || '[]');
+    const processedSections = Array.isArray(sections) ? JSON.stringify(sections) : (sections || '[]');
+    const processedDocuments = Array.isArray(documents) ? JSON.stringify(documents) : (documents || '[]');
+
     const teacher = await prisma.teacher.create({
       data: {
-        fullName,
-        email,
-        password: await bcrypt.hash(password, 10),
-        phone,
-        gender,
+        fullName: fullName.trim(),
+        email: email ? email.trim() : null,
+        password: hashedPassword,
+        username: username,
+        phone: phone ? phone.trim() : null,
+        gender: gender.trim(),
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        age,
-        designation,
-        qualification,
-        address,
-        subjects: JSON.stringify(subjects || []),
-        sections: JSON.stringify(sections || []),
-        religion,
-        bloodGroup,
-        maritalStatus,
-        facebook,
-        twitter,
-        linkedIn,
-        documents: JSON.stringify(documents || []),
+        age: age,
+        designation: designation ? designation.trim() : 'Teacher',
+        qualification: qualification ? qualification.trim() : null,
+        address: address ? address.trim() : null,
+        subjects: processedSubjects,
+        sections: processedSections,
+        religion: religion ? religion.trim() : null,
+        bloodGroup: bloodGroup ? bloodGroup.trim() : null,
+        maritalStatus: maritalStatus ? maritalStatus.trim() : null,
+        facebook: facebook ? facebook.trim() : null,
+        twitter: twitter ? twitter.trim() : null,
+        linkedIn: linkedIn ? linkedIn.trim() : null,
+        documents: processedDocuments,
         joiningSalary: joiningSalary ? parseFloat(joiningSalary) : null,
-        accountHolderName,
-        accountNumber,
-        bankName,
-        bankBranch,
+        accountHolderName: accountHolderName ? accountHolderName.trim() : null,
+        accountNumber: accountNumber ? accountNumber.trim() : null,
+        bankName: bankName ? bankName.trim() : null,
+        bankBranch: bankBranch ? bankBranch.trim() : null,
         isClassIncharge: isClassIncharge || false,
-        inchargeClass,
-        inchargeSection,
-        schoolId: parseInt(schoolId)
+        inchargeClass: isClassIncharge ? (inchargeClass ? inchargeClass.trim() : null) : null,
+        inchargeSection: isClassIncharge ? (inchargeSection ? inchargeSection.trim() : null) : null,
+        schoolId: teacherSchoolId
+      },
+      include: {
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       }
     });
 
-    // Format the response
-    const formattedTeacher = {
-      ...teacher,
-      subjects: JSON.parse(teacher.subjects),
-      sections: JSON.parse(teacher.sections),
-      documents: teacher.documents ? JSON.parse(teacher.documents) : null
-    };
-
     res.status(201).json({
       success: true,
-      message: 'Teacher created successfully',
-      data: formattedTeacher
+      data: teacher,
+      message: 'Teacher created successfully'
     });
   } catch (error) {
     console.error('Error creating teacher:', error);
+    
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or username already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Error creating teacher',
-      error: error.message
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -387,11 +343,11 @@ router.put('/:id', async (req, res) => {
       schoolId
     } = req.body;
 
-    // Validate required fields
-    if (!fullName || !email || !phone || !gender || !schoolId) {
+    // Validate required fields - only fullName and gender are required
+    if (!fullName || !gender) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Please provide fullName and gender'
       });
     }
 
@@ -407,78 +363,103 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Check if email is already taken by another teacher
-    const emailExists = await prisma.teacher.findFirst({
-      where: {
-        email,
-        id: { not: parseInt(id) }
-      }
-    });
-
-    if (emailExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is already taken by another teacher'
+    // Check if email is already taken by another teacher (only if email is provided)
+    if (email) {
+      const emailExists = await prisma.teacher.findFirst({
+        where: {
+          email,
+          id: { not: parseInt(id) }
+        }
       });
+
+      if (emailExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already taken by another teacher'
+        });
+      }
     }
 
     // Calculate age if date of birth is provided
     const age = dateOfBirth ? calculateAge(dateOfBirth) : null;
 
-    // Update teacher
+    // Process password if provided
+    let hashedPassword;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    // Process subjects and sections arrays
+    const processedSubjects = Array.isArray(subjects) ? JSON.stringify(subjects) : (subjects || existingTeacher.subjects);
+    const processedSections = Array.isArray(sections) ? JSON.stringify(sections) : (sections || existingTeacher.sections);
+    const processedDocuments = Array.isArray(documents) ? JSON.stringify(documents) : (documents || existingTeacher.documents);
+
+    // Prepare update data - only include fields that are provided
+    const updateData = {
+      fullName: fullName.trim(),
+      gender: gender.trim(),
+      ...(email !== undefined && { email: email ? email.trim() : null }),
+      ...(hashedPassword && { password: hashedPassword }),
+      ...(phone !== undefined && { phone: phone ? phone.trim() : null }),
+      ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null }),
+      ...(age !== null && { age }),
+      ...(designation !== undefined && { designation: designation ? designation.trim() : 'Teacher' }),
+      ...(qualification !== undefined && { qualification: qualification ? qualification.trim() : null }),
+      ...(address !== undefined && { address: address ? address.trim() : null }),
+      ...(subjects !== undefined && { subjects: processedSubjects }),
+      ...(sections !== undefined && { sections: processedSections }),
+      ...(religion !== undefined && { religion: religion ? religion.trim() : null }),
+      ...(bloodGroup !== undefined && { bloodGroup: bloodGroup ? bloodGroup.trim() : null }),
+      ...(maritalStatus !== undefined && { maritalStatus: maritalStatus ? maritalStatus.trim() : null }),
+      ...(facebook !== undefined && { facebook: facebook ? facebook.trim() : null }),
+      ...(twitter !== undefined && { twitter: twitter ? twitter.trim() : null }),
+      ...(linkedIn !== undefined && { linkedIn: linkedIn ? linkedIn.trim() : null }),
+      ...(documents !== undefined && { documents: processedDocuments }),
+      ...(joiningSalary !== undefined && { joiningSalary: joiningSalary ? parseFloat(joiningSalary) : null }),
+      ...(accountHolderName !== undefined && { accountHolderName: accountHolderName ? accountHolderName.trim() : null }),
+      ...(accountNumber !== undefined && { accountNumber: accountNumber ? accountNumber.trim() : null }),
+      ...(bankName !== undefined && { bankName: bankName ? bankName.trim() : null }),
+      ...(bankBranch !== undefined && { bankBranch: bankBranch ? bankBranch.trim() : null }),
+      ...(isClassIncharge !== undefined && { 
+        isClassIncharge: isClassIncharge || false,
+        inchargeClass: isClassIncharge ? (inchargeClass ? inchargeClass.trim() : null) : null,
+        inchargeSection: isClassIncharge ? (inchargeSection ? inchargeSection.trim() : null) : null
+      }),
+      ...(schoolId !== undefined && { schoolId: schoolId || existingTeacher.schoolId })
+    };
+
     const updatedTeacher = await prisma.teacher.update({
       where: { id: parseInt(id) },
-      data: {
-        fullName,
-        email,
-        password: password ? await bcrypt.hash(password, 10) : undefined,
-        phone,
-        gender,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-        age,
-        designation,
-        qualification,
-        address,
-        subjects: subjects ? JSON.stringify(subjects) : undefined,
-        sections: sections ? JSON.stringify(sections) : undefined,
-        religion,
-        bloodGroup,
-        maritalStatus,
-        facebook,
-        twitter,
-        linkedIn,
-        documents: documents ? JSON.stringify(documents) : undefined,
-        joiningSalary: joiningSalary ? parseFloat(joiningSalary) : undefined,
-        accountHolderName,
-        accountNumber,
-        bankName,
-        bankBranch,
-        isClassIncharge: isClassIncharge !== undefined ? isClassIncharge : undefined,
-        inchargeClass,
-        inchargeSection,
-        schoolId: parseInt(schoolId)
+      data: updateData,
+      include: {
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
       }
     });
 
-    // Format the response
-    const formattedTeacher = {
-      ...updatedTeacher,
-      subjects: JSON.parse(updatedTeacher.subjects),
-      sections: JSON.parse(updatedTeacher.sections),
-      documents: updatedTeacher.documents ? JSON.parse(updatedTeacher.documents) : null
-    };
-
-    res.json({
+    res.status(200).json({
       success: true,
-      message: 'Teacher updated successfully',
-      data: formattedTeacher
+      data: updatedTeacher,
+      message: 'Teacher updated successfully'
     });
   } catch (error) {
     console.error('Error updating teacher:', error);
+    
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Error updating teacher',
-      error: error.message
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

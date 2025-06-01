@@ -6,8 +6,15 @@ const prisma = new PrismaClient();
 async function main() {
   try {
     // Create a school first
-    const school = await prisma.school.create({
-      data: {
+    const school = await prisma.school.upsert({
+      where: { id: 1 },
+      update: {
+        affiliate: 'Springfield Education Board',
+        affiliateNo: 'SEB-2020-001',
+        website: 'https://www.springfield-elementary.edu',
+        updatedAt: new Date()
+      },
+      create: {
         id: 1,
         schoolName: 'Springfield Elementary School',
         email: 'school@school.com',
@@ -18,6 +25,9 @@ async function main() {
         phone: '5552220123',
         principal: 'Seymour Skinner',
         established: 2020,
+        affiliate: 'Springfield Education Board',
+        affiliateNo: 'SEB-2020-001',
+        website: 'https://www.springfield-elementary.edu',
         role: 'SCHOOL',
         status: 'active',
         lastLogin: new Date(),

@@ -38,12 +38,11 @@ interface RequiredFields {
   [key: number]: string[];
 }
 
-// Updated required fields - only student name, class, father name, and admission number
+// Updated required fields - only student name, admission number, and father name
 export const REQUIRED_FIELDS: RequiredFields = {
   1: [
-    'fullName',        // Student name - required
     'admissionNo',     // Admission number - required
-    'admitSession.class', // Class - required
+    'fullName',        // Student name - required  
     'father.name'      // Father name - required
   ]
 };
@@ -51,7 +50,7 @@ export const REQUIRED_FIELDS: RequiredFields = {
 // Required fields by step - updated to match new requirements
 export const REQUIRED_FIELDS_BY_STEP: Record<number, string[]> = {
   1: ['admissionNo', 'fullName'], // Basic info step - admission number and student name
-  2: ['admitSession.class'], // Academic step - class is required
+  2: [], // Academic step - no required fields
   3: [], // Contact - all optional now
   4: [], // Address - all optional now
   5: ['father.name'], // Parent info - only father name required
@@ -77,8 +76,8 @@ const FIELDS_TO_VALIDATE_BY_STEP: Record<number, string[]> = {
  * @returns Error message if validation fails, empty string if valid
  */
 export const validateField = (fieldName: string, value: string): string => {
-  // Required fields validation
-  const requiredFields = ['fullName', 'admissionNo', 'admitSession.class', 'father.name'];
+  // Required fields validation - only these 3 fields are required
+  const requiredFields = ['fullName', 'admissionNo', 'father.name'];
   
   if (requiredFields.includes(fieldName)) {
     if (!value || value.trim() === '') {
@@ -241,18 +240,13 @@ export const hasValidationErrors = (errors: Record<string, string>): boolean => 
 export const validateForm = (formData: StudentFormData): Record<string, string> => {
   const errors: Record<string, string> = {};
 
-  // Required field validation - only these 4 fields are required
+  // Required field validation - only these 3 fields are required
   if (!formData.fullName) {
     errors.fullName = 'Student name is required';
   }
 
   if (!formData.admissionNo) {
     errors.admissionNo = 'Admission number is required';
-  }
-
-  // Check nested class field
-  if (!formData.admitSession?.class) {
-    errors['admitSession.class'] = 'Class is required';
   }
 
   // Check nested father name field

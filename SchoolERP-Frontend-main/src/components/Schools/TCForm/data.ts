@@ -11,6 +11,11 @@ interface TCAPIResponse {
   category: string;
   dateOfBirth: string;
   admissionNo: string;
+  currentClass?: string;
+  admitClass?: string;
+  section?: string;
+  rollNo?: string;
+  dateOfAdmission?: string;
   sessionInfo?: {
     currentClass?: string;
     admitClass?: string;
@@ -59,8 +64,38 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const getSchoolId = async (email?: string, password?: string): Promise<number> => {
   // If no credentials provided, try to get from localStorage
   if (!email || !password) {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return user.id || 1; // Default to 1 if not found
+    try {
+      // Try different localStorage keys where user data might be stored
+      const userDataSources = ['userData', 'user'];
+      
+      for (const source of userDataSources) {
+        const userDataStr = localStorage.getItem(source);
+        if (userDataStr) {
+          try {
+            const userData = JSON.parse(userDataStr);
+            console.log(`[DEBUG] Found user data in ${source} for school ID:`, userData);
+            
+            // School users have their ID directly
+            if (userData.id && typeof userData.id === 'number') {
+              return userData.id;
+            }
+            
+            // Check if there's a schoolId property
+            if (userData.schoolId && typeof userData.schoolId === 'number') {
+              return userData.schoolId;
+            }
+          } catch (parseError) {
+            console.warn(`[WARN] Failed to parse user data from ${source}:`, parseError);
+          }
+        }
+      }
+      
+      console.warn('[WARN] No valid school ID found in localStorage, using default');
+      return 1; // Default fallback
+    } catch (error) {
+      console.error('[ERROR] Error retrieving school ID from localStorage:', error);
+      return 1; // Default fallback
+    }
   }
 
   try {
@@ -81,7 +116,7 @@ const getSchoolId = async (email?: string, password?: string): Promise<number> =
     if (response.ok && data.success) {
       // Store the token and user data
       localStorage.setItem('token', data.data.token);
-      localStorage.setItem('user', JSON.stringify(data.data.user));
+      localStorage.setItem('userData', JSON.stringify(data.data.user)); // Use consistent key
       return data.data.user.id;
     } else {
       console.error('School login failed:', data.message || 'Unknown error');
@@ -95,22 +130,42 @@ const getSchoolId = async (email?: string, password?: string): Promise<number> =
 
 export const fetchStudentData = async (admissionNumber: string): Promise<StudentDetails> => {
   try {
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
+    }
+
     // Try the TC-specific endpoint first
     const tcEndpoint = `${API_BASE_URL}/students/details/${admissionNumber}`;
     console.log(`[DEBUG] Fetching student data from: ${tcEndpoint}`);
     
     try {
       console.log(`[DEBUG] Attempting to fetch student with admission number: "${admissionNumber}" via TC endpoint`);
-      const response = await fetch(tcEndpoint);
+      const response = await fetch(tcEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.log(`[DEBUG] TC endpoint error: ${response.status} ${response.statusText}`, errorData);
+        
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
+          throw new Error('Authentication failed. Please log in again.');
+        }
         throw new Error(`Student not found (${response.status}): ${errorData.error || response.statusText}`);
       }
       
-      const data = await response.json();
-      console.log('[DEBUG] Student data fetched successfully via TC endpoint:', data);
+      const result = await response.json();
+      console.log('[DEBUG] Student data fetched successfully via TC endpoint:', result);
+      
+      // Extract the data from the response object
+      const data = result.success ? result.data : result;
       
       // Format and return the data
       return formatStudentData(data);
@@ -124,7 +179,12 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
       console.log(`[DEBUG] Trying student lookup endpoint: ${studentLookupEndpoint}`);
       
       try {
-        const lookupResponse = await fetch(studentLookupEndpoint);
+        const lookupResponse = await fetch(studentLookupEndpoint, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
         if (!lookupResponse.ok) {
           console.log(`[DEBUG] Student lookup failed: ${lookupResponse.status}`);
@@ -138,7 +198,12 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
             const studentDetailEndpoint = `${API_BASE_URL}/students/${studentBasicInfo.id}`;
             console.log(`[DEBUG] Fetching student details: ${studentDetailEndpoint}`);
             
-            const detailResponse = await fetch(studentDetailEndpoint);
+            const detailResponse = await fetch(studentDetailEndpoint, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
             if (detailResponse.ok) {
               const studentDetails = await detailResponse.json();
               console.log(`[DEBUG] Student details fetched:`, studentDetails);
@@ -156,10 +221,21 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
       const studentEndpoint = `${API_BASE_URL}/students/admission/${admissionNumber}`;
       console.log(`[DEBUG] Trying regular students endpoint: ${studentEndpoint}`);
       
-      const response = await fetch(studentEndpoint);
+      const response = await fetch(studentEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.log(`[DEBUG] Students endpoint error: ${response.status}`, errorData);
+        
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
+          throw new Error('Authentication failed. Please log in again.');
+        }
         throw new Error(`Student not found. Please check the admission number. (${response.status}): ${errorData.error || response.statusText}`);
       }
       
@@ -186,8 +262,10 @@ export const fetchStudentData = async (admissionNumber: string): Promise<Student
 
 // Helper function to format student data from the TC API format
 const formatStudentData = (data: TCAPIResponse): StudentDetails => {
-  // Standardize class name format
-  let classInfo = data.sessionInfo?.currentClass || data.sessionInfo?.admitClass || '';
+  console.log(`[DEBUG] Formatting student data:`, data);
+  
+  // The API response has class information directly on the object
+  let classInfo = data.currentClass || data.admitClass || '';
   console.log(`[DEBUG] Original class from TC API: "${classInfo}"`);
   
   // Handle Nursery class formatting
@@ -217,9 +295,9 @@ const formatStudentData = (data: TCAPIResponse): StudentDetails => {
   console.log(`[DEBUG] Formatted games:`, gamesPlayed);
   console.log(`[DEBUG] Formatted activities:`, extraActivity);
 
-  // Get roll number from sessionInfo
-  const rollNo = data.sessionInfo?.currentRollNo || data.sessionInfo?.admitRollNo || '';
-  console.log(`[DEBUG] Roll number from sessionInfo: "${rollNo}"`);
+  // Get roll number - it's directly on the object
+  const rollNo = data.rollNo || data.section || '';
+  console.log(`[DEBUG] Roll number from data: "${rollNo}"`);
 
   return {
     studentId: data.id,
@@ -230,11 +308,11 @@ const formatStudentData = (data: TCAPIResponse): StudentDetails => {
     nationality: data.nationality || 'Indian',
     category: data.category || 'General',
     dateOfBirth: data.dateOfBirth,
-    dateOfAdmission: data.sessionInfo?.admitDate || new Date().toISOString(),
-    section: data.sessionInfo?.currentSection || data.sessionInfo?.admitSection || '',
+    dateOfAdmission: data.dateOfAdmission || new Date().toISOString(),
+    section: data.section || '',
     admissionNumber: data.admissionNo,
-    currentClass: data.sessionInfo?.currentClass || classInfo,
-    admitClass: data.sessionInfo?.admitClass || classInfo,
+    currentClass: data.currentClass || classInfo,
+    admitClass: data.admitClass || classInfo,
     academicYear: data.academicYear || new Date().getFullYear().toString(),
     rollNo: rollNo,
     lastAttendanceDate: data.lastAttendanceDate || new Date().toISOString(),
@@ -367,10 +445,43 @@ const formatStudentDetailsFromStudentAPI = (student: TCAPIResponse): StudentDeta
 export const fetchIssuedCertificates = async (): Promise<IssuedCertificate[]> => {
   try {
     const schoolId = await getSchoolId('', '');
-    // Use the tcform routes
-    const response = await fetch(`${API_BASE_URL}/tcs?schoolId=${schoolId}`);
-    if (!response.ok) throw new Error('Failed to fetch certificates');
-    return await response.json();
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    // Use the tcform routes with authentication
+    const response = await fetch(`${API_BASE_URL}/tcs?schoolId=${schoolId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Clear invalid token and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        throw new Error('Authentication failed. Please log in again.');
+      }
+      throw new Error('Failed to fetch certificates');
+    }
+    
+    const result = await response.json();
+    
+    // Extract the data array from the response object
+    if (result.success && Array.isArray(result.data)) {
+      return result.data;
+    } else if (Array.isArray(result)) {
+      // In case the API returns the array directly
+      return result;
+    } else {
+      console.warn('API response is not in expected format:', result);
+      return [];
+    }
   } catch (error) {
     console.error('Error fetching issued certificates:', error);
     throw error;
@@ -379,55 +490,139 @@ export const fetchIssuedCertificates = async (): Promise<IssuedCertificate[]> =>
 
 export const createCertificate = async (certificate: IssuedCertificate): Promise<IssuedCertificate> => {
   try {
-    const schoolId = await getSchoolId('', '');
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
     
-    // Map frontend model to backend model
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    // Map enum values from frontend display text to backend enum values
+    const mapEnumValue = (frontendValue: string, enumMapping: Record<string, string>): string => {
+      // Find the backend enum key that matches the frontend display value
+      const backendKey = Object.keys(enumMapping).find(key => enumMapping[key] === frontendValue);
+      return backendKey || frontendValue; // Return backend key or original value if not found
+    };
+
+    // Enum mappings from frontend display values to backend enum keys
+    const reasonMapping = {
+      'FamilyRelocation': 'Family Relocation',
+      'AdmissionInOtherSchool': 'Admission in Other School', 
+      'Duetolongabsencewithoutinformation': 'Due to long absence without information',
+      'FatherJobTransfer': 'Father Job Transfer',
+      'GetAdmissioninHigherClass': 'Get Admission in Higher Class',
+      'GoingtoNativePlace': 'Going to Native Place',
+      'ParentWill': 'Parent Will',
+      'Passedoutfromtheschool': 'Passed out from the school',
+      'Shiftingtootherplace': 'Shifting to other place',
+      'TransferCase': 'Transfer Case',
+      'Other': 'Other'
+    };
+
+    const examMapping = {
+      'School': 'School',
+      'Board': 'Board',
+      'NA': 'NA',
+      'CBSEBoard': 'CBSE Board',
+      'SchoolFailed': 'School Failed',
+      'SchoolPassed': 'School Passed',
+      'SchoolCompartment': 'School Compartment',
+      'BoardPassed': 'Board Passed',
+      'BoardFailed': 'Board Failed',
+      'BoardCompartment': 'Board Compartment'
+    };
+
+    const qualifiedMapping = {
+      'Yes': 'Yes',
+      'No': 'No',
+      'NA': 'NA',
+      'Pass': 'Pass',
+      'Fail': 'Fail',
+      'Compartment': 'Compartment',
+      'AsperCBSEBoardResult': 'As per CBSE Board Result',
+      'AppearedinclassXExam': 'Appeared in class X Exam',
+      'AppearedinclassXIIExam': 'Appeared in class XII Exam'
+    };
+
+    const concessionMapping = {
+      'None': 'None',
+      'Partial': 'Partial',
+      'Full': 'Full'
+    };
+
+    // Ensure required fields are not empty with fallback values
+    const studentName = certificate.studentName || certificate.fullName || '';
+    const currentClass = certificate.studentClass || certificate.currentClass || '';
+    const section = certificate.section || 'A';
+    const whetherFailed = certificate.whetherFailed || 'No';
+    const examIn = certificate.examIn || 'School';
+    const qualified = certificate.qualified || 'Yes';
+    const reason = certificate.reason || 'ParentWill';
+    const generalConduct = certificate.generalConduct || 'Good';
+    const feeConcession = certificate.feesConcessionAvailed || 'None';
+
+    console.log(`[DEBUG] Mapping form data for student: ${studentName}, class: ${currentClass}`);
+
+    // Map frontend model to backend model with proper field mapping
     const tcData = {
-      schoolId: schoolId,
-      // Find student ID from admission number or use the one in the certificate
-      studentId: certificate.studentId || await getStudentIdFromAdmissionNumber(certificate.admissionNumber),
+      // Basic required fields
+      fullName: studentName,
       admissionNumber: certificate.admissionNumber,
-      fatherName: certificate.fatherName,
-      motherName: certificate.motherName,
+      fatherName: certificate.fatherName || '',
+      motherName: certificate.motherName || '',
       dateOfBirth: certificate.dateOfBirth,
-      nationality: certificate.nationality,
-      category: certificate.category,
+      nationality: certificate.nationality || 'Indian',
+      category: certificate.category || 'General',
       dateOfAdmission: certificate.dateOfAdmission,
-      currentClass: certificate.currentClass,
-      whetherFailed: certificate.whetherFailed,
-      section: certificate.section || "", // Default empty string if not available
-      rollNumber: certificate.rollNo || "",
-      examAppearedIn: certificate.examIn,
-      qualifiedForPromotion: certificate.qualified,
-      reasonForLeaving: certificate.reason,
+      currentClass: currentClass,
+      whetherFailed: whetherFailed,
+      section: section,
+      rollNumber: certificate.rollNo || '',
+      examAppearedIn: mapEnumValue(examIn, examMapping),
+      qualifiedForPromotion: mapEnumValue(qualified, qualifiedMapping),
+      reasonForLeaving: mapEnumValue(reason, reasonMapping),
       dateOfLeaving: certificate.dateOfLeaving,
       lastAttendanceDate: certificate.lastAttendanceDate,
-      toClass: certificate.toClass,
-      classInWords: certificate.classInWords,
-      maxAttendance: parseInt(certificate.maxAttendance) || 0,
-      obtainedAttendance: parseInt(certificate.obtainedAttendance) || 0,
-      subjectsStudied: certificate.subject,
-      generalConduct: certificate.generalConduct,
-      behaviorRemarks: certificate.behaviorRemarks,
-      feesPaidUpTo: certificate.feesPaidUpTo,
+      toClass: certificate.toClass || '',
+      classInWords: certificate.classInWords || '',
+      maxAttendance: parseInt(certificate.maxAttendance) || 220,
+      obtainedAttendance: parseInt(certificate.obtainedAttendance) || 200,
+      subjectsStudied: certificate.subject || 'English, Hindi, Mathematics, Science, Social Studies',
+      generalConduct: generalConduct,
+      behaviorRemarks: certificate.behaviorRemarks || '',
+      feesPaidUpTo: certificate.feesPaidUpTo || certificate.feesUpToDate,
       tcCharge: parseFloat(certificate.tcCharge) || 0,
-      feeConcession: certificate.feesConcessionAvailed,
-      gamesPlayed: certificate.gamesPlayed,
-      extraActivities: certificate.extraActivity
+      feeConcession: mapEnumValue(feeConcession, concessionMapping),
+      gamesPlayed: certificate.gamesPlayed || [],
+      extraActivities: certificate.extraActivity || [],
+      tcNumber: certificate.tcNo || '',
+      issuedDate: certificate.dateOfIssue || new Date().toISOString()
     };
+
+    console.log('[DEBUG] Mapped TC data for backend:', tcData);
 
     const response = await fetch(`${API_BASE_URL}/tcs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(tcData)
     });
     
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        throw new Error('Authentication failed. Please log in again.');
+      }
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create certificate');
+      console.error('[ERROR] TC Creation failed:', errorData);
+      throw new Error(errorData.details || errorData.error || 'Failed to create certificate');
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('[DEBUG] TC Creation successful:', result);
+    return result.data || result;
   } catch (error: unknown) {
     if (error instanceof Error) {
       console.error('Error creating certificate:', error.message);
@@ -439,14 +634,29 @@ export const createCertificate = async (certificate: IssuedCertificate): Promise
 
 export const deleteCertificate = async (admissionNumber: string): Promise<void> => {
   try {
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
     // Find the TC ID by admission number
     const tcId = await getTcIdFromAdmissionNumber(admissionNumber);
     
     const response = await fetch(`${API_BASE_URL}/tcs/${tcId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     });
     
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        throw new Error('Authentication failed. Please log in again.');
+      }
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to delete certificate');
     }
@@ -458,57 +668,142 @@ export const deleteCertificate = async (admissionNumber: string): Promise<void> 
 
 export const updateCertificate = async (certificate: IssuedCertificate): Promise<IssuedCertificate> => {
   try {
-    const schoolId = await getSchoolId('', '');
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
     
-    // Map frontend model to backend model
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    // Map enum values from frontend display text to backend enum values
+    const mapEnumValue = (frontendValue: string, enumMapping: Record<string, string>): string => {
+      // Find the backend enum key that matches the frontend display value
+      const backendKey = Object.keys(enumMapping).find(key => enumMapping[key] === frontendValue);
+      return backendKey || frontendValue; // Return backend key or original value if not found
+    };
+
+    // Enum mappings from frontend display values to backend enum keys
+    const reasonMapping = {
+      'FamilyRelocation': 'Family Relocation',
+      'AdmissionInOtherSchool': 'Admission in Other School', 
+      'Duetolongabsencewithoutinformation': 'Due to long absence without information',
+      'FatherJobTransfer': 'Father Job Transfer',
+      'GetAdmissioninHigherClass': 'Get Admission in Higher Class',
+      'GoingtoNativePlace': 'Going to Native Place',
+      'ParentWill': 'Parent Will',
+      'Passedoutfromtheschool': 'Passed out from the school',
+      'Shiftingtootherplace': 'Shifting to other place',
+      'TransferCase': 'Transfer Case',
+      'Other': 'Other'
+    };
+
+    const examMapping = {
+      'School': 'School',
+      'Board': 'Board',
+      'NA': 'NA',
+      'CBSEBoard': 'CBSE Board',
+      'SchoolFailed': 'School Failed',
+      'SchoolPassed': 'School Passed',
+      'SchoolCompartment': 'School Compartment',
+      'BoardPassed': 'Board Passed',
+      'BoardFailed': 'Board Failed',
+      'BoardCompartment': 'Board Compartment'
+    };
+
+    const qualifiedMapping = {
+      'Yes': 'Yes',
+      'No': 'No',
+      'NA': 'NA',
+      'Pass': 'Pass',
+      'Fail': 'Fail',
+      'Compartment': 'Compartment',
+      'AsperCBSEBoardResult': 'As per CBSE Board Result',
+      'AppearedinclassXExam': 'Appeared in class X Exam',
+      'AppearedinclassXIIExam': 'Appeared in class XII Exam'
+    };
+
+    const concessionMapping = {
+      'None': 'None',
+      'Partial': 'Partial',
+      'Full': 'Full'
+    };
+
+    // Ensure required fields are not empty with fallback values
+    const studentName = certificate.studentName || certificate.fullName || '';
+    const currentClass = certificate.studentClass || certificate.currentClass || '';
+    const section = certificate.section || 'A';
+    const whetherFailed = certificate.whetherFailed || 'No';
+    const examIn = certificate.examIn || 'School';
+    const qualified = certificate.qualified || 'Yes';
+    const reason = certificate.reason || 'ParentWill';
+    const generalConduct = certificate.generalConduct || 'Good';
+    const feeConcession = certificate.feesConcessionAvailed || 'None';
+
+    console.log(`[DEBUG] Updating TC for student: ${studentName}, class: ${currentClass}`);
+
+    // Map frontend model to backend model with proper field mapping
     const tcData = {
-      schoolId: schoolId,
-      studentId: certificate.studentId || await getStudentIdFromAdmissionNumber(certificate.admissionNumber),
+      // Basic required fields
+      fullName: studentName,
       admissionNumber: certificate.admissionNumber,
-      fatherName: certificate.fatherName,
-      motherName: certificate.motherName,
+      fatherName: certificate.fatherName || '',
+      motherName: certificate.motherName || '',
       dateOfBirth: certificate.dateOfBirth,
-      nationality: certificate.nationality,
-      category: certificate.category,
+      nationality: certificate.nationality || 'Indian',
+      category: certificate.category || 'General',
       dateOfAdmission: certificate.dateOfAdmission,
-      currentClass: certificate.currentClass,
-      whetherFailed: certificate.whetherFailed,
-      section: certificate.section || "",
-      rollNumber: certificate.rollNo || "",
-      examAppearedIn: certificate.examIn,
-      qualifiedForPromotion: certificate.qualified,
-      reasonForLeaving: certificate.reason,
+      currentClass: currentClass,
+      whetherFailed: whetherFailed,
+      section: section,
+      rollNumber: certificate.rollNo || '',
+      examAppearedIn: mapEnumValue(examIn, examMapping),
+      qualifiedForPromotion: mapEnumValue(qualified, qualifiedMapping),
+      reasonForLeaving: mapEnumValue(reason, reasonMapping),
       dateOfLeaving: certificate.dateOfLeaving,
       lastAttendanceDate: certificate.lastAttendanceDate,
-      toClass: certificate.toClass,
-      classInWords: certificate.classInWords,
-      maxAttendance: parseInt(certificate.maxAttendance) || 0,
-      obtainedAttendance: parseInt(certificate.obtainedAttendance) || 0,
-      subjectsStudied: certificate.subject,
-      generalConduct: certificate.generalConduct,
-      behaviorRemarks: certificate.behaviorRemarks,
-      feesPaidUpTo: certificate.feesPaidUpTo,
+      toClass: certificate.toClass || '',
+      classInWords: certificate.classInWords || '',
+      maxAttendance: parseInt(certificate.maxAttendance) || 220,
+      obtainedAttendance: parseInt(certificate.obtainedAttendance) || 200,
+      subjectsStudied: certificate.subject || 'English, Hindi, Mathematics, Science, Social Studies',
+      generalConduct: generalConduct,
+      behaviorRemarks: certificate.behaviorRemarks || '',
+      feesPaidUpTo: certificate.feesPaidUpTo || certificate.feesUpToDate,
       tcCharge: parseFloat(certificate.tcCharge) || 0,
-      feeConcession: certificate.feesConcessionAvailed,
-      gamesPlayed: certificate.gamesPlayed,
-      extraActivities: certificate.extraActivity
+      feeConcession: mapEnumValue(feeConcession, concessionMapping),
+      gamesPlayed: certificate.gamesPlayed || [],
+      extraActivities: certificate.extraActivity || [],
+      tcNumber: certificate.tcNo || '',
+      issuedDate: certificate.dateOfIssue || new Date().toISOString()
     };
+
+    console.log('[DEBUG] Mapped TC update data for backend:', tcData);
 
     // Get TC ID from admission number
     const tcId = await getTcIdFromAdmissionNumber(certificate.admissionNumber);
 
     const response = await fetch(`${API_BASE_URL}/tcs/${tcId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(tcData)
     });
     
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        throw new Error('Authentication failed. Please log in again.');
+      }
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to update certificate');
+      console.error('[ERROR] TC Update failed:', errorData);
+      throw new Error(errorData.details || errorData.error || 'Failed to update certificate');
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log('[DEBUG] TC Update successful:', result);
+    return result.data || result;
   } catch (error: unknown) {
     if (error instanceof Error) {
       console.error('Error updating certificate:', error.message);
@@ -519,62 +814,113 @@ export const updateCertificate = async (certificate: IssuedCertificate): Promise
 };
 
 // Helper function to get student ID from admission number
-async function getStudentIdFromAdmissionNumber(admissionNumber: string): Promise<number> {
+export async function getStudentIdFromAdmissionNumber(admissionNumber: string): Promise<number> {
   try {
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    console.log(`[DEBUG] Looking up student ID for admission number: "${admissionNumber}"`);
+    
     // Try TC-specific endpoint first
     const tcEndpoint = `${API_BASE_URL}/students/lookup/${admissionNumber}`;
-    console.log(`[DEBUG] Looking up student ID from: ${tcEndpoint}`);
+    console.log(`[DEBUG] Trying TC endpoint: ${tcEndpoint}`);
     
     try {
-      const response = await fetch(tcEndpoint);
-      if (!response.ok) {
-        console.log(`[DEBUG] TC lookup failed with status: ${response.status}`);
-        throw new Error('Student lookup failed via TC endpoint');
+      const response = await fetch(tcEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[DEBUG] TC endpoint response:`, data);
+        
+        if (data && data.id) {
+          console.log(`[DEBUG] Student ID found via TC endpoint: ${data.id}`);
+          return Number(data.id);
+        }
+        
+        if (data && data.data && data.data.id) {
+          console.log(`[DEBUG] Student ID found via TC endpoint (nested): ${data.data.id}`);
+          return Number(data.data.id);
+        }
       }
-      const data = await response.json();
-      console.log(`[DEBUG] Student ID found via TC endpoint: ${data.id}`);
-      return data.id;
+      
+      console.log(`[DEBUG] TC endpoint failed with status: ${response.status}`);
     } catch (error: unknown) {
       if (error instanceof Error) {
-        console.log(`[DEBUG] Failed via TC endpoint: ${error.message}, trying students endpoint`);
+        console.log(`[DEBUG] TC endpoint error: ${error.message}`);
       }
-      
-      // If that fails, try the student API endpoint
-      const studentEndpoint = `${API_BASE_URL}/students/admission/${admissionNumber}`;
-      console.log(`[DEBUG] Trying backup endpoint: ${studentEndpoint}`);
-      
-      const response = await fetch(studentEndpoint);
-      if (!response.ok) {
-        console.log(`[DEBUG] Students endpoint failed with status: ${response.status}`);
-        
-        // Try one more approach - search for students with this admission number
-        console.log(`[DEBUG] Trying to search for students with admission number: ${admissionNumber}`);
-        const searchEndpoint = `${API_BASE_URL}/students?admissionNo=${admissionNumber}`;
-        const searchResponse = await fetch(searchEndpoint);
-        if (!searchResponse.ok) {
-          console.log(`[DEBUG] Student search failed with status: ${searchResponse.status}`);
-          throw new Error(`Student with admission number ${admissionNumber} not found after trying all endpoints`);
-        }
-        
-        const searchResult = await searchResponse.json();
-        if (!searchResult.success || !searchResult.data || searchResult.data.length === 0) {
-          console.log(`[DEBUG] No students found in search results`);
-          throw new Error(`Student with admission number ${admissionNumber} not found`);
-        }
-        
-        console.log(`[DEBUG] Student ID found via search: ${searchResult.data[0].id}`);
-        return searchResult.data[0].id;
-      }
-      
-      const result = await response.json();
-      if (!result.success || !result.data) {
-        console.log(`[DEBUG] Invalid response format from students endpoint:`, result);
-        throw new Error('Invalid response format or student not found');
-      }
-      
-      console.log(`[DEBUG] Student ID found via students endpoint: ${result.data.id}`);
-      return result.data.id;
     }
+    
+    // Try the student API endpoint
+    const studentEndpoint = `${API_BASE_URL}/students/admission/${admissionNumber}`;
+    console.log(`[DEBUG] Trying student endpoint: ${studentEndpoint}`);
+    
+    try {
+      const response = await fetch(studentEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[DEBUG] Student endpoint response:`, result);
+        
+        if (result && result.success && result.data && result.data.id) {
+          console.log(`[DEBUG] Student ID found via students endpoint: ${result.data.id}`);
+          return Number(result.data.id);
+        }
+      }
+      
+      console.log(`[DEBUG] Students endpoint failed with status: ${response.status}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.log(`[DEBUG] Students endpoint error: ${error.message}`);
+      }
+    }
+    
+    // Try searching for students with this admission number
+    const searchEndpoint = `${API_BASE_URL}/students?admissionNo=${admissionNumber}`;
+    console.log(`[DEBUG] Trying search endpoint: ${searchEndpoint}`);
+    
+    try {
+      const searchResponse = await fetch(searchEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (searchResponse.ok) {
+        const searchResult = await searchResponse.json();
+        console.log(`[DEBUG] Search endpoint response:`, searchResult);
+        
+        if (searchResult && searchResult.success && searchResult.data && searchResult.data.length > 0) {
+          const studentId = Number(searchResult.data[0].id);
+          console.log(`[DEBUG] Student ID found via search: ${studentId}`);
+          return studentId;
+        }
+      }
+      
+      console.log(`[DEBUG] Search endpoint failed with status: ${searchResponse.status}`);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.log(`[DEBUG] Search endpoint error: ${error.message}`);
+      }
+    }
+    
+    // If all endpoints fail, return a default ID or throw error
+    console.warn(`[WARN] Could not find student ID for admission number: ${admissionNumber}, using default ID: 1`);
+    return 1; // Return default ID as fallback
+    
   } catch (error: unknown) {
     if (error instanceof Error) {
       console.error(`[ERROR] Error getting student ID from admission number ${admissionNumber}:`, error.message);
@@ -588,23 +934,76 @@ async function getStudentIdFromAdmissionNumber(admissionNumber: string): Promise
 async function getTcIdFromAdmissionNumber(admissionNumber: string): Promise<number> {
   try {
     const schoolId = await getSchoolId('', '');
-    console.log(`[DEBUG] Looking up TC for admission number: ${admissionNumber} in school: ${schoolId}`);
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
     
-    const response = await fetch(`${API_BASE_URL}/tcs?admissionNumber=${admissionNumber}&schoolId=${schoolId}`);
-    if (!response.ok) {
-      console.log(`[DEBUG] TC lookup failed with status: ${response.status}`);
-      throw new Error(`Certificate with admission number ${admissionNumber} not found`);
+    if (!token) {
+      throw new Error('Authentication required. Please log in again.');
     }
     
-    const data = await response.json();
+    console.log(`[DEBUG] Looking up TC for admission number: ${admissionNumber} in school: ${schoolId}`);
+    
+    const response = await fetch(`${API_BASE_URL}/tcs?admissionNumber=${admissionNumber}&schoolId=${schoolId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('authToken');
+        throw new Error('Authentication failed. Please log in again.');
+      }
+      console.log(`[DEBUG] TC lookup failed with status: ${response.status}`);
+      throw new Error(`Certificate with admission number ${admissionNumber} not found (HTTP ${response.status})`);
+    }
+    
+    const result = await response.json();
+    console.log(`[DEBUG] Raw TC lookup response:`, result);
+    
+    // Handle different response formats
+    let data = result;
+    
+    // Check if response has success/data structure
+    if (result && typeof result === 'object' && result.success !== undefined) {
+      if (result.success && result.data) {
+        data = result.data;
+      } else {
+        throw new Error(result.error || result.message || 'API request failed');
+      }
+    }
+    
+    // Ensure data is an array
+    if (!Array.isArray(data)) {
+      console.log(`[DEBUG] Response data is not an array:`, data);
+      throw new Error(`Invalid response format: expected array, got ${typeof data}`);
+    }
+    
     console.log(`[DEBUG] Found ${data.length} certificates for admission number: ${admissionNumber}`);
     
     if (data.length === 0) {
-      throw new Error(`Certificate with admission number ${admissionNumber} not found`);
+      throw new Error(`No certificate found with admission number ${admissionNumber}`);
     }
     
-    console.log(`[DEBUG] Using certificate ID: ${data[0].id}`);
-    return data[0].id;
+    // Validate the certificate object
+    const certificate = data[0];
+    if (!certificate || typeof certificate !== 'object') {
+      throw new Error(`Invalid certificate data format`);
+    }
+    
+    if (!certificate.id) {
+      console.log(`[DEBUG] Certificate missing ID:`, certificate);
+      throw new Error(`Certificate found but missing ID field`);
+    }
+    
+    const tcId = Number(certificate.id);
+    if (isNaN(tcId) || tcId <= 0) {
+      throw new Error(`Invalid certificate ID: ${certificate.id}`);
+    }
+    
+    console.log(`[DEBUG] Using certificate ID: ${tcId}`);
+    return tcId;
   } catch (error) {
     console.error(`[ERROR] Error getting TC ID from admission number ${admissionNumber}:`, error);
     throw error;

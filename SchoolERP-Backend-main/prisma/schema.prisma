@@ -41,6 +41,9 @@ model School {
   principal   String       @default("Unknown")
   image_url   String?      @db.Text
   established Int          @default(2000)
+  affiliate   String?      // For school affiliation information
+  affiliateNo String?      // New field for school affiliation number
+  website     String?      // For school website
   role        Role         @default(SCHOOL)
   status      String       @default("active")
   lastLogin   DateTime?
@@ -59,23 +62,23 @@ model School {
 
 model Teacher {
   id               Int       @id @default(autoincrement())
-  fullName         String    // Required field
+  fullName         String    // Required
   email            String?   @unique // Made optional
   password         String?   // Made optional
   username         String?   @unique @default(cuid()) // Made optional
   phone            String?   @db.VarChar(15) // Made optional
   gender           String    // Required field
-  dateOfBirth      DateTime? // Optional
-  age              Int?      // Optional
+  dateOfBirth      DateTime? // Added date of birth field
+  age              Int?      // Added age field
   
   // Professional details
-  designation      String?   // Made optional
-  qualification    String?   @db.Text  // Optional
-  address          String?   @db.Text  // Optional
+  designation      String    @default("Teacher")
+  qualification    String?   @db.Text  // Changed from education
+  address          String?   @db.Text
   
   // Teaching details
-  subjects         String?   @db.Text  // Made optional - JSON string of subjects taught
-  sections         String?   @db.Text  // Made optional - JSON string of class and section combinations
+  subjects         String?   @db.Text  // JSON string of subjects taught - made optional
+  sections         String?   @db.Text  // JSON string of class and section combinations - made optional
 
   // Class incharge details
   isClassIncharge  Boolean   @default(false)
@@ -84,8 +87,8 @@ model Teacher {
   
   // Additional details
   profileImage     String?   @db.Text
-  joining_year     DateTime? // Made optional
-  experience       String?   // Made optional
+  joining_year     DateTime  @default(now())
+  experience       String    @default("0")
   
   // New personal details
   religion         String?
@@ -789,7 +792,7 @@ model Maintenance {
 // Bus Model
 model Bus {
   id                  String        @id @default(uuid())
-  registrationNumber  String?       @unique // Made optional
+  registrationNumber  String?       @unique // Already optional, but ensuring consistency
   make                String
   model               String
   year                Int?

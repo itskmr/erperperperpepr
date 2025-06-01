@@ -30,10 +30,14 @@ const TCList: React.FC = () => {
     try {
       console.log('[DEBUG] Fetching transfer certificates...');
       const data = await fetchIssuedCertificates();
-      console.log(`[DEBUG] Fetched ${data.length} certificates`);
+      console.log(`[DEBUG] Fetched data:`, data);
+      
+      // Ensure data is an array
+      const certificatesArray = Array.isArray(data) ? data : [];
+      console.log(`[DEBUG] Fetched ${certificatesArray.length} certificates`);
       
       // Process the certificates for display
-      const processedCertificates = data.map(cert => {
+      const processedCertificates = certificatesArray.map(cert => {
         // Standardize class display
         let displayClass = cert.studentClass || '';
         
@@ -68,6 +72,8 @@ const TCList: React.FC = () => {
       
       setError(errorMessage);
       toast.error(errorMessage);
+      // Set empty array as fallback
+      setIssuedCertificates([]);
     } finally {
       setIsLoading(false);
     }

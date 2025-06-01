@@ -204,10 +204,17 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'email':
-        if (!value || (typeof value === 'string' && value.trim() === '')) {
-          setErrors(prev => ({ ...prev, email: 'Email is required' }));
-        } else if (typeof value === 'string' && !emailRegex.test(value)) {
-          setErrors(prev => ({ ...prev, email: 'Invalid email format' }));
+        // Email is optional, only validate if provided
+        if (value && typeof value === 'string' && value.trim() !== '') {
+          if (!emailRegex.test(value)) {
+            setErrors(prev => ({ ...prev, email: 'Invalid email format' }));
+          } else {
+            setErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.email;
+              return newErrors;
+            });
+          }
         } else {
           setErrors(prev => {
             const newErrors = {...prev};
@@ -230,10 +237,17 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'phone':
-        if (!value || (typeof value === 'string' && value.trim() === '')) {
-          setErrors(prev => ({ ...prev, phone: 'Phone is required' }));
-        } else if (typeof value === 'string' && !phoneRegex.test(value.replace(/[^0-9]/g, ''))) {
-          setErrors(prev => ({ ...prev, phone: 'Phone must be 10 digits' }));
+        // Phone is optional, only validate if provided
+        if (value && typeof value === 'string' && value.trim() !== '') {
+          if (!phoneRegex.test(value.replace(/[^0-9]/g, ''))) {
+            setErrors(prev => ({ ...prev, phone: 'Phone must be 10 digits' }));
+          } else {
+            setErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.phone;
+              return newErrors;
+            });
+          }
         } else {
           setErrors(prev => {
             const newErrors = {...prev};
@@ -292,7 +306,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
   // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['fullName', 'gender']; // Only fullName and gender are required
+    const requiredFields = ['fullName', 'gender'];
     
     // Check required fields
     requiredFields.forEach(field => {
@@ -302,8 +316,21 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
       }
     });
 
-    // All other fields are optional - remove previous validations for subjects, sections, etc.
-    
+    // Optional fields validation (only validate if provided)
+    if (teacherData.email && typeof teacherData.email === 'string' && teacherData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(teacherData.email)) {
+        newErrors.email = 'Invalid email format';
+      }
+    }
+
+    if (teacherData.phone && typeof teacherData.phone === 'string' && teacherData.phone.trim()) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(teacherData.phone.replace(/[^0-9]/g, ''))) {
+        newErrors.phone = 'Phone must be 10 digits';
+      }
+    }
+
     // Check class incharge fields only if isClassIncharge is true
     if (teacherData.isClassIncharge) {
       if (!teacherData.inchargeClass) {
@@ -426,7 +453,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               </label>
               <input
                 type="email"
-                placeholder="Enter email address"
+                placeholder="Enter email address (optional)"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -444,12 +471,11 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password{mode === 'add' ? '*' : ''}
+              Password{mode === 'add' ? ' (optional)' : ''}
               </label>
               <input
                 type="password"
-              required={mode === 'add'}
-              placeholder={mode === 'add' ? 'Enter password' : 'Leave blank to keep current password'}
+              placeholder={mode === 'add' ? 'Enter password (optional)' : 'Leave blank to keep current password'}
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -471,7 +497,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               </label>
               <input
                 type="tel"
-              placeholder="Enter phone number"
+              placeholder="Enter phone number (optional)"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.phone ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -575,23 +601,24 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
           {/* Subjects */}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Subjects
+              Subjects <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+                required
               placeholder="Enter subjects (comma separated)"
-              className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                 errors.subjects ? 'border-red-500' : 'border-gray-300'
-              }`}
+                }`}
               value={Array.isArray(teacherData.subjects) ? teacherData.subjects.join(', ') : ''}
               onChange={(e) => handleInputChange('subjects', e.target.value.split(',').map(s => s.trim()))}
-            />
+              />
             {errors.subjects && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">
                 <AlertCircle className="w-3 h-3 mr-1" /> {errors.subjects}
                 </p>
               )}
-          </div>
+            </div>
 
           {/* Class and Section Selection */}
           <div className="col-span-2">

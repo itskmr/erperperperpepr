@@ -117,10 +117,12 @@ export const getAllDrivers = async (req, res) => {
     let whereClause = { schoolId: schoolId };
     
     // Allow admins to see drivers from specific schools or all schools
-    if (req.query.schoolId) {
-      whereClause.schoolId = parseInt(req.query.schoolId);
-    } else if (req.query.all === 'true') {
-      whereClause = {}; // Admin can see all drivers across schools
+    if (req.user?.role === 'admin') {
+      if (req.query.schoolId) {
+        whereClause.schoolId = parseInt(req.query.schoolId);
+      } else if (req.query.all === 'true') {
+        whereClause = {}; // Admin can see all drivers across schools
+      }
     }
 
     // Add search functionality
@@ -728,7 +730,7 @@ export const createBus = async (req, res) => {
       notes
     } = req.body;
     
-    // Validate required fields
+    // Validate required fields - only make and capacity are required
     if (!make || !capacity) {
       return res.status(400).json({
         success: false,
@@ -736,7 +738,7 @@ export const createBus = async (req, res) => {
       });
     }
     
-    // Check if bus with the same registration number already exists in the same school (only if registration number is provided)
+    // Check if bus with the same registration number already exists in the same school (only if registrationNumber is provided)
     if (registrationNumber && registrationNumber.trim()) {
       const existingBus = await prisma.bus.findFirst({
         where: { 
@@ -791,10 +793,10 @@ export const createBus = async (req, res) => {
       data: {
         id: uuidv4(),
         registrationNumber: registrationNumber && registrationNumber.trim() ? registrationNumber.trim() : null,
-        make,
-        model: model || 'Unknown',
+        make: make.trim(),
+        model: model ? model.trim() : 'Unknown',
         capacity: parseInt(capacity),
-        fuelType: fuelType || null,
+        fuelType: fuelType ? fuelType.trim() : null,
         purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
         insuranceExpiryDate: insuranceExpiryDate ? new Date(insuranceExpiryDate) : null,
         lastMaintenanceDate: lastMaintenanceDate ? new Date(lastMaintenanceDate) : null,
@@ -803,7 +805,7 @@ export const createBus = async (req, res) => {
         driverId: driverId || null,
         routeId: routeId || null,
         status: status || 'ACTIVE',
-        notes: notes || null,
+        notes: notes ? notes.trim() : null,
         schoolId: schoolId
       },
       include: {
@@ -828,7 +830,7 @@ export const createBus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to create bus",
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };

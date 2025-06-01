@@ -114,14 +114,7 @@ export const getAllFeeStructures = async (req, res) => {
     const feeStructures = await prisma.feeStructure.findMany({
       where: whereClause,
       include: {
-        categories: true,
-        school: {
-          select: {
-            id: true,
-            schoolName: true,
-            code: true
-          }
-        }
+        categories: true
       },
       orderBy: {
         className: 'asc',
@@ -133,10 +126,31 @@ export const getAllFeeStructures = async (req, res) => {
       await seedFeeCategoriesForSchool(whereClause.schoolId || schoolId);
     }
 
+    // Fetch school data for each fee structure if needed
+    const feeStructuresWithSchool = await Promise.all(
+      feeStructures.map(async (structure) => {
+        if (structure.schoolId) {
+          const schoolData = await prisma.school.findUnique({
+            where: { id: structure.schoolId },
+            select: {
+              id: true,
+              schoolName: true,
+              code: true
+            }
+          });
+          return {
+            ...structure,
+            school: schoolData
+          };
+        }
+        return structure;
+      })
+    );
+
     return res.status(200).json({
       success: true,
       message: "Fee structures retrieved successfully",
-      data: feeStructures,
+      data: feeStructuresWithSchool,
       meta: {
         schoolId: whereClause.schoolId || schoolId,
         totalCount: feeStructures.length,
@@ -182,14 +196,7 @@ export const getFeeStructureById = async (req, res) => {
     const feeStructure = await prisma.feeStructure.findFirst({
       where: whereClause,
       include: {
-        categories: true,
-        school: {
-          select: {
-            id: true,
-            schoolName: true,
-            code: true
-          }
-        }
+        categories: true
       },
     });
 
@@ -200,10 +207,26 @@ export const getFeeStructureById = async (req, res) => {
       });
     }
 
+    // Fetch school data separately if needed
+    let schoolData = null;
+    if (feeStructure.schoolId) {
+      schoolData = await prisma.school.findUnique({
+        where: { id: feeStructure.schoolId },
+        select: {
+          id: true,
+          schoolName: true,
+          code: true
+        }
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Fee structure retrieved successfully",
-      data: feeStructure
+      data: {
+        ...feeStructure,
+        school: schoolData
+      }
     });
   } catch (error) {
     console.error('Error fetching fee structure:', error);
@@ -302,19 +325,27 @@ export const createFeeStructure = async (req, res) => {
       }
 
       // Return the created fee structure with its categories
-      return prisma.feeStructure.findUnique({
+      const createdStructure = await prisma.feeStructure.findUnique({
         where: { id: feeStructure.id },
         include: { 
-          categories: true,
-          school: {
-            select: {
-              id: true,
-              schoolName: true,
-              code: true
-            }
-          }
+          categories: true
         },
       });
+
+      // Fetch school data separately
+      const schoolData = await prisma.school.findUnique({
+        where: { id: schoolId },
+        select: {
+          id: true,
+          schoolName: true,
+          code: true
+        }
+      });
+
+      return {
+        ...createdStructure,
+        school: schoolData
+      };
     });
 
     // Log the activity for production
@@ -385,10 +416,7 @@ export const updateFeeStructure = async (req, res) => {
     const existingStructure = await prisma.feeStructure.findFirst({
       where: whereClause,
       include: { 
-        categories: true,
-        school: {
-          select: { id: true, schoolName: true }
-        }
+        categories: true
       },
     });
 
@@ -402,7 +430,7 @@ export const updateFeeStructure = async (req, res) => {
     // Begin a transaction for updating
     const result = await prisma.$transaction(async (prisma) => {
       // Update the fee structure
-      const updatedStructure = await prisma.feeStructure.update({
+      const updatedFeeStructure = await prisma.feeStructure.update({
         where: { id: id },
         data: {
           ...(className && { className }),
@@ -437,19 +465,27 @@ export const updateFeeStructure = async (req, res) => {
       }
 
       // Return the updated fee structure with its categories
-      return prisma.feeStructure.findUnique({
+      const finalStructure = await prisma.feeStructure.findUnique({
         where: { id: id },
         include: { 
-          categories: true,
-          school: {
-            select: {
-              id: true,
-              schoolName: true,
-              code: true
-            }
-          }
+          categories: true
         },
       });
+
+      // Fetch school data separately
+      const schoolData = await prisma.school.findUnique({
+        where: { id: existingStructure.schoolId },
+        select: {
+          id: true,
+          schoolName: true,
+          code: true
+        }
+      });
+
+      return {
+        ...finalStructure,
+        school: schoolData
+      };
     });
 
     // Log the activity for production

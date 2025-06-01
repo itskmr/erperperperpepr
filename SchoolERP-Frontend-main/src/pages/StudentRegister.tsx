@@ -131,10 +131,14 @@ const StudentRegistration = () => {
     const errors: string[] = [];
     
     if (currentStep === 1) {
+      // Only admission number and full name are required in basic information step
       if (!formData.fullName.trim()) errors.push('Full Name is required');
-      if (!formData.formNo) errors.push('Form Number is required');  
-      if (!formData.regnDate) errors.push('Registration Date is required');
-      if (!formData.registerForClass) errors.push('Register For Class is required');
+      if (!formData.formNo) errors.push('Admission Number (Form Number) is required');  
+    }
+    
+    if (currentStep === 3) {
+      // Father name is required in parent details step
+      if (!formData.fatherName?.trim()) errors.push("Father's Name is required");
     }
     
     return errors;
@@ -387,7 +391,7 @@ const StudentRegistration = () => {
     if (currentStep !== steps.length) {
       return;
     }
-    
+
     const validationErrors = validateCurrentStep();
     if (validationErrors.length > 0) {
       setError(validationErrors.join(', '));
@@ -421,7 +425,7 @@ const StudentRegistration = () => {
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        body: formDataToSend,
+          body: formDataToSend,
       });
 
       const result = await response.json();
