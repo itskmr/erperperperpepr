@@ -7,7 +7,7 @@ import {
 } from './StudentFormTypes';
 import { validateStep, hasValidationErrors } from './StudentFormValidation';
 import { STUDENT_API } from '../../config/api';
-import axios from 'axios';
+import { apiGet, apiPostFormData } from '../../utils/authApi';
 
 interface TransportRoute {
   id: string;
@@ -21,8 +21,6 @@ interface Driver {
   name: string;
   contactNumber: string;
 }
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 /**
  * Custom hook for managing student registration form state and validation
@@ -205,17 +203,22 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   // Fetch transport data
   const fetchTransportData = useCallback(async () => {
     try {
-      const [routesResponse, driversResponse] = await Promise.all([
-        axios.get(`${API_URL}/transport/routes`),
-        axios.get(`${API_URL}/transport/drivers`)
+      const [routesData, driversData] = await Promise.all([
+        apiGet<TransportRoute[]>(`/transport/routes`),
+        apiGet<Driver[]>(`/transport/drivers`)
       ]);
 
-      if (routesResponse.data?.success) {
-        setTransportRoutes(routesResponse.data.data || []);
+      // Handle the response - the apiGet function already extracts the data
+      if (Array.isArray(routesData)) {
+        setTransportRoutes(routesData);
+      } else if (routesData && typeof routesData === 'object' && 'length' in routesData) {
+        setTransportRoutes(routesData as TransportRoute[]);
       }
 
-      if (driversResponse.data?.success) {
-        setDrivers(driversResponse.data.data || []);
+      if (Array.isArray(driversData)) {
+        setDrivers(driversData);
+      } else if (driversData && typeof driversData === 'object' && 'length' in driversData) {
+        setDrivers(driversData as Driver[]);
       }
     } catch (error) {
       console.error('Error fetching transport data:', error);
@@ -367,17 +370,8 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       console.log("Sending student data to API");
       console.log("Form data keys:", Array.from(formDataToSend.keys()));
       
-      const response = await fetch(STUDENT_API.CREATE, {
-        method: 'POST',
-        body: formDataToSend,
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || `Server error (${response.status}): Failed to register student`);
-      }
-
-      const result = await response.json();
+      const result = await apiPostFormData(STUDENT_API.CREATE, formDataToSend);
+      
       console.log("Student registered successfully:", result);
       setSuccess(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });

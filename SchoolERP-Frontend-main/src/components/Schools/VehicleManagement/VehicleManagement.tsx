@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Download, FileText, Truck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import axios from 'axios';
 import jsPDF from 'jspdf';
 import { Vehicle, AddVehicleFormData } from './types';
 import VehicleTable from './VehicleTable';
@@ -10,8 +9,39 @@ import VehiclePagination from './VehiclePagination';
 import VehicleFormModal from './VehicleFormModal';
 import VehicleProfileModal from './VehicleProfileModal';
 import { formatDateForInput } from '../../../utils/dateUtils';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Define interfaces for API responses
+interface VehicleApiResponse {
+  id: string;
+  registrationNumber?: string;
+  make?: string;
+  vehicleName?: string;
+  model?: string;
+  capacity?: number;
+  fuelType?: string;
+  purchaseDate?: string;
+  insuranceExpiryDate?: string;
+  lastMaintenanceDate?: string;
+  lastInspectionDate?: string;
+  currentOdometer?: number;
+  status?: string;
+  notes?: string;
+  driverId?: string;
+}
+
+interface DriverApiResponse {
+  id: string;
+  name: string;
+  contactNumber: string;
+}
+
+interface SchoolInfoResponse {
+  schoolName?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
 
 const VehicleManagement: React.FC = () => {
   // State management
@@ -51,19 +81,18 @@ const VehicleManagement: React.FC = () => {
   const fetchVehicles = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/transport/buses`);
+      const data = await apiGet('/transport/buses');
       
-      if (response.data && response.data.success) {
-        // Transform backend data to frontend format and populate driver details
-        const transformedVehicles = await Promise.all((response.data.data || []).map(async (vehicle: any) => {
+      if (Array.isArray(data)) {
+        // Handle direct array response
+        const transformedVehicles = await Promise.all(data.map(async (vehicle: VehicleApiResponse) => {
           let driverDetails = null;
           
           // Fetch driver details if driverId exists
           if (vehicle.driverId) {
             try {
-              const driverResponse = await axios.get(`${API_URL}/transport/drivers/${vehicle.driverId}`);
-              if (driverResponse.data.success) {
-                const driverData = driverResponse.data.data;
+              const driverData = await apiGet(`/transport/drivers/${vehicle.driverId}`) as DriverApiResponse;
+              if (driverData) {
                 driverDetails = {
                   id: driverData.id,
                   name: driverData.name,
@@ -76,21 +105,76 @@ const VehicleManagement: React.FC = () => {
           }
           
           return {
-            ...vehicle,
-            vehicleName: vehicle.make || vehicle.vehicleName, // Map make to vehicleName
+            id: vehicle.id,
+            registrationNumber: vehicle.registrationNumber || '',
+            vehicleName: vehicle.make || vehicle.vehicleName || '', // Map make to vehicleName
+            model: vehicle.model || '',
+            capacity: vehicle.capacity || 0,
+            fuelType: vehicle.fuelType || '',
+            purchaseDate: vehicle.purchaseDate || '',
+            insuranceExpiryDate: vehicle.insuranceExpiryDate || '',
+            lastMaintenanceDate: vehicle.lastMaintenanceDate || '',
+            lastInspectionDate: vehicle.lastInspectionDate || '',
+            currentOdometer: vehicle.currentOdometer || 0,
+            status: vehicle.status || 'ACTIVE', // Ensure status has a default value
+            notes: vehicle.notes || '',
             driverId: vehicle.driverId || '',
             driver: driverDetails
-          };
+          } as Vehicle;
         }));
         
         setVehicles(transformedVehicles);
-        setError(null);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        // Handle wrapped response with data field
+        const responseData = data as { data: VehicleApiResponse[] };
+        const vehicleArray = Array.isArray(responseData.data) ? responseData.data : [];
+        const transformedVehicles = await Promise.all(vehicleArray.map(async (vehicle: VehicleApiResponse) => {
+          let driverDetails = null;
+          
+          // Fetch driver details if driverId exists
+          if (vehicle.driverId) {
+            try {
+              const driverData = await apiGet(`/transport/drivers/${vehicle.driverId}`) as DriverApiResponse;
+              if (driverData) {
+                driverDetails = {
+                  id: driverData.id,
+                  name: driverData.name,
+                  contactNumber: driverData.contactNumber
+                };
+              }
+            } catch (error) {
+              console.error('Error fetching driver details:', error);
+            }
+          }
+          
+          return {
+            id: vehicle.id,
+            registrationNumber: vehicle.registrationNumber || '',
+            vehicleName: vehicle.make || vehicle.vehicleName || '',
+            model: vehicle.model || '',
+            capacity: vehicle.capacity || 0,
+            fuelType: vehicle.fuelType || '',
+            purchaseDate: vehicle.purchaseDate || '',
+            insuranceExpiryDate: vehicle.insuranceExpiryDate || '',
+            lastMaintenanceDate: vehicle.lastMaintenanceDate || '',
+            lastInspectionDate: vehicle.lastInspectionDate || '',
+            currentOdometer: vehicle.currentOdometer || 0,
+            status: vehicle.status || 'ACTIVE', // Ensure status has a default value
+            notes: vehicle.notes || '',
+            driverId: vehicle.driverId || '',
+            driver: driverDetails
+          } as Vehicle;
+        }));
+        
+        setVehicles(transformedVehicles);
       } else {
-        setError('Failed to fetch vehicles');
+        setVehicles([]);
       }
+      setError(null);
     } catch (error: unknown) {
       console.error('Error fetching vehicles:', error);
-      setError(`Failed to fetch vehicles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const apiErr = error as ApiError;
+      setError(`Failed to fetch vehicles: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -99,10 +183,13 @@ const VehicleManagement: React.FC = () => {
   // Fetch drivers for dropdown
   const fetchDrivers = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/transport/drivers`);
+      const data = await apiGet('/transport/drivers');
       
-      if (response.data && response.data.success) {
-        setDrivers(response.data.data || []);
+      if (Array.isArray(data)) {
+        setDrivers(data);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        const responseData = data as { data: DriverApiResponse[] };
+        setDrivers(responseData.data || []);
       }
     } catch (error) {
       console.error('Error fetching drivers:', error);
@@ -157,35 +244,36 @@ const VehicleManagement: React.FC = () => {
   // Handle viewing a vehicle's profile
   const handleViewProfile = async (vehicle: Vehicle) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/buses/${vehicle.id}`);
+      const data = await apiGet(`/transport/buses/${vehicle.id}`) as VehicleApiResponse;
       
-      if (response.data.success) {
-        setSelectedVehicle(response.data.data);
+      if (data) {
+        setSelectedVehicle(data as Vehicle);
         setIsProfileOpen(true);
       } else {
         showToast('error', 'Failed to fetch vehicle details');
       }
     } catch (error) {
       console.error('Error fetching vehicle details:', error);
-      showToast('error', 'Failed to fetch vehicle details');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to fetch vehicle details');
     }
   };
 
   // Handle editing a vehicle
   const handleEditVehicle = async (vehicle: Vehicle) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/buses/${vehicle.id}`);
+      const data = await apiGet(`/transport/buses/${vehicle.id}`) as VehicleApiResponse;
       
-      if (response.data.success) {
+      if (data) {
         // Transform backend data to frontend format with properly formatted dates
         const transformedVehicle = {
-          ...response.data.data,
-          vehicleName: response.data.data.make || response.data.data.vehicleName,
-          driverId: response.data.data.driverId || '',
-          purchaseDate: formatDateForInput(response.data.data.purchaseDate),
-          insuranceExpiryDate: formatDateForInput(response.data.data.insuranceExpiryDate),
-          lastMaintenanceDate: formatDateForInput(response.data.data.lastMaintenanceDate),
-          lastInspectionDate: formatDateForInput(response.data.data.lastInspectionDate)
+          ...data,
+          vehicleName: data.make || data.vehicleName || '',
+          driverId: data.driverId || '',
+          purchaseDate: formatDateForInput(data.purchaseDate),
+          insuranceExpiryDate: formatDateForInput(data.insuranceExpiryDate),
+          lastMaintenanceDate: formatDateForInput(data.lastMaintenanceDate),
+          lastInspectionDate: formatDateForInput(data.lastInspectionDate)
         };
         
         setEditVehicle(transformedVehicle);
@@ -195,7 +283,8 @@ const VehicleManagement: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching vehicle details:', error);
-      showToast('error', 'Failed to fetch vehicle details');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to fetch vehicle details');
     }
   };
 
@@ -210,17 +299,15 @@ const VehicleManagement: React.FC = () => {
     if (!vehicleToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/transport/buses/${vehicleToDelete.id}`);
+      await apiDelete(`/transport/buses/${vehicleToDelete.id}`);
       
-      if (response.data.success) {
-        setVehicles(vehicles.filter(v => v.id !== vehicleToDelete.id));
-        showToast('success', 'Vehicle deleted successfully');
-      } else {
-        showToast('error', 'Failed to delete vehicle');
-      }
+      // If we get here, deletion was successful (apiDelete would throw on error)
+      setVehicles(vehicles.filter(v => v.id !== vehicleToDelete.id));
+      showToast('success', 'Vehicle deleted successfully');
     } catch (error) {
       console.error('Error deleting vehicle:', error);
-      showToast('error', 'Failed to delete vehicle');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to delete vehicle');
     } finally {
       setIsDeleteModalOpen(false);
       setVehicleToDelete(null);
@@ -249,40 +336,38 @@ const VehicleManagement: React.FC = () => {
         driverId: newVehicle.driverId || null
       };
       
-      const response = await axios.post(`${API_URL}/transport/buses`, vehicleDataForAPI);
+      const data = await apiPost('/transport/buses', vehicleDataForAPI) as VehicleApiResponse;
       
-      if (response.data.success) {
-        // Transform response back to frontend format for state
-        const newVehicleData = {
-          ...response.data.data,
-          vehicleName: response.data.data.make || response.data.data.vehicleName
-        };
-        
-        setVehicles([newVehicleData, ...vehicles]);
-        setNewVehicle({
-          registrationNumber: '',
-          vehicleName: '',
-          model: '',
-          capacity: 0,
-          fuelType: '',
-          purchaseDate: '',
-          insuranceExpiryDate: '',
-          lastMaintenanceDate: '',
-          lastInspectionDate: '',
-          currentOdometer: 0,
-          status: 'ACTIVE',
-          notes: '',
-          driverId: ''
-        });
-        setIsAddFormOpen(false);
-        showToast('success', 'Vehicle added successfully');
-        fetchVehicles(); // Refresh the vehicle list
-      } else {
-        showToast('error', response.data.message || 'Failed to add vehicle');
-      }
+      // If we get here, vehicle was added successfully (apiPost would throw on error)
+      // Transform response back to frontend format for state
+      const newVehicleData = {
+        ...data,
+        vehicleName: data.make || data.vehicleName || ''
+      };
+      
+      setVehicles([newVehicleData as Vehicle, ...vehicles]);
+      setNewVehicle({
+        registrationNumber: '',
+        vehicleName: '',
+        model: '',
+        capacity: 0,
+        fuelType: 'Diesel',
+        purchaseDate: '',
+        insuranceExpiryDate: '',
+        lastMaintenanceDate: '',
+        lastInspectionDate: '',
+        currentOdometer: 0,
+        status: 'ACTIVE',
+        notes: '',
+        driverId: ''
+      });
+      setIsAddFormOpen(false);
+      showToast('success', 'Vehicle added successfully');
+      fetchVehicles(); // Refresh the vehicle list
     } catch (error) {
       console.error('Error adding vehicle:', error);
-      showToast('error', 'Failed to add vehicle');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to add vehicle');
     }
   };
 
@@ -299,48 +384,45 @@ const VehicleManagement: React.FC = () => {
         vehicleName: undefined
       };
       
-      const response = await axios.put(`${API_URL}/transport/buses/${editVehicle.id}`, vehicleDataForAPI);
+      const data = await apiPut(`/transport/buses/${editVehicle.id}`, vehicleDataForAPI) as VehicleApiResponse;
       
-      if (response.data.success) {
-        // Fetch updated driver information if driverId exists
-        let driverDetails = null;
-        if (response.data.data.driverId) {
-          try {
-            const driverResponse = await axios.get(`${API_URL}/transport/drivers/${response.data.data.driverId}`);
-            if (driverResponse.data.success) {
-              const driverData = driverResponse.data.data;
-              driverDetails = {
-                id: driverData.id,
-                name: driverData.name,
-                contactNumber: driverData.contactNumber
-              };
-            }
-          } catch (error) {
-            console.error('Error fetching updated driver details:', error);
+      // If we get here, vehicle was updated successfully (apiPut would throw on error)
+      // Fetch updated driver information if driverId exists
+      let driverDetails = null;
+      if (data.driverId) {
+        try {
+          const driverData = await apiGet(`/transport/drivers/${data.driverId}`) as DriverApiResponse;
+          if (driverData) {
+            driverDetails = {
+              id: driverData.id,
+              name: driverData.name,
+              contactNumber: driverData.contactNumber
+            };
           }
+        } catch (error) {
+          console.error('Error fetching updated driver details:', error);
         }
-        
-        // Transform response back to frontend format for state
-        const updatedVehicleData = {
-          ...response.data.data,
-          vehicleName: response.data.data.make || response.data.data.vehicleName,
-          driver: driverDetails // Include the fetched driver details
-        };
-        
-        // Update the vehicles list with the new data including driver info
-        setVehicles(vehicles.map(v => v.id === editVehicle.id ? updatedVehicleData : v));
-        setEditVehicle({});
-        setIsEditModalOpen(false);
-        showToast('success', 'Vehicle updated successfully');
-        
-        // Refresh the entire vehicles list to ensure consistency
-        fetchVehicles();
-      } else {
-        showToast('error', response.data.message || 'Failed to update vehicle');
       }
+      
+      // Transform response back to frontend format for state
+      const updatedVehicleData = {
+        ...data,
+        vehicleName: data.make || data.vehicleName || '',
+        driver: driverDetails // Include the fetched driver details
+      };
+      
+      // Update the vehicles list with the new data including driver info
+      setVehicles(vehicles.map(v => v.id === editVehicle.id ? updatedVehicleData as Vehicle : v));
+      setEditVehicle({});
+      setIsEditModalOpen(false);
+      showToast('success', 'Vehicle updated successfully');
+      
+      // Refresh the entire vehicles list to ensure consistency
+      fetchVehicles();
     } catch (error) {
       console.error('Error updating vehicle:', error);
-      showToast('error', 'Failed to update vehicle');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to update vehicle');
     }
   };
 
@@ -361,12 +443,12 @@ const VehicleManagement: React.FC = () => {
     const csvContent = [
       ['Registration Number', 'Vehicle Name', 'Model', 'Capacity', 'Fuel Type', 'Status', 'Driver'].join(','),
       ...filteredVehicles.map(vehicle => [
-        vehicle.registrationNumber,
-        vehicle.vehicleName,
-        vehicle.model,
-        vehicle.capacity,
+        vehicle.registrationNumber || '',
+        vehicle.vehicleName || '',
+        vehicle.model || '',
+        vehicle.capacity || '',
         vehicle.fuelType || '',
-        vehicle.status,
+        vehicle.status || '',
         vehicle.driver?.name || 'Unassigned'
       ].join(','))
     ].join('\n');
@@ -386,16 +468,16 @@ const VehicleManagement: React.FC = () => {
       const doc = new jsPDF();
       
       // Fetch school information from API
-      let schoolInfo;
+      let schoolInfo: SchoolInfoResponse;
       try {
-        const response = await axios.get(`${API_URL}/transport/school-info`);
-        schoolInfo = response.data.success ? response.data.data : {
+        const response = await apiGet('/transport/school-info') as SchoolInfoResponse;
+        schoolInfo = response || {
           schoolName: 'Excellence School System',
           address: '123 Education Street, Learning City, State 12345',
           phone: '+1 (555) 123-4567',
           email: 'info@excellenceschool.edu'
         };
-      } catch (error) {
+      } catch {
         // Fallback to default values
         schoolInfo = {
           schoolName: 'Excellence School System',
@@ -408,12 +490,12 @@ const VehicleManagement: React.FC = () => {
       // School header
       doc.setFontSize(18);
       doc.setTextColor(37, 99, 235);
-      doc.text(schoolInfo.schoolName, 20, 20);
+      doc.text(schoolInfo.schoolName || 'School Name', 20, 20);
       
       doc.setFontSize(10);
       doc.setTextColor(75, 85, 99);
-      doc.text(schoolInfo.address, 20, 28);
-      doc.text(`Phone: ${schoolInfo.phone} | Email: ${schoolInfo.email}`, 20, 34);
+      doc.text(schoolInfo.address || 'School Address', 20, 28);
+      doc.text(`Phone: ${schoolInfo.phone || 'N/A'} | Email: ${schoolInfo.email || 'N/A'}`, 20, 34);
       
       // Add line separator
       doc.setDrawColor(229, 231, 235);
@@ -469,6 +551,15 @@ const VehicleManagement: React.FC = () => {
     }
   };
 
+  // Create a compatible setter function for the modal
+  const handleVehicleDataChange = (data: AddVehicleFormData | Partial<Vehicle>) => {
+    if (isEditModalOpen) {
+      setEditVehicle(data as Partial<Vehicle>);
+    } else {
+      setNewVehicle(data as AddVehicleFormData);
+    }
+  };
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       {/* Header */}
@@ -486,9 +577,7 @@ const VehicleManagement: React.FC = () => {
               <p className="text-2xl font-bold">{vehicles.length}</p>
             </div>
             <div className="bg-blue-400 p-3 rounded-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-              </svg>
+              <Truck className="h-6 w-6" />
             </div>
           </div>
         </div>
@@ -579,7 +668,7 @@ const VehicleManagement: React.FC = () => {
             setIsOpen={setIsAddFormOpen}
             mode="add"
             vehicleData={newVehicle}
-            setVehicleData={setNewVehicle}
+            setVehicleData={handleVehicleDataChange}
             onSubmit={handleAddVehicle}
             handleInputChange={handleInputChange}
             drivers={drivers}
@@ -647,7 +736,7 @@ const VehicleManagement: React.FC = () => {
           setIsOpen={setIsEditModalOpen}
           mode="edit"
           vehicleData={editVehicle}
-          setVehicleData={setEditVehicle}
+          setVehicleData={handleVehicleDataChange}
           onSubmit={handleUpdateVehicle}
           handleInputChange={handleInputChange}
           drivers={drivers}

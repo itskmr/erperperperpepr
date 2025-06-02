@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios, { AxiosError } from 'axios';
 import UpdateFeeRecord from './UpdateFeeRecord';
 import { getFeeStructureByClassName, getFeeCategories } from '../../services/feeStructureService';
-import { toast } from 'react-hot-toast';
-import { STUDENT_API } from '../../config/api';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../utils/authApi';
 
 // Types
 interface FeeCategoryType {
@@ -28,84 +26,54 @@ interface FeeRecord {
   paymentMode: string;
   receiptNumber: string;
   status: 'Paid' | 'Pending' | 'Partial';
-  feeCategory?: string;
-  feeCategories?: string[];
+  feeCategory: string;
+  feeCategories: string[];
+  remarks?: string;
   discountType?: string;
   discountAmount?: number;
-  discountValue?: number; // Calculated discount amount in currency
-  amountAfterDiscount?: number; // Amount to be paid after discount
+  discountValue?: number;
+  amountAfterDiscount?: number;
   studentDetails?: {
     fullName: string;
     fatherName: string;
-    motherName: string;
-    email: string;
-    mobileNumber: string;
-    className: string;
+    class: string;
     section: string;
-    rollNumber: string;
+    motherName?: string;
+    email?: string;
+    mobileNumber?: string;
+    className?: string;
     fatherContact?: string;
     motherContact?: string;
   };
 }
 
-interface StudentResponse {
-  id: number;
-  fullName: string;
-  admissionNo: string;
-  section: string;
-  fatherName: string;
+interface StudentApiData {
+  id?: string;
+  fullName?: string;
+  fatherName?: string;
   motherName?: string;
   email?: string;
   mobileNumber?: string;
   sessionInfo?: {
     currentClass?: string;
     currentSection?: string;
-    currentRollNo?: string;
   };
-  parentInfo?: {
-    fatherContact?: string;
-    motherContact?: string;
-  };
-  success?: boolean;
-  data?: {
-    id: number;
-    fullName: string;
-    admissionNo: string;
-    section: string;
-    fatherName: string;
-    motherName?: string;
-    email?: string;
-    mobileNumber?: string;
-    sessionInfo?: {
-      currentClass?: string;
-      currentSection?: string;
-      currentRollNo?: string;
-    };
-    parentInfo?: {
-      fatherContact?: string;
-      motherContact?: string;
-    };
-  };
-}
-
-interface StudentsApiResponse {
-  success: boolean;
-  message?: string;
-  data: StudentResponse[];
-}
-
-interface FeeResponse {
-  success: boolean;
-  message?: string;
-  data: FeeRecord | FeeRecord[];
+  admissionNo?: string;
+  section?: string;
 }
 
 interface Student {
   id: string;
   fullName: string;
-  admissionNo: string;
-  section: string;
-  fatherName: string;
+  admissionNumber: string;
+  admissionNo?: string; // Add this property for compatibility
+  sessionInfo?: {
+    currentClass?: string;
+    currentSection?: string;
+  };
+  className?: string;
+  section?: string;
+  fatherName?: string;
 }
 
 interface FeeCategory {
@@ -113,11 +81,6 @@ interface FeeCategory {
   name: string;
   amount: number;
   frequency: string;
-}
-
-interface StudentFeeAmount {
-  studentId: string;
-  amount: number;
 }
 
 interface SchoolDetails {
@@ -130,9 +93,6 @@ interface SchoolDetails {
   principal: string;
   image_url?: string;
 }
-
-const API_URL = 'http://localhost:5000/api/fees';
-const SCHOOL_API_URL = 'http://localhost:5000/api/transport/school-info';
 
 // Standardized class options to match the rest of the system
 const CLASS_OPTIONS = [
@@ -262,7 +222,7 @@ const FeeCollectionApp: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterSection, setFilterSection] = useState('');
-  const [filterStatus, setFilterStatus] = useState(''); // Add status filter state
+  const [filterStatus, setFilterStatus] = useState(''); 
   const [sortField, setSortField] = useState<keyof FeeRecord>('paymentDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
@@ -291,8 +251,8 @@ const FeeCollectionApp: React.FC = () => {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isMassFeeFormVisible, setIsMassFeeFormVisible] = useState(false);
 
-  // New state for student fee amounts
-  const [studentFeeAmounts, setStudentFeeAmounts] = useState<StudentFeeAmount[]>([]);
+  // Fix the type for student fee amounts
+  const [studentFeeAmounts, setStudentFeeAmounts] = useState<{ [key: string]: number }>({});
 
   // New state for view record
   const [selectedRecordForView, setSelectedRecordForView] = useState<FeeRecord | null>(null);
@@ -344,23 +304,33 @@ const FeeCollectionApp: React.FC = () => {
   // Fetch school details from backend
   const fetchSchoolDetails = async () => {
     try {
-      const response = await axios.get(SCHOOL_API_URL);
-      if (response.data.success && response.data.data) {
-        const school = response.data.data;
+      interface SchoolApiResponse {
+        id?: number;
+        schoolName?: string;
+        address?: string;
+        phone?: string;
+        contact?: string;
+        email?: string;
+        principal?: string;
+        image_url?: string;
+      }
+      
+      const data = await apiGet('/transport/school-info') as SchoolApiResponse;
+      if (data && data.schoolName) {
         setSchoolDetails({
-          id: school.id,
-          schoolName: school.schoolName || 'SCHOOL NAME',
-          address: school.address || 'School Address',
-          phone: school.phone || '0123456789',
-          contact: school.contact || school.phone || '0123456789',
-          email: school.email || 'school@example.com',
-          principal: school.principal || 'Principal Name',
-          image_url: school.image_url
+          id: data.id || 1,
+          schoolName: data.schoolName || 'SCHOOL NAME',
+          address: data.address || 'School Address',
+          phone: data.phone || '0123456789',
+          contact: data.contact || data.phone || '0123456789',
+          email: data.email || 'school@example.com',
+          principal: data.principal || 'Principal Name',
+          image_url: data.image_url
         });
       }
     } catch (err) {
       console.error('Error fetching school details:', err);
-      // Set default values if fetch fails
+      // Set default school details if fetch fails
       setSchoolDetails({
         id: 1,
         schoolName: 'SCHOOL NAME',
@@ -379,34 +349,27 @@ const FeeCollectionApp: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      const response = await axios.get<FeeResponse>(API_URL);
-      if (response.data.success) {
-        // Transform dates to string format for the component
-        let formattedRecords: FeeRecord[] = [];
-        if (Array.isArray(response.data.data)) {
-          formattedRecords = response.data.data.map((record: FeeRecord) => ({
+      const data = await apiGet<FeeRecord[]>('/fees');
+      // Transform dates to string format for the component
+      let formattedRecords: FeeRecord[] = [];
+      if (Array.isArray(data)) {
+        formattedRecords = data.map((record: FeeRecord) => ({
           ...record,
           paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
         }));
-        } else if (response.data.data) {
-          const record = response.data.data as FeeRecord;
-          formattedRecords = [{
-            ...record,
-            paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
-          }];
-        }
-        setRecords(formattedRecords);
-      } else {
-        setError('Failed to fetch fee records: ' + (response.data.message || 'Unknown error'));
+      } else if (data) {
+        const record = data as FeeRecord;
+        formattedRecords = [{
+          ...record,
+          paymentDate: new Date(record.paymentDate).toISOString().split('T')[0]
+        }];
       }
+      setRecords(formattedRecords);
       
     } catch (err: unknown) {
       console.error('Error fetching fee records:', err);
-      if (err instanceof Error) {
-        setError(`Failed to fetch fee records: ${err.message}`);
-      } else {
-        setError('Failed to fetch fee records: Unknown error');
-      }
+      const apiErr = err as ApiError;
+      setError(`Failed to fetch fee records: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -579,213 +542,200 @@ const FeeCollectionApp: React.FC = () => {
   // Update the handleSubmit function to include feeCategories in the payload
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    
     try {
+      console.log('🔍 Preparing fee data for submission:', formData);
+      console.log('🔍 Selected categories:', selectedCategories);
+      
       // Validate required fields
-      if (!formData.admissionNumber || !formData.studentName || !formData.class) {
-        toast.error('Please fill in all required fields');
-        setIsLoading(false);
+      if (!formData.admissionNumber || !formData.studentName || !formData.fatherName || 
+          !formData.class || !formData.section || !formData.paymentMode || !formData.receiptNumber) {
+        showNotification('Please fill in all required fields', 'error');
         return;
       }
       
-      // Format date correctly
-      const formattedDate = formData.paymentDate 
-        ? new Date(formData.paymentDate).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0];
-        
-      // Convert feeCategories array to string for feeCategory field
-      let feeCat = '';
-      if (Array.isArray(formData.feeCategories) && formData.feeCategories.length > 0) {
-        feeCat = formData.feeCategories.join(', ');
-      } else if (formData.feeCategory) {
-        feeCat = formData.feeCategory;
-      }
-      
-      // Prepare payload with both fields for backward compatibility
-      const payload = {
-        ...formData,
-        feeCategory: feeCat,
-        paymentDate: formattedDate,
-        totalFees: parseFloat(formData.totalFees.toString()),
-        amountPaid: parseFloat(formData.amountPaid.toString()),
-        feeAmount: parseFloat(formData.feeAmount.toString()),
+      // Create clean payload matching backend validation schema exactly
+      const submitData = {
+        admissionNumber: formData.admissionNumber.trim(),
+        studentName: formData.studentName.trim(),
+        fatherName: formData.fatherName.trim(),
+        class: formData.class,
+        section: formData.section,
+        totalFees: Number(formData.totalFees) || 0,
+        amountPaid: Number(formData.amountPaid) || 0,
+        feeAmount: Number(formData.feeAmount) || 0,
+        paymentDate: formData.paymentDate, // Keep as string, backend expects string
+        paymentMode: formData.paymentMode,
+        receiptNumber: formData.receiptNumber.trim(),
+        status: formData.status,
+        feeCategory: formData.feeCategory || selectedCategories.map(cat => cat.name).join(', ') || '',
+        feeCategories: selectedCategories.map(cat => cat.name),
+        discountType: formData.discountType || null,
+        discountAmount: formData.discountAmount ? Number(formData.discountAmount) : null,
+        discountValue: formData.discountValue ? Number(formData.discountValue) : null,
+        amountAfterDiscount: formData.amountAfterDiscount ? Number(formData.amountAfterDiscount) : null
+        // Removed 'remarks' as it's not in the validation schema
       };
+
+      console.log('📤 Sending fee data to API:', submitData);
+      const response = await apiPost('/fees', submitData);
+      console.log('✅ Fee record created successfully:', response);
       
-      const response = await axios.post<FeeResponse>(API_URL, payload);
-      
-      // Update list with new record
-      setRecords(prev => Array.isArray(response.data.data)
-        ? [...response.data.data, ...prev]
-        : [response.data.data as FeeRecord, ...prev]
-      );
-      resetForm();
-      toast.success('Fee record created successfully');
-      setIsFormVisible(false);
-    } catch (error: unknown) {
-      console.error('Error creating fee record:', error);
-      if (error instanceof AxiosError) {
-        toast.error(`Failed to create fee record: ${error.response?.data?.message || error.message}`);
-      } else if (error instanceof Error) {
-        toast.error(`Failed to create fee record: ${error.message}`);
+      // Handle the response properly - it should be a FeeRecord or wrapped in data
+      let newRecord: FeeRecord;
+      if (response && typeof response === 'object' && 'data' in response) {
+        newRecord = response.data as FeeRecord;
       } else {
-        toast.error('Failed to create fee record');
+        newRecord = response as FeeRecord;
       }
-    } finally {
-      setIsLoading(false);
+      
+      setRecords(prev => [newRecord, ...prev]);
+      resetForm();
+      showNotification('Fee record added successfully!', 'success');
+    } catch (error) {
+      console.error('❌ Error submitting fee record:', error);
+      const apiErr = error as ApiError;
+      
+      // Show more detailed error message if available
+      if (apiErr.message && apiErr.message.includes('errors:')) {
+        showNotification(`Validation Error: ${apiErr.message}`, 'error');
+      } else {
+        showNotification(apiErr.message || 'Error adding fee record', 'error');
+      }
     }
   };
 
   // Function to open the update modal with selected record
   const handleUpdateClick = (record: FeeRecord) => {
-    // If the record has feeCategory but not feeCategories, convert it
-    if (record.feeCategory && (!record.feeCategories || record.feeCategories.length === 0)) {
-      record.feeCategories = record.feeCategory.split(', ').filter(cat => cat.trim() !== '');
-    }
-    
     setSelectedRecord(record);
     setIsUpdateModalOpen(true);
   };
 
-  // Handle record update
-  const handleRecordUpdate = async (updatedRecord: FeeRecord) => {
+  // Handle record update - fix the function signature
+  const handleRecordUpdate = (updatedRecord: FeeRecord) => {
     try {
-      setIsLoading(true);
-      
-      // Prepare feeCategories for the API
-      let feeCategories = updatedRecord.feeCategories || [];
-      
-      // If we have feeCategory but empty feeCategories, try to parse categories from feeCategory
-      if (updatedRecord.feeCategory && feeCategories.length === 0) {
-        feeCategories = updatedRecord.feeCategory.split(', ').filter(cat => cat.trim() !== '');
-      }
-      
-      // Create payload with proper data formatting
-      const payload = {
-        admissionNumber: updatedRecord.admissionNumber.trim(),
-        studentName: updatedRecord.studentName.trim(),
-        fatherName: updatedRecord.fatherName.trim(),
-        class: updatedRecord.class,
-        section: updatedRecord.section,
-        totalFees: Number(updatedRecord.totalFees),
-        amountPaid: Number(updatedRecord.amountPaid),
-        feeAmount: Number(updatedRecord.feeAmount),
-        paymentDate: updatedRecord.paymentDate,
-        paymentMode: updatedRecord.paymentMode,
-        receiptNumber: updatedRecord.receiptNumber.trim(),
-        status: updatedRecord.status,
-        feeCategory: updatedRecord.feeCategory || '',
-        feeCategories: feeCategories,
-        schoolId: 1
-      };
-      
-      // Call API to update the record
-      const response = await axios.put<FeeResponse>(`${API_URL}/${updatedRecord.id}`, payload);
-      
-      if (response.data.success) {
-        // Update the record in state
-        const updated = response.data.data as FeeRecord;
-        setRecords(prevRecords => prevRecords.map(record => record.id === updated.id ? updated : record));
-        showNotification('Fee record updated successfully!', 'success');
+      const updateRecord = async () => {
+        const data: FeeRecord = await apiPut(`/fees/${updatedRecord.id}`, updatedRecord);
+        
+        setRecords(prev => prev.map(record => 
+          record.id === updatedRecord.id ? data : record
+        ));
+        
         setIsUpdateModalOpen(false);
         setSelectedRecord(null);
-      } else {
-        showNotification(`Failed to update record: ${response.data.message || 'Unknown error'}`, 'error');
-      }
-    } catch (err: unknown) {
-      console.error('Error updating fee record:', err);
+        showNotification('Fee record updated successfully!', 'success');
+      };
       
-      if (err instanceof AxiosError) {
-        const errorDetails = err.response?.data?.errors?.join(', ') || err.response?.data?.message;
-        showNotification(`Server error: ${errorDetails || 'Unknown error'}`, 'error');
-      } else if (err instanceof Error) {
-        showNotification(`Failed to update fee record: ${err.message}`, 'error');
-        } else {
-        showNotification('Failed to update fee record: Unknown error', 'error');
-      }
-    } finally {
-      setIsLoading(false);
+      updateRecord();
+    } catch (error) {
+      console.error('Error updating fee record:', error);
+      const apiErr = error as ApiError;
+      showNotification(apiErr.message || 'Error updating fee record', 'error');
     }
   };
 
   // Handle record deletion
   const handleDeleteRecord = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this fee record?')) {
-      try {
-        setIsLoading(true);
-        
-        // Call API to delete the record
-        const response = await axios.delete<{ success: boolean; message: string }>(`${API_URL}/${id}`);
-        
-        if (response.data.success) {
-          // Remove the record from local state
-          setRecords(records.filter(record => record.id !== id));
-          showNotification('Fee record deleted successfully!', 'success');
-        } else {
-          showNotification(`Failed to delete record: ${response.data.message}`, 'error');
-        }
-      } catch (err: unknown) {
-        console.error('Error deleting fee record:', err);
-        if (err instanceof Error) {
-          showNotification(`Failed to delete fee record: ${err.message}`, 'error');
-        } else {
-          showNotification('Failed to delete fee record: Unknown error', 'error');
-        }
-      } finally {
-        setIsLoading(false);
-      }
+    try {
+      await apiDelete(`/fees/${id}`);
+      setRecords(prev => prev.filter(record => record.id !== id));
+      showNotification('Fee record deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting fee record:', error);
+      const apiErr = error as ApiError;
+      showNotification(apiErr.message || 'Error deleting fee record', 'error');
     }
   };
 
   const showNotification = (message: string, type: string) => {
     setNotification({ show: true, message, type });
     setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
-    }, 3000);
+      setNotification({ show: false, message: '', type: '' });
+    }, 4000);
   };
 
+  // Fix the handleSort function
   const handleSort = (field: keyof FeeRecord) => {
-    setSortDirection(prev => (sortField === field && prev === 'asc' ? 'desc' : 'asc'));
+    setSortDirection(prev => sortField === field && prev === 'asc' ? 'desc' : 'asc');
     setSortField(field);
   };
 
   // Add function to fetch student details by admission number
   const fetchStudentDetails = async (admissionNumber: string) => {
+    if (!admissionNumber.trim()) {
+      return;
+    }
+    
     try {
-      setStudentDetails(null);
+      console.log('🔍 Fetching student details for admission number:', admissionNumber);
       
-      const response = await axios.get<StudentResponse>(`${STUDENT_API.BASE}/admission/${admissionNumber}`);
+      interface StudentApiResponse {
+        data?: StudentApiData;
+      }
       
-      if (response.data.success && response.data.data) {
-        const student = response.data.data;
-        setStudentDetails({
-          fullName: student.fullName || '',
-          fatherName: student.fatherName || '',
-          motherName: student.motherName || '',
-          email: student.email || '',
-          mobileNumber: student.mobileNumber || '',
-          className: student.sessionInfo?.currentClass || '',
-          section: student.sessionInfo?.currentSection || '',
-          rollNumber: student.sessionInfo?.currentRollNo || '',
-          fatherContact: student.parentInfo?.fatherContact || '',
-          motherContact: student.parentInfo?.motherContact || ''
-        });
-
-        // Update form data with student details
+      const response = await apiGet(`/students/admission/${admissionNumber}`) as StudentApiResponse | StudentApiData;
+      console.log('📡 Student API response:', response);
+      
+      let studentData: StudentApiData | null = null;
+      
+      // Check if response has student data directly (has id, fullName, etc.)
+      if (response && 'id' in response && response.id) {
+        console.log('✅ Processing direct student response');
+        studentData = response as StudentApiData;
+      } else if (response && 'data' in response && response.data) {
+        console.log('✅ Processing wrapped student response');
+        studentData = response.data;
+      }
+      
+      if (studentData) {
+        console.log('✅ Student data found:', studentData);
+        
         setFormData(prev => ({
           ...prev,
-          studentName: student.fullName || '',
-          fatherName: student.fatherName || '',
-          class: student.sessionInfo?.currentClass || '',
-          section: student.sessionInfo?.currentSection || ''
+          studentName: studentData!.fullName || '',
+          fatherName: studentData!.fatherName || '',
+          class: studentData!.sessionInfo?.currentClass || '',
+          section: studentData!.sessionInfo?.currentSection || '',
         }));
+        
+        setStudentDetails({
+          fullName: studentData.fullName || '',
+          fatherName: studentData.fatherName || '',
+          motherName: studentData.motherName || '',
+          email: studentData.email || '',
+          mobileNumber: studentData.mobileNumber || '',
+          class: studentData.sessionInfo?.currentClass || '',
+          section: studentData.sessionInfo?.currentSection || '',
+          className: studentData.sessionInfo?.currentClass || '',
+        });
+        
+        showNotification('Student details loaded successfully!', 'success');
       } else {
-        showNotification('Student not found', 'error');
+        console.log('❌ No student found for admission number:', admissionNumber);
+        // Reset form if no student found
+        setFormData(prev => ({
+          ...prev,
+          studentName: '',
+          fatherName: '',
+          class: '',
+          section: ''
+        }));
+        setStudentDetails(null);
+        showNotification('Student not found with this admission number', 'error');
       }
     } catch (error) {
-      console.error('Error fetching student details:', error);
-      showNotification('Failed to fetch student details', 'error');
+      console.error('❌ Error fetching student details:', error);
+      const apiErr = error as ApiError;
+      showNotification(apiErr.message || 'Error fetching student details', 'error');
+      
+      // Reset form data on error
+      setFormData(prev => ({
+        ...prev,
+        studentName: '',
+        fatherName: '',
+        class: '',
+        section: ''
+      }));
+      setStudentDetails(null);
     }
   };
 
@@ -822,58 +772,83 @@ const FeeCollectionApp: React.FC = () => {
       : <span className="ml-1">↓</span>;
   };
 
-  // Function to fetch students by class and section
+  // Function to fetch students by class and section - FIXED
   const fetchStudentsByClass = async (className: string, section: string) => {
-    if (!className) return;
+    if (!className || !section) {
+      console.log('❌ Missing className or section:', { className, section });
+      return;
+    }
     
     try {
       setIsLoadingStudents(true);
-      console.log('Fetching students with params:', { className, section });
+      console.log('🔍 Fetching students for class:', className, 'section:', section);
       
-      // Encode the class name properly for the URL
-      const encodedClassName = encodeURIComponent(className);
-      const response = await axios.get<StudentsApiResponse>(`${STUDENT_API.BASE}/class/${encodedClassName}/section/${section}`);
-      
-      console.log('API Response:', response.data);
-      
-      if (response.data.success) {
-        // Transform the response data to match our Student interface
-        const students = response.data.data.map((student: StudentResponse) => {
-          const transformedStudent = {
-            id: student.id.toString(),
-            fullName: student.fullName || "",
-            admissionNo: student.admissionNo,
-            section: student.section || '',
-            fatherName: student.fatherName || ''
-          };
-          console.log('Transformed student:', transformedStudent);
-          return transformedStudent;
-        });
-        console.log('Final students array:', students);
-        setClassStudents(students);
-      } else {
-        console.error('API returned success: false', response.data.message);
-        showNotification(response.data.message || 'Failed to fetch students', 'error');
+      interface StudentsApiResponse {
+        data?: StudentApiData[];
       }
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', {
-          status: error.response?.status,
-          data: error.response?.data,
-          message: error.message
-        });
-        
-        if (error.response?.status === 404) {
-          showNotification('No students found for the selected class and section', 'error');
-        } else if (error.response?.status === 500) {
-          showNotification('Server error while fetching students', 'error');
-        } else {
-          showNotification(error.response?.data?.message || 'Failed to fetch students', 'error');
-        }
+      
+      const response = await apiGet(`/students/class/${className}/section/${section}`) as StudentsApiResponse | StudentApiData[];
+      console.log('📡 Students API response:', response);
+      
+      let students: Student[] = [];
+      
+      if (response && 'data' in response && Array.isArray(response.data)) {
+        console.log('✅ Processing response with data field, found', response.data.length, 'students');
+        // Handle response with data field
+        students = response.data.map((student: StudentApiData) => ({
+          id: student.id || '',
+          fullName: student.fullName || "",
+          admissionNumber: student.admissionNo || '',
+          admissionNo: student.admissionNo || '', // Add for compatibility
+          section: student.sessionInfo?.currentSection || student.section || '',
+          fatherName: student.fatherName || '',
+          className: student.sessionInfo?.currentClass || className
+        }));
+      } else if (Array.isArray(response)) {
+        console.log('✅ Processing direct array response, found', response.length, 'students');
+        // Handle direct array response
+        students = response.map((student: StudentApiData) => ({
+          id: student.id || '',
+          fullName: student.fullName || "",
+          admissionNumber: student.admissionNo || '',
+          admissionNo: student.admissionNo || '', // Add for compatibility
+          section: student.section || '',
+          fatherName: student.fatherName || ''
+        }));
       } else {
-        showNotification('An unexpected error occurred while fetching students', 'error');
+        console.log('❌ No students found in response');
+        setClassStudents([]);
+        showNotification('No students found for the selected class and section', 'error');
+        return;
       }
+      
+      console.log('📋 Setting students in state:', students);
+      setClassStudents(students);
+      
+      // Initialize student fee amounts with full fee
+      const initialAmounts: { [key: string]: number } = {};
+      students.forEach((student: Student) => {
+        const totalFee = feeStructureCategories
+          .filter(cat => selectedCategories.some(c => c.name === cat.name))
+          .reduce((sum, cat) => sum + cat.amount, 0);
+        initialAmounts[student.id] = totalFee;
+      });
+      setStudentFeeAmounts(initialAmounts);
+      
+      showNotification(`Found ${students.length} students for ${className} - ${section}`, 'success');
+      
+    } catch (err: unknown) {
+      console.error('❌ Error fetching students:', err);
+      const apiErr = err as ApiError;
+      
+      if (apiErr.status === 404) {
+        showNotification('No students found for the selected class and section', 'error');
+      } else if (apiErr.status === 500) {
+        showNotification('Server error while fetching students', 'error');
+      } else {
+        showNotification(apiErr.message || 'Failed to fetch students', 'error');
+      }
+      setClassStudents([]);
     } finally {
       setIsLoadingStudents(false);
     }
@@ -881,16 +856,21 @@ const FeeCollectionApp: React.FC = () => {
 
   // Function to handle class selection for mass fee collection
   const handleMassFeeClassChange = (className: string) => {
+    console.log('📝 Class changed to:', className);
     setSelectedClass(className);
     setSelectedStudents([]);
+    setClassStudents([]); // Clear previous students
     fetchFeeStructureForClass(className);
   };
 
   // Function to handle section selection for mass fee collection
   const handleMassFeeSectionChange = (section: string) => {
+    console.log('📝 Section changed to:', section);
     setFormData(prev => ({ ...prev, section }));
     if (selectedClass) {
       fetchStudentsByClass(selectedClass, section);
+    } else {
+      console.log('❌ No class selected yet');
     }
   };
 
@@ -903,7 +883,12 @@ const FeeCollectionApp: React.FC = () => {
       
       // Reset fee amounts for deselected students
       if (!newSelected.includes(studentId)) {
-        setStudentFeeAmounts(prev => prev.filter(item => item.studentId !== studentId));
+        setStudentFeeAmounts(prev => {
+          const newAmounts = { ...prev };
+          // Only remove the deselected student's amount
+          delete newAmounts[studentId];
+          return newAmounts;
+        });
       }
       
       return newSelected;
@@ -921,28 +906,23 @@ const FeeCollectionApp: React.FC = () => {
 
   // Add this new function to handle individual fee amounts
   const handleStudentFeeAmountChange = (studentId: string, amount: number) => {
-    setStudentFeeAmounts(prev => {
-      const existing = prev.find(item => item.studentId === studentId);
-      if (existing) {
-        return prev.map(item => 
-          item.studentId === studentId ? { ...item, amount } : item
-        );
-      }
-      return [...prev, { studentId, amount }];
-    });
+    setStudentFeeAmounts(prev => ({
+      ...prev,
+      [studentId]: amount
+    }));
   };
 
   // Add function to set full fees for all selected students
   const handleSetFullFeeForAll = () => {
     const totalAmount = selectedCategories.reduce((sum, cat) => sum + cat.amount, 0);
-    const newAmounts = selectedStudents.map(studentId => ({
-      studentId,
-      amount: totalAmount
-    }));
-    setStudentFeeAmounts(newAmounts);
+    const newAmounts: { [key: string]: number } = {};
+    selectedStudents.forEach(studentId => {
+      newAmounts[studentId] = totalAmount;
+    });
+    setStudentFeeAmounts(prev => ({ ...prev, ...newAmounts }));
   };
 
-  // Update handleMassFeeSubmit to use individual fee amounts
+  // Update handleMassFeeSubmit to use authenticated API
   const handleMassFeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedStudents.length === 0) {
@@ -963,11 +943,11 @@ const FeeCollectionApp: React.FC = () => {
         const student = classStudents.find(s => s.id === studentId);
         if (!student) return null;
 
-        const studentFeeAmount = studentFeeAmounts.find(fee => fee.studentId === studentId);
-        const amount = studentFeeAmount?.amount || totalAmount;
+        const studentFeeAmount = studentFeeAmounts[studentId];
+        const amount = studentFeeAmount || totalAmount;
 
         const payload = {
-          admissionNumber: student.admissionNo,
+          admissionNumber: student.admissionNo || student.admissionNumber,
           studentName: student.fullName,
           fatherName: student.fatherName,
           class: selectedClass,
@@ -983,16 +963,17 @@ const FeeCollectionApp: React.FC = () => {
           feeCategories: selectedFeeCategories.map((c: FeeCategory) => c.name)
         };
 
-        return axios.post(API_URL, payload);
+        return apiPost('/fees', payload);
       });
 
       await Promise.all(promises.filter(Boolean));
       showNotification('Fee records created successfully', 'success');
       setIsMassFeeFormVisible(false);
       fetchFeeRecords();
-    } catch (error) {
-      console.error('Error creating mass fee records:', error);
-      showNotification('Failed to create fee records', 'error');
+    } catch (err: unknown) {
+      console.error('Error creating mass fee records:', err);
+      const apiErr = err as ApiError;
+      showNotification('Failed to create fee records: ' + (apiErr.message || 'Unknown error'), 'error');
     } finally {
       setIsLoading(false);
     }
@@ -1405,7 +1386,7 @@ const FeeCollectionApp: React.FC = () => {
                           </p>
                         </div>
                         {classStudents.map(student => {
-                          const studentFeeAmount = studentFeeAmounts.find(fee => fee.studentId === student.id);
+                          const studentFeeAmount = studentFeeAmounts[student.id];
                           const totalAmount = selectedCategories.reduce((sum, cat) => sum + cat.amount, 0);
                           
                           return (
@@ -1424,7 +1405,7 @@ const FeeCollectionApp: React.FC = () => {
                                 <div className="flex justify-between items-center">
                                   <div>
                                     <p className="text-sm font-medium text-gray-900">{student.fullName}</p>
-                                    <p className="text-xs text-gray-500">Admission No: {student.admissionNo}</p>
+                                    <p className="text-xs text-gray-500">Admission No: {student.admissionNumber}</p>
                                   </div>
                                   <div className="flex items-center gap-4">
                                     <div className="flex flex-col items-end">
@@ -1433,7 +1414,7 @@ const FeeCollectionApp: React.FC = () => {
                                         <div className="mt-2">
                                           <input
                                             type="number"
-                                            value={studentFeeAmount?.amount || totalAmount}
+                                            value={studentFeeAmount || totalAmount}
                                             onChange={(e) => handleStudentFeeAmountChange(student.id, Number(e.target.value))}
                                             className="w-32 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                                             placeholder="Enter amount"
@@ -1626,26 +1607,32 @@ const FeeCollectionApp: React.FC = () => {
                     <div>
                       <p className="text-sm text-gray-600">Full Name</p>
                       <p className="font-medium">{studentDetails.fullName}</p>
-                </div>
+                    </div>
                     <div>
                       <p className="text-sm text-gray-600">Father's Name</p>
                       <p className="font-medium">{studentDetails.fatherName}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Mother's Name</p>
-                      <p className="font-medium">{studentDetails.motherName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Email</p>
-                      <p className="font-medium">{studentDetails.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Mobile Number</p>
-                      <p className="font-medium">{studentDetails.mobileNumber}</p>
-                    </div>
+                    {studentDetails.motherName && (
+                      <div>
+                        <p className="text-sm text-gray-600">Mother's Name</p>
+                        <p className="font-medium">{studentDetails.motherName}</p>
+                      </div>
+                    )}
+                    {studentDetails.email && (
+                      <div>
+                        <p className="text-sm text-gray-600">Email</p>
+                        <p className="font-medium">{studentDetails.email}</p>
+                      </div>
+                    )}
+                    {studentDetails.mobileNumber && (
+                      <div>
+                        <p className="text-sm text-gray-600">Mobile Number</p>
+                        <p className="font-medium">{studentDetails.mobileNumber}</p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-sm text-gray-600">Class & Section</p>
-                      <p className="font-medium">{studentDetails.className} - {studentDetails.section}</p>
+                      <p className="font-medium">{studentDetails.className || studentDetails.class} - {studentDetails.section}</p>
                     </div>
                   </div>
                 </div>

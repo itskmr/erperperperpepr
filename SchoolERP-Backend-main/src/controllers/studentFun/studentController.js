@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { addSchoolFilter } from '../../middlewares/authMiddleware.js';
+
 const prisma = new PrismaClient();
 
 /**
@@ -472,19 +474,43 @@ export const createStudent = async (req, res) => {
 };
 
 /**
- * Get all students with pagination and filtering
+ * Get all students with pagination and filtering - WITH SCHOOL ISOLATION
  * @route GET /api/students
- * @access Public
+ * @access Protected - requires authentication
  */
 export const getAllStudents = async (req, res) => {
   try {
     console.log("Fetching students with query:", req.query);
 
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, class: className, section, category } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Enhanced query to include related data
+    // Build base where clause with school isolation
+    let baseWhere = {};
+    
+    // Add category filter if provided
+    if (category) {
+      baseWhere.category = category;
+    }
+
+    // Add class and section filters if provided
+    if (className || section) {
+      baseWhere.sessionInfo = {
+        is: {
+          ...(className && { currentClass: className }),
+          ...(section && { currentSection: section })
+        }
+      };
+    }
+    
+    // Apply school-based filtering for multi-school isolation
+    const whereClause = addSchoolFilter(req, baseWhere);
+    
+    console.log('Applied where clause for school isolation:', whereClause);
+    
+    // Enhanced query to include related data with school filtering
     const students = await prisma.student.findMany({
+      where: whereClause,
       skip,
       take: parseInt(limit),
       orderBy: { createdAt: 'desc' },
@@ -494,23 +520,34 @@ export const getAllStudents = async (req, res) => {
         transportInfo: true,
         educationInfo: true,
         otherInfo: true,
-        school: true, 
+        school: {
+          select: { id: true, schoolName: true, code: true }
+        }
       }
     });
     
-    // Get total count for pagination
-    const total = await prisma.student.count();
+    // Get total count for pagination with same filter
+    const total = await prisma.student.count({ where: whereClause });
     
-    console.log(`Found ${students.length} students (total: ${total})`);
+    console.log(`Found ${students.length} students (total: ${total}) for school context: ${req.user?.schoolId || 'admin'}`);
     
     return res.status(200).json({
       success: true,
-      students,
+      data: students, // Changed from 'students' to 'data' for consistency
       pagination: {
         total,
         page: parseInt(page),
         limit: parseInt(limit),
         totalPages: Math.ceil(total / parseInt(limit))
+      },
+      meta: {
+        schoolId: req.user?.schoolId,
+        userRole: req.user?.role,
+        appliedFilters: {
+          class: className,
+          section: section,
+          category: category
+        }
       }
     });
     
@@ -525,9 +562,9 @@ export const getAllStudents = async (req, res) => {
 };
 
 /**
- * Get a single student by ID with all related information
+ * Get a single student by ID with all related information - WITH SCHOOL ISOLATION
  * @route GET /api/students/:id
- * @access Public
+ * @access Protected - requires authentication and school ownership validation
  */
 export const getStudentById = async (req, res) => {
   try {
@@ -542,8 +579,13 @@ export const getStudentById = async (req, res) => {
       });
     }
     
-    const student = await prisma.student.findUnique({
-      where: { id: id.toString() },
+    // Build where clause with school isolation
+    const whereClause = addSchoolFilter(req, { id: id.toString() });
+    
+    console.log('Applied where clause for student lookup:', whereClause);
+    
+    const student = await prisma.student.findFirst({
+      where: whereClause,
       include: {
         parentInfo: true,
         sessionInfo: true,
@@ -553,24 +595,30 @@ export const getStudentById = async (req, res) => {
         previousSchool: true,
         siblings: true,
         officeDetails: true,
-        school: true,
+        school: {
+          select: { id: true, schoolName: true, code: true }
+        }
       }
     });
     
     if (!student) {
-      console.log(`Student with ID ${id} not found`);
+      console.log(`Student with ID ${id} not found in school context: ${req.user?.schoolId || 'admin'}`);
       return res.status(404).json({
         success: false,
-        message: 'Student not found'
+        message: 'Student not found or you do not have permission to access this student'
       });
     }
     
-    console.log(`Student found: ${student.fullName} (ID: ${student.id})`);
+    console.log(`Student found: ${student.fullName} (ID: ${student.id}) from school: ${student.school?.schoolName}`);
     
     return res.status(200).json({
       success: true,
       data: student,
-      message: 'Student data retrieved successfully'
+      message: 'Student data retrieved successfully',
+      meta: {
+        schoolId: student.schoolId,
+        accessedBy: req.user?.role
+      }
     });
     
   } catch (error) {
@@ -932,9 +980,21 @@ export const deleteStudent = async (req, res) => {
     const { id } = req.params;
     console.log(`Deleting student with ID: ${id}`);
     
+    // Validate ID format
+    if (!id || id.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID is required'
+      });
+    }
+    
+    // Build where clause with school isolation for security
+    const whereClause = addSchoolFilter(req, { id: id.toString() });
+    
     // Delete the student (cascading delete will handle related records)
+    // Students use string UUIDs, not integer IDs
     const student = await prisma.student.delete({
-      where: { id: parseInt(id) }
+      where: whereClause
     });
     
     return res.status(200).json({
@@ -949,7 +1009,7 @@ export const deleteStudent = async (req, res) => {
     if (error.code === 'P2025') {
       return res.status(404).json({
         success: false,
-        message: 'Student not found'
+        message: 'Student not found or you do not have permission to delete this student'
       });
     }
     
@@ -962,9 +1022,9 @@ export const deleteStudent = async (req, res) => {
 };
 
 /**
- * Get a student by admission number
+ * Get a student by admission number - WITH SCHOOL ISOLATION
  * @route GET /api/students/admission/:admissionNo
- * @access Public
+ * @access Protected - requires authentication and school isolation
  */
 export const getStudentByAdmissionNo = async (req, res) => {
   try {
@@ -979,31 +1039,46 @@ export const getStudentByAdmissionNo = async (req, res) => {
       });
     }
     
-    // Search for student by admission number
+    // Build where clause with school isolation
+    const whereClause = addSchoolFilter(req, { 
+      admissionNo: admissionNo.toString() 
+    });
+    
+    console.log('Applied where clause for student lookup by admission number:', whereClause);
+    
+    // Search for student by admission number with school isolation
     const student = await prisma.student.findFirst({
-      where: { 
-        admissionNo: admissionNo.toString() 
-      },
+      where: whereClause,
       include: {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
         educationInfo: true,
         otherInfo: true,
+        school: {
+          select: { id: true, schoolName: true, code: true }
+        }
       }
     });
     
     if (!student) {
-      console.log(`Student with admission number ${admissionNo} not found`);
+      console.log(`Student with admission number ${admissionNo} not found in school context: ${req.user?.schoolId || 'admin'}`);
       return res.status(404).json({
         success: false,
-        message: 'Student not found'
+        message: 'Student not found or you do not have permission to access this student'
       });
     }
     
+    console.log(`Student found: ${student.fullName} (ID: ${student.id}) from school: ${student.school?.schoolName}`);
+    
     return res.status(200).json({
       success: true,
-      student
+      data: student,
+      message: 'Student data retrieved successfully',
+      meta: {
+        schoolId: student.schoolId,
+        accessedBy: req.user?.role
+      }
     });
     
   } catch (error) {

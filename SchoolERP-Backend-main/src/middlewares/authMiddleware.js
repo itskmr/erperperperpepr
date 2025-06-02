@@ -44,6 +44,7 @@ export const protect = async (req, res, next) => {
           where: { id: decoded.id },
           select: { id: true, email: true, schoolName: true, role: true, status: true }
         });
+        // For school users, the schoolId is their own ID
         schoolId = user?.id; // School's own ID
         break;
         
@@ -195,6 +196,46 @@ export const requireSchoolContext = (req, res, next) => {
   next();
 };
 
+// Enhanced middleware for strict school-based data isolation
+export const enforceSchoolIsolation = (req, res, next) => {
+  // Skip enforcement for admins (they can access all schools)
+  if (req.user?.role === 'admin') {
+    return next();
+  }
+  
+  // Ensure user has a school context
+  if (!req.user?.schoolId) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "School context required for this operation" 
+    });
+  }
+  
+  // Prevent manual override of schoolId in request body/params for non-admin users
+  if (req.body && req.body.schoolId && parseInt(req.body.schoolId) !== req.user.schoolId) {
+    return res.status(403).json({ 
+      success: false, 
+      error: "You can only access data from your own school" 
+    });
+  }
+  
+  if (req.params && req.params.schoolId && parseInt(req.params.schoolId) !== req.user.schoolId) {
+    return res.status(403).json({ 
+      success: false, 
+      error: "You can only access data from your own school" 
+    });
+  }
+  
+  if (req.query && req.query.schoolId && parseInt(req.query.schoolId) !== req.user.schoolId) {
+    return res.status(403).json({ 
+      success: false, 
+      error: "You can only access data from your own school" 
+    });
+  }
+  
+  next();
+};
+
 // Helper function to get school ID from various sources with authentication context
 export const getSchoolIdFromContext = async (req) => {
   // If user is authenticated, prefer their school context
@@ -215,17 +256,125 @@ export const getSchoolIdFromContext = async (req) => {
     }
   }
   
-  // If no school context available, try to get first active school (fallback)
-  try {
-    const school = await prisma.school.findFirst({
-      where: { status: 'active' },
-      select: { id: true }
-    });
-    return school?.id || null;
-  } catch (error) {
-    console.error('Error getting fallback school ID:', error);
-    return null;
+  // If no school context available, return null (don't fallback to random school)
+  return null;
+};
+
+// Helper function to build where clause with school context for database queries
+export const addSchoolFilter = (req, baseWhere = {}) => {
+  const schoolId = req.user?.schoolId;
+  
+  // Admins can optionally filter by school or see all data
+  if (req.user?.role === 'admin') {
+    // Check if admin wants to filter by specific school
+    const requestedSchoolId = req.params.schoolId || req.query.schoolId || req.body.schoolId;
+    if (requestedSchoolId) {
+      return { ...baseWhere, schoolId: parseInt(requestedSchoolId) };
+    }
+    // If admin doesn't specify schoolId and query parameter 'all' is not true, don't add filter
+    if (req.query.all !== 'true') {
+      return baseWhere; // No school filter for admin unless specified
+    }
+    return baseWhere;
   }
+  
+  // For non-admin users, always filter by their school
+  if (schoolId) {
+    return { ...baseWhere, schoolId: schoolId };
+  }
+  
+  // If no school context and not admin, return impossible condition
+  return { ...baseWhere, schoolId: -1 }; // This will return no results
+};
+
+// Middleware to validate school ownership of resource
+export const validateSchoolOwnership = (modelName, idField = 'id') => {
+  return async (req, res, next) => {
+    // Skip for admins
+    if (req.user?.role === 'admin') {
+      return next();
+    }
+    
+    // Ensure user has school context
+    if (!req.user?.schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "School context required" 
+      });
+    }
+    
+    try {
+      const resourceId = req.params[idField];
+      if (!resourceId) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `${idField} parameter is required` 
+        });
+      }
+      
+      // Check resource ownership based on model
+      let resource;
+      switch (modelName.toLowerCase()) {
+        case 'student':
+          resource = await prisma.student.findUnique({
+            where: { id: resourceId },
+            select: { schoolId: true }
+          });
+          break;
+        case 'teacher':
+          resource = await prisma.teacher.findUnique({
+            where: { id: parseInt(resourceId) },
+            select: { schoolId: true }
+          });
+          break;
+        case 'timetable':
+          resource = await prisma.timetable.findUnique({
+            where: { id: parseInt(resourceId) },
+            select: { schoolId: true }
+          });
+          break;
+        case 'transfercertificate':
+          resource = await prisma.transferCertificate.findUnique({
+            where: { id: parseInt(resourceId) },
+            select: { schoolId: true }
+          });
+          break;
+        case 'registration':
+          resource = await prisma.registration.findUnique({
+            where: { registrationId: parseInt(resourceId) },
+            select: { schoolId: true }
+          });
+          break;
+        default:
+          return res.status(400).json({ 
+            success: false, 
+            error: `Unsupported model: ${modelName}` 
+          });
+      }
+      
+      if (!resource) {
+        return res.status(404).json({ 
+          success: false, 
+          error: `${modelName} not found` 
+        });
+      }
+      
+      if (resource.schoolId !== req.user.schoolId) {
+        return res.status(403).json({ 
+          success: false, 
+          error: "You can only access resources from your own school" 
+        });
+      }
+      
+      next();
+    } catch (error) {
+      console.error('School ownership validation error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: "Error validating resource ownership" 
+      });
+    }
+  };
 };
 
     

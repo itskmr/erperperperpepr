@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Save, X, Printer } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { generateAdmissionFormPrint } from '../../utils/printUtils';
+import { ApiError } from '../../utils/authApi';
 
 // Student interface
 interface Student {
@@ -183,6 +184,12 @@ const RELIGIONS = ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Buddhist', 'Jain', '
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const StudentEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -231,8 +238,8 @@ const StudentEdit: React.FC = () => {
   const fetchTransportData = useCallback(async () => {
     try {
       const [routesResponse, driversResponse] = await Promise.all([
-        axios.get(`${API_URL}/transport/routes`),
-        axios.get(`${API_URL}/transport/drivers`)
+        axios.get(`${API_URL}/transport/routes`, { headers: getAuthHeaders() }),
+        axios.get(`${API_URL}/transport/drivers`, { headers: getAuthHeaders() })
       ]);
 
       if (routesResponse.data?.success) {
@@ -254,7 +261,7 @@ const StudentEdit: React.FC = () => {
     setLoading(true);
     try {
       console.log(`Fetching student data for ID: ${id}`);
-      const response = await axios.get(`${API_URL}/students/${id}`);
+      const response = await axios.get(`${API_URL}/students/${id}`, { headers: getAuthHeaders() });
       
       console.log('API Response:', response.data);
       
@@ -427,27 +434,23 @@ const StudentEdit: React.FC = () => {
         setFormData(mappedData);
         showToast('success', 'Student data loaded successfully!');
       } else {
-        console.error('Invalid API response structure:', response.data);
+        console.error('Invalid API response structure:', response);
         showToast('error', 'Failed to load student data - Invalid response');
       }
     } catch (error) {
       console.error('Error fetching student:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const apiErr = error as ApiError;
+      if (apiErr.status === 404) {
         showToast('error', 'Student not found');
         navigate('/student-management');
       } else {
-        showToast('error', 'Error loading student data');
+        showToast('error', 'Failed to load student data');
       }
+      setLoading(false);
     } finally {
       setLoading(false);
     }
   }, [id, navigate]);
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchStudentData();
-    fetchTransportData();
-  }, [fetchStudentData, fetchTransportData]);
 
   // Auto-calculate age when date of birth changes
   useEffect(() => {
@@ -546,6 +549,7 @@ const StudentEdit: React.FC = () => {
       const response = await axios.put(`${API_URL}/students/${id}`, submissionData, {
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeaders()
         }
       });
       
@@ -931,6 +935,12 @@ const StudentEdit: React.FC = () => {
         return null;
     }
   };
+
+  // Hook to fetch data on component mount
+  useEffect(() => {
+    fetchStudentData();
+    fetchTransportData();
+  }, [fetchStudentData, fetchTransportData]);
 
   if (loading) {
     return (

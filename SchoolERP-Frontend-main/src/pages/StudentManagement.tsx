@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Download, Edit, Trash2, X, Eye, FileText, Users, GraduationCap } from 'lucide-react';
-import axios from 'axios';
 import jsPDF from 'jspdf';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { apiGet, apiDelete, ApiError, apiGetWithMeta } from '../utils/authApi';
+import { debugAuth, clearAuthData, simulateLogin, testAuthentication, attemptSchoolLogin } from '../utils/authDebug';
 
 // Define Student type
 interface Student {
@@ -50,17 +51,6 @@ interface Student {
   permanentPinCode?: string;
 }
 
-interface StudentResponse {
-  success: boolean;
-  data: Student[];
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-}
-
 // Predefined classes and sections
 const CLASSES = [
   'Nursery',
@@ -86,8 +76,6 @@ const CLASSES = [
 
 const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 // StudentManagement Component
 const StudentManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -111,20 +99,36 @@ const StudentManagement: React.FC = () => {
   // const [drivers, setDrivers] = useState<Driver[]>([]);
 
   // Show toast notification
-  const showToast = (type: 'success' | 'error', message: string) => {
-    toast[type](message, {
-      duration: 3000,
-      style: {
-        background: type === 'success' ? '#2563EB' : '#EF4444',
-        color: '#ffffff',
-        padding: '16px',
-        borderRadius: '8px',
-      },
-      iconTheme: {
-        primary: '#ffffff',
-        secondary: type === 'success' ? '#2563EB' : '#EF4444',
-      },
-    });
+  const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+    if (type === 'info') {
+      toast(message, {
+        duration: 3000,
+        style: {
+          background: '#6B7280',
+          color: '#ffffff',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+        iconTheme: {
+          primary: '#ffffff',
+          secondary: '#6B7280',
+        },
+      });
+    } else {
+      toast[type](message, {
+        duration: 3000,
+        style: {
+          background: type === 'success' ? '#2563EB' : '#EF4444',
+          color: '#ffffff',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+        iconTheme: {
+          primary: '#ffffff',
+          secondary: type === 'success' ? '#2563EB' : '#EF4444',
+        },
+      });
+    }
   };
 
   // Fetch transport routes and drivers
@@ -153,31 +157,51 @@ const StudentManagement: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.get<StudentResponse>(`${API_URL}/students`, {
-        params: {
-          page,
-          limit: 10,
-          schoolId: 1, // Default school ID
-          ...(filterClass && { class: filterClass }),
-          ...(filterSection && { section: filterSection }),
-          ...(searchTerm && { search: searchTerm }),
-        }
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10'
+        // Remove schoolId as it will be handled by backend auth middleware
       });
       
-      if (response.data && response.data.success) {
-        setStudents(response.data.data || []);
-        setTotalStudents(response.data.pagination?.total || 0);
-        setTotalPages(response.data.pagination?.totalPages || 0);
-        setCurrentPage(response.data.pagination?.page || 1);
-    } else {
-        setError('Failed to fetch students');
-      }
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      if (error instanceof Error) {
-        setError(`Failed to fetch students: ${error.message}`);
+      if (filterClass) params.append('class', filterClass);
+      if (filterSection) params.append('section', filterSection);
+      if (searchTerm) params.append('search', searchTerm);
+      
+      console.log('Fetching students with params:', params.toString());
+      console.log('Current auth token:', localStorage.getItem('token') ? 'Present' : 'Missing');
+      
+      const response = await apiGetWithMeta<Student[]>(`/students?${params.toString()}`);
+      
+      console.log('API Response received:', response);
+      
+      // The response should have the structure: { success: true, data: Student[], pagination: {...} }
+      if (response && response.success && response.data) {
+        console.log(`Successfully fetched ${response.data.length} students`);
+        setStudents(response.data);
+        setTotalStudents(response.pagination?.total || 0);
+        setTotalPages(response.pagination?.totalPages || 0);
+        setCurrentPage(response.pagination?.page || 1);
       } else {
-        setError('Failed to fetch students: Unknown error');
+        console.warn('Unexpected response structure:', response);
+        setError('Unexpected response format from server');
+      }
+    } catch (err: unknown) {
+      console.error('Error fetching students:', err);
+      const apiErr = err as ApiError;
+      
+      if (apiErr.status === 401) {
+        setError('Authentication failed. Please log in again.');
+        console.log('🔒 Authentication failed - token may be expired or invalid');
+      } else if (apiErr.status === 403) {
+        setError('Access denied. You do not have permission to view students.');
+        console.log('🚫 Access denied - insufficient permissions');
+      } else if (apiErr.status === 404) {
+        setError('No students found.');
+        console.log('📭 No students found');
+      } else {
+        setError(`Failed to fetch students: ${apiErr.message || 'Unknown error'}`);
+        console.log('❌ API Error:', apiErr);
       }
     } finally {
       setLoading(false);
@@ -186,6 +210,10 @@ const StudentManagement: React.FC = () => {
 
   // Initial fetch
   useEffect(() => {
+    // Debug authentication on component mount
+    console.log('StudentManagement mounted - checking auth status');
+    debugAuth();
+    
     fetchStudents(1);
     // fetchTransportData();
   }, [fetchStudents]);
@@ -193,16 +221,17 @@ const StudentManagement: React.FC = () => {
   // Handle view student
   const handleViewStudent = async (student: Student) => {
     try {
-      const response = await axios.get(`${API_URL}/students/${student.id}`);
-      if (response.data.success) {
-        setSelectedStudent(response.data.data);
+      const data = await apiGet<Student>(`/students/${student.id}`);
+      if (data) {
+        setSelectedStudent(data);
         setIsViewModalOpen(true);
-    } else {
+      } else {
         showToast('error', 'Failed to fetch student details');
       }
-    } catch (error) {
-      console.error('Error fetching student details:', error);
-      showToast('error', 'Failed to fetch student details');
+    } catch (err: unknown) {
+      console.error('Error fetching student details:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to fetch student details: ' + (apiErr.message || 'Unknown error'));
     }
   };
 
@@ -222,17 +251,15 @@ const StudentManagement: React.FC = () => {
     if (!studentToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/students/${studentToDelete.id}`);
-      if (response.data.success) {
-        setStudents(students.filter(s => s.id !== studentToDelete.id));
-        showToast('success', 'Student deleted successfully');
-        fetchStudents(currentPage); // Refresh the list
-    } else {
-        showToast('error', 'Failed to delete student');
-      }
-    } catch (error) {
-      console.error('Error deleting student:', error);
-      showToast('error', 'Failed to delete student');
+      await apiDelete(`/students/${studentToDelete.id}`);
+      
+      setStudents(students.filter(s => s.id !== studentToDelete.id));
+      showToast('success', 'Student deleted successfully');
+      fetchStudents(currentPage); // Refresh the list
+    } catch (err: unknown) {
+      console.error('Error deleting student:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to delete student: ' + (apiErr.message || 'Unknown error'));
     } finally {
       setIsDeleteModalOpen(false);
       setStudentToDelete(null);
@@ -430,6 +457,70 @@ const StudentManagement: React.FC = () => {
             >
               <FileText className="h-4 w-4 mr-2" />
               Export PDF
+            </button>
+            {/* Debug buttons for authentication troubleshooting */}
+            <button
+              onClick={() => {
+                debugAuth();
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm"
+              title="Debug Authentication Status"
+            >
+              Debug Auth
+            </button>
+            <button
+              onClick={async () => {
+                const isWorking = await testAuthentication();
+                showToast(isWorking ? 'success' : 'error', 
+                         isWorking ? 'Authentication is working' : 'Authentication failed - check console');
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm"
+              title="Test Current Authentication"
+            >
+              Test Auth
+            </button>
+            <button
+              onClick={() => {
+                clearAuthData();
+                showToast('success', 'Authentication data cleared');
+              }}
+              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-md text-sm"
+              title="Clear Auth Data"
+            >
+              Clear Auth
+            </button>
+            <button
+              onClick={async () => {
+                const token = await attemptSchoolLogin();
+                if (token) {
+                  showToast('success', 'School login successful - try API calls now');
+                  window.location.reload();
+                } else {
+                  showToast('error', 'School login failed - check console');
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-md text-sm"
+              title="Attempt School Login"
+            >
+              School Login
+            </button>
+            <button
+              onClick={() => {
+                simulateLogin();
+                showToast('success', 'Mock login completed - try API calls now');
+                window.location.reload();
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm"
+              title="Simulate Login for Testing"
+            >
+              Mock Login
+            </button>
+            <button
+              onClick={() => fetchStudents(1)}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md text-sm"
+              title="Retry Fetching Students"
+            >
+              Retry Fetch
             </button>
           </div>
           <button

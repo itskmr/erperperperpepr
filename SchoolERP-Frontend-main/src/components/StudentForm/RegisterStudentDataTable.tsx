@@ -328,13 +328,19 @@ const RegisterStudentDataTable: React.FC = () => {
   };
 
   const nextEditStep = () => {
+    console.log('Next step clicked, current step:', currentEditStep);
+    
     const errors = validateCurrentEditStep();
     if (errors.length > 0) {
+      console.log('Validation errors:', errors);
       setEditError(errors.join(', '));
       return;
     }
+    
     setEditError(null);
-    setCurrentEditStep(prev => Math.min(prev + 1, editSteps.length));
+    const newStep = Math.min(currentEditStep + 1, editSteps.length);
+    console.log('Moving to step:', newStep);
+    setCurrentEditStep(newStep);
   };
 
   const prevEditStep = () => {
@@ -486,8 +492,12 @@ const RegisterStudentDataTable: React.FC = () => {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Form submitted, current step:', currentEditStep, 'total steps:', editSteps.length);
+    
     // Only allow submission on the final step
     if (currentEditStep !== editSteps.length) {
+      console.log('Blocking submission - not on final step');
+      setEditError('Please complete all steps before saving.');
       return;
     }
 
@@ -1375,20 +1385,20 @@ const RegisterStudentDataTable: React.FC = () => {
                 
                 <div className="space-x-4">
                   {currentEditStep < editSteps.length ? (
-                <button
-                  type="button"
+                    <button
+                      type="button"
                       onClick={nextEditStep}
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       Next
-                </button>
+                    </button>
                   ) : (
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
                       className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                   )}
                   <button

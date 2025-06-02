@@ -18,6 +18,7 @@ import {
   getStudentDocuments,
   updateStudentDocument
 } from '../controllers/studentFun/studentController.js';
+import { protect, authorize, enforceSchoolIsolation, validateSchoolOwnership } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -160,8 +161,127 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-// Get all students with filters
-router.get('/', async (req, res) => {
+// ==================== PROTECTED ROUTES WITH SCHOOL ISOLATION ====================
+
+// Get all students with filters - PROTECTED WITH SCHOOL ISOLATION
+router.get('/', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getAllStudents
+);
+
+// Get student by ID - PROTECTED WITH SCHOOL ISOLATION
+router.get('/:id', 
+  protect, 
+  authorize('admin', 'school', 'teacher', 'student', 'parent'), 
+  validateSchoolOwnership('student', 'id'),
+  getStudentById
+);
+
+// Create new student - PROTECTED WITH SCHOOL ISOLATION
+router.post('/', 
+  protect, 
+  authorize('admin', 'school'), 
+  enforceSchoolIsolation,
+  upload.fields(documentFields), 
+  handleMulterError, 
+  createStudent
+);
+
+// Update student - PROTECTED WITH SCHOOL ISOLATION
+router.put('/:id', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  updateStudent
+);
+
+// Delete student - PROTECTED WITH SCHOOL ISOLATION
+router.delete('/:id', 
+  protect, 
+  authorize('admin', 'school'), 
+  validateSchoolOwnership('student', 'id'),
+  deleteStudent
+);
+
+// Get student by admission number - PROTECTED WITH SCHOOL ISOLATION
+router.get('/admission/:admissionNo', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentByAdmissionNo
+);
+
+// Get students by class and section - PROTECTED WITH SCHOOL ISOLATION
+router.get('/class/:className/section/:section', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentsByCurrentClass
+);
+
+// ==================== DOCUMENT MANAGEMENT ROUTES - PROTECTED ====================
+
+// Get all documents for a student - PROTECTED
+router.get('/:id/documents', 
+  protect, 
+  authorize('admin', 'school', 'teacher', 'student', 'parent'), 
+  validateSchoolOwnership('student', 'id'),
+  getStudentDocuments
+);
+
+// Add document to student - PROTECTED
+router.post('/:id/documents', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  singleDocumentUpload, 
+  handleMulterError, 
+  addStudentDocument
+);
+
+// Update document for student - PROTECTED
+router.put('/:id/documents/:documentType', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  singleDocumentUpload, 
+  handleMulterError, 
+  updateStudentDocument
+);
+
+// Delete document from student - PROTECTED
+router.delete('/:id/documents/:documentType', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  deleteStudentDocument
+);
+
+// ==================== TC FORM RELATED ROUTES - PROTECTED ====================
+
+// Get student by admission number for TC form - PROTECTED
+router.get('/lookup/:admissionNumber', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentByAdmissionNumber
+);
+
+// Fetch student details for TC form - PROTECTED
+router.get('/details/:admissionNumber', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  fetchStudentDetails
+);
+
+// ==================== LEGACY ROUTES (DEPRECATED - TO BE REMOVED) ====================
+// These routes are kept for backward compatibility but should be migrated to use protected routes
+
+// DEPRECATED: Get all students with filters (without authentication)
+router.get('/legacy/all', async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -228,282 +348,6 @@ router.get('/', async (req, res) => {
       success: false, 
       message: 'Error fetching students',
       error: error.message
-    });
-  }
-});
-
-// Add route to get student by admission number
-router.get('/admission/:admissionNo', async (req, res) => {
-  try {
-    const { admissionNo } = req.params;
-    console.log(`Route: Searching for student with admission number: ${admissionNo}`);
-    
-    // Search for student by admission number
-    const student = await prisma.student.findFirst({
-      where: { 
-        admissionNo: admissionNo.toString() 
-      },
-      include: {
-        parentInfo: true,
-        sessionInfo: true,
-        transportInfo: true,
-        educationInfo: true,
-        otherInfo: true,
-      }
-    });
-    
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      data: student
-    });
-  } catch (error) {
-    console.error('Error finding student by admission number:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error retrieving student',
-      error: error.message
-    });
-  }
-});
-
-// Create a new student with all related information
-router.post('/', upload.fields(documentFields), handleMulterError, createStudent);
-
-// Get a student by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const student = await prisma.student.findUnique({
-      where: { id: id.toString() }, // Keep ID as string
-      include: {
-        parentInfo: true,
-        sessionInfo: true,
-        transportInfo: true,
-        educationInfo: true,
-        otherInfo: true
-      }
-    });
-    
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    res.json({ success: true, data: student });
-  } catch (error) {
-    console.error('Error fetching student:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching student',
-      error: error.message
-    });
-  }
-});
-
-// Delete a student by ID
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Delete the student (cascading delete will handle related records)
-    const student = await prisma.student.delete({
-      where: { id: id.toString() } // Use string ID for UUID
-    });
-    
-    return res.status(200).json({
-      success: true,
-      message: `Student with ID ${id} has been deleted successfully`,
-      student
-    });
-    
-  } catch (error) {
-    console.error('Error deleting student:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to delete student',
-      error: error.message
-    });
-  }
-});
-
-// Update a student by ID
-router.put('/:id', updateStudent);
-
-// Add a new route to update student session information
-router.put('/:id/session', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      currentClass,
-      currentSection,
-      currentRollNo,
-      stream,
-      semester,
-      feeGroup,
-      house
-    } = req.body;
-
-    // Validate required fields
-    if (!currentClass || !currentSection) {
-      return res.status(400).json({
-        success: false,
-        message: 'Current class and section are required'
-      });
-    }
-
-    // Update the session information
-    const updatedSession = await prisma.sessionInfo.update({
-      where: {
-        studentId: parseInt(id)
-      },
-      data: {
-        currentClass,
-        currentSection,
-        currentRollNo,
-        stream,
-        semester,
-        feeGroup,
-        house
-      }
-    });
-
-    res.json({
-      success: true,
-      message: 'Student session information updated successfully',
-      data: updatedSession
-    });
-  } catch (error) {
-    console.error('Error updating student session:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating student session',
-      error: error.message
-    });
-  }
-});
-
-// Student lookup endpoints for TC generation
-router.get('/lookup/:admissionNumber', getStudentByAdmissionNumber);
-router.get('/details/:admissionNumber', fetchStudentDetails);
-
-// Add new route for getting students by current class and section
-router.get('/class/:className/section/:section', getStudentsByCurrentClass);
-
-// Serve uploaded files/images
-router.get('/uploads/*', (req, res) => {
-  try {
-    const filePath = req.params[0]; // Get the full path after /uploads/
-    const fullPath = path.join(process.cwd(), 'uploads', filePath);
-    
-    // Check if file exists
-    if (!fs.existsSync(fullPath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
-    
-    // Set appropriate headers based on file extension
-    const ext = path.extname(fullPath).toLowerCase();
-    let contentType = 'application/octet-stream';
-    
-    if (['.jpg', '.jpeg'].includes(ext)) {
-      contentType = 'image/jpeg';
-    } else if (ext === '.png') {
-      contentType = 'image/png';
-    } else if (ext === '.gif') {
-      contentType = 'image/gif';
-    } else if (ext === '.pdf') {
-      contentType = 'application/pdf';
-    }
-    
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
-    
-    // Send the file
-    res.sendFile(fullPath);
-  } catch (error) {
-    console.error('Error serving file:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error serving file'
-    });
-  }
-});
-
-// **NEW DOCUMENT ROUTES**
-
-// Get all documents for a student
-router.get('/:id/documents', getStudentDocuments);
-
-// Add or update a specific document for a student
-router.post('/:id/documents', singleDocumentUpload, handleMulterError, addStudentDocument);
-
-// Update/replace a specific document for a student
-router.put('/:id/documents/:documentType', singleDocumentUpload, handleMulterError, updateStudentDocument);
-
-// Delete a specific document from a student
-router.delete('/:id/documents/:documentType', deleteStudentDocument);
-
-// Serve document files
-router.get('/documents/:filename', (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const filePath = path.join(process.cwd(), 'uploads', 'students', filename);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found'
-      });
-    }
-    
-    // Set appropriate headers based on file extension
-    const ext = path.extname(filePath).toLowerCase();
-    let contentType = 'application/octet-stream';
-    
-    if (['.jpg', '.jpeg'].includes(ext)) {
-      contentType = 'image/jpeg';
-    } else if (ext === '.png') {
-      contentType = 'image/png';
-    } else if (ext === '.gif') {
-      contentType = 'image/gif';
-    } else if (ext === '.pdf') {
-      contentType = 'application/pdf';
-    } else if (ext === '.doc') {
-      contentType = 'application/msword';
-    } else if (ext === '.docx') {
-      contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    }
-    
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
-    
-    // Send the file
-    res.sendFile(filePath);
-  } catch (error) {
-    console.error('Error serving document:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error serving document'
     });
   }
 });

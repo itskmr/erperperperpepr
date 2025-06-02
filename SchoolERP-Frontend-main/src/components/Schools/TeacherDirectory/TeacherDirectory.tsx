@@ -7,8 +7,8 @@ import SearchFilters from './SearchFilter';
 import Pagination from './Pegination';
 import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
-import axios, { AxiosError } from 'axios';
 import jsPDF from 'jspdf';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 // import autoTable from 'jspdf-autotable';
 
 // Update API URL to ensure it's correctly pointing to your backend
@@ -70,36 +70,24 @@ const TeacherDirectory: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
 
-  // Configure axios defaults for better error handling
-  useEffect(() => {
-    axios.defaults.headers.common['Content-Type'] = 'application/json';
-    
-    // Add interceptor to log request data for debugging
-    axios.interceptors.request.use(request => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Request:', request.method, request.url, request.data);
-      }
-      return request;
-    });
-  }, []);
-
   // Fetch teachers from API
   const fetchTeachers = useCallback(async () => {
     try {
       setLoading(true);
       const storedSchoolId = localStorage.getItem('schoolId') || '1';
-      // Update API endpoint to match your backend route
-      const response = await axios.get(`${API_URL}/teachers/school/${storedSchoolId}`);
+      // School isolation will be handled automatically by backend auth middleware
+      const data = await apiGet(`/teachers/school/${storedSchoolId}`);
       
-      if (response.data && response.data.success) {
-        setTeachers(response.data.data || []);
-        setError(null);
+      if (Array.isArray(data)) {
+        setTeachers(data);
       } else {
-        setError('Failed to fetch teachers');
+        setTeachers([]);
       }
-    } catch (error: unknown) {
-      console.error('Error fetching teachers:', error);
-      setError(`Failed to fetch teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(null);
+    } catch (err: unknown) {
+      console.error('Error fetching teachers:', err);
+      const apiErr = err as ApiError;
+      setError(`Failed to fetch teachers: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -118,7 +106,7 @@ const TeacherDirectory: React.FC = () => {
     try {
       setLoading(true);
       const storedSchoolId = localStorage.getItem('schoolId') || '1';
-      let url = `${API_URL}/teachers/school/${storedSchoolId}/search?`;
+      let url = `/teachers/school/${storedSchoolId}/search?`;
       
       if (searchTerm) {
         url += `searchTerm=${encodeURIComponent(searchTerm)}&`;
@@ -128,17 +116,18 @@ const TeacherDirectory: React.FC = () => {
         url += `classFilter=${encodeURIComponent(classFilter)}&`;
       }
       
-      const response = await axios.get(url);
+      const data = await apiGet(url);
       
-      if (response.data && response.data.success) {
-        setTeachers(response.data.data || []);
-        setError(null);
+      if (Array.isArray(data)) {
+        setTeachers(data);
       } else {
-        setError('Failed to search teachers');
+        setTeachers([]);
       }
-    } catch (error: unknown) {
-      console.error('Error searching teachers:', error);
-      setError(`Failed to search teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(null);
+    } catch (err: unknown) {
+      console.error('Error searching teachers:', err);
+      const apiErr = err as ApiError;
+      setError(`Failed to search teachers: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -198,10 +187,11 @@ const TeacherDirectory: React.FC = () => {
   const handleViewProfile = async (teacher: Teacher) => {
     try {
       // Fetch the complete teacher data
-      const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      const data = await apiGet(`/teachers/${teacher.id}`);
       
-      if (response.data.success) {
-        const teacherData = response.data.data;
+      if (data) {
+        // The apiGet function already extracts the data, so use it directly
+        const teacherData = data;
         
         // Format the data to ensure all fields are properly set
         const formattedTeacherData = {
@@ -245,13 +235,14 @@ const TeacherDirectory: React.FC = () => {
 
         console.log('Teacher Profile Data:', formattedTeacherData);
         setSelectedTeacher(formattedTeacherData);
-    setIsProfileOpen(true);
+        setIsProfileOpen(true);
       } else {
         showToast('error', 'Failed to fetch teacher details');
       }
-    } catch (error) {
-      console.error('Error fetching teacher details:', error);
-      showToast('error', 'Failed to fetch teacher details');
+    } catch (err: unknown) {
+      console.error('Error fetching teacher details:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to fetch teacher details: ' + (apiErr.message || 'Unknown error'));
     }
   };
 
@@ -334,24 +325,16 @@ const TeacherDirectory: React.FC = () => {
 
       console.log('Sending teacher data:', formattedData);
 
-      const response = await axios.post(`${API_URL}/teachers`, formattedData);
+      await apiPost(`/teachers`, formattedData);
       
-      if (response.data.success) {
-        toast.success('Teacher added successfully');
-        setIsAddFormOpen(false);
-        fetchTeachers(); // Refresh the teacher list
-      } else {
-        toast.error(response.data.message || 'Failed to add teacher');
-      }
+      // If we get here, the teacher was added successfully (apiPost would throw on error)
+      toast.success('Teacher added successfully');
+      setIsAddFormOpen(false);
+      fetchTeachers(); // Refresh the teacher list
     } catch (error) {
       console.error('Error adding teacher:', error);
-      if (axios.isAxiosError(error)) {
-        const errorMessage = error.response?.data?.message || 'Error adding teacher';
-        console.error('Server error details:', error.response?.data);
-        toast.error(errorMessage);
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      const apiErr = error as ApiError;
+      toast.error(apiErr.message || 'Error adding teacher');
     }
   };
 
@@ -359,11 +342,9 @@ const TeacherDirectory: React.FC = () => {
   const handleEditTeacher = async (teacher: Teacher) => {
     try {
       // Fetch the complete teacher data
-      const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      const teacherData = await apiGet(`/teachers/${teacher.id}`);
       
-      if (response.data.success) {
-        const teacherData = response.data.data;
-        
+      if (teacherData) {
         // Format the data to ensure all fields are properly set
         const formattedTeacherData = {
           id: teacherData.id,
@@ -418,11 +399,8 @@ const TeacherDirectory: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching teacher details:', error);
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || 'Failed to fetch teacher details');
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      const apiErr = error as ApiError;
+      toast.error(apiErr.message || 'Failed to fetch teacher details');
     }
   };
 
@@ -436,17 +414,15 @@ const TeacherDirectory: React.FC = () => {
     if (!teacherToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/teachers/${teacherToDelete.id}`);
+      await apiDelete(`/teachers/${teacherToDelete.id}`);
       
-      if (response.data.success) {
-        setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherToDelete.id));
-        showToast('success', 'Teacher deleted successfully!');
-      } else {
-        showToast('error', response.data.message || 'Failed to delete teacher. Please try again.');
-      }
+      // If we get here, the deletion was successful (apiDelete would throw on error)
+      setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherToDelete.id));
+      showToast('success', 'Teacher deleted successfully!');
     } catch (error: unknown) {
       console.error('Error deleting teacher:', error);
-      showToast('error', error instanceof Error ? error.message : 'Unknown error');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to delete teacher. Please try again.');
     } finally {
       setIsDeleteModalOpen(false);
       setTeacherToDelete(null);
@@ -589,28 +565,18 @@ const TeacherDirectory: React.FC = () => {
 
       console.log('Updating teacher data:', teacherToUpdate);
       
-      const response = await axios.put(`${API_URL}/teachers/${editTeacher.id}`, teacherToUpdate);
+      await apiPut(`/teachers/${editTeacher.id}`, teacherToUpdate);
       
-      if (response.data.success) {
-        const updatedTeachers = teachers.map((teacher) =>
-          teacher.id === editTeacher.id ? response.data.data : teacher
-        );
-        setTeachers(updatedTeachers);
-        setIsEditModalOpen(false);
-        showToast('success', 'Teacher updated successfully!');
-        
-        // Refresh the list to ensure we have the latest data
-        fetchTeachers();
-      } else {
-        showToast('error', response.data.message || 'Failed to update teacher. Please try again.');
-      }
+      // If we get here, the teacher was updated successfully (apiPut would throw on error)
+      setIsEditModalOpen(false);
+      showToast('success', 'Teacher updated successfully!');
+      
+      // Refresh the list to ensure we have the latest data
+      fetchTeachers();
     } catch (error: unknown) {
       console.error('Error updating teacher:', error);
-      if (error instanceof AxiosError && error.response?.data?.message) {
-        showToast('error', error.response.data.message);
-      } else {
-        showToast('error', 'Failed to update teacher. Please try again.');
-      }
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to update teacher. Please try again.');
     }
   };
 

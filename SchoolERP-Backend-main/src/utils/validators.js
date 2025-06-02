@@ -21,8 +21,9 @@ export const validateFeeData = (data) => {
     discountAmount: Joi.number().min(0).max(100).optional().allow(null),
     discountValue: Joi.number().min(0).optional().allow(null),
     amountAfterDiscount: Joi.number().min(0).optional().allow(null),
+    remarks: Joi.string().optional().allow(null, ''),
     schoolId: Joi.number().optional()
-  });
+  }).unknown(false);
 
   return schema.validate(data);
 };

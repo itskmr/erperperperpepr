@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Download, FileText, Route } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import axios from 'axios';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 import { TransportRoute, AddTransportRouteFormData } from './types';
 import TransportRouteTable from './TransportRouteTable';
 import TransportRouteSearchFilter from './TransportRouteSearchFilter';
 import TransportRoutePagination from './TransportRoutePagination';
 import TransportRouteFormModal from './TransportRouteFormModal';
 import TransportRouteProfileModal from './TransportRouteProfileModal';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const TransportRoutes: React.FC = () => {
   // State management
@@ -45,31 +43,40 @@ const TransportRoutes: React.FC = () => {
   const fetchRoutes = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/transport/routes`);
+      const data = await apiGet('/transport/routes');
       
-      if (response.data && response.data.success) {
-        // The backend now returns properly formatted data with vehicle and driver info
-        const transformedRoutes = (response.data.data || []).map((route: any) => {
-          return {
-            ...route,
-            fromLocation: route.startLocation || route.fromLocation,
-            toLocation: route.endLocation || route.toLocation,
-            vehicleId: route.busId || route.vehicleId,
-            // The vehicle and driver info is now provided directly by the backend
-            vehicle: route.vehicle || null,
-            driver: route.driver || null,
-            isActive: route.isActive !== undefined ? route.isActive : true
-          };
-        });
-        
+      if (Array.isArray(data)) {
+        // Handle direct array response
+        const transformedRoutes = data.map((route: any) => ({
+          ...route,
+          fromLocation: route.startLocation || route.fromLocation,
+          toLocation: route.endLocation || route.toLocation,
+          vehicleId: route.busId || route.vehicleId,
+          vehicle: route.vehicle || null,
+          driver: route.driver || null,
+          isActive: route.isActive !== undefined ? route.isActive : true
+        }));
         setRoutes(transformedRoutes);
-        setError(null);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        // Handle wrapped response
+        const transformedRoutes = (data.data || []).map((route: any) => ({
+          ...route,
+          fromLocation: route.startLocation || route.fromLocation,
+          toLocation: route.endLocation || route.toLocation,
+          vehicleId: route.busId || route.vehicleId,
+          vehicle: route.vehicle || null,
+          driver: route.driver || null,
+          isActive: route.isActive !== undefined ? route.isActive : true
+        }));
+        setRoutes(transformedRoutes);
       } else {
-        setError('Failed to fetch transport routes');
+        setRoutes([]);
       }
+      setError(null);
     } catch (error: unknown) {
       console.error('Error fetching routes:', error);
-      setError(`Failed to fetch routes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const apiErr = error as ApiError;
+      setError(`Failed to fetch routes: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -78,11 +85,18 @@ const TransportRoutes: React.FC = () => {
   // Fetch vehicles for dropdown
   const fetchVehicles = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/transport/buses`);
+      const data = await apiGet('/transport/buses');
       
-      if (response.data && response.data.success) {
-        // Transform backend data to frontend format
-        const transformedVehicles = (response.data.data || []).map((vehicle: any) => ({
+      if (Array.isArray(data)) {
+        const transformedVehicles = data.map((vehicle: any) => ({
+          id: vehicle.id,
+          vehicleName: vehicle.make || vehicle.vehicleName,
+          registrationNumber: vehicle.registrationNumber,
+          ...vehicle
+        }));
+        setVehicles(transformedVehicles);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        const transformedVehicles = (data.data || []).map((vehicle: any) => ({
           id: vehicle.id,
           vehicleName: vehicle.make || vehicle.vehicleName,
           registrationNumber: vehicle.registrationNumber,
@@ -98,10 +112,12 @@ const TransportRoutes: React.FC = () => {
   // Fetch drivers for dropdown
   const fetchDrivers = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/transport/drivers`);
+      const data = await apiGet('/transport/drivers');
       
-      if (response.data && response.data.success) {
-        setDrivers(response.data.data || []);
+      if (Array.isArray(data)) {
+        setDrivers(data);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        setDrivers(data.data || []);
       }
     } catch (error) {
       console.error('Error fetching drivers:', error);
@@ -156,18 +172,17 @@ const TransportRoutes: React.FC = () => {
   // Handle viewing a route's profile
   const handleViewProfile = async (route: TransportRoute) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/routes/${route.id}`);
+      const data = await apiGet(`/transport/routes/${route.id}`);
       
-      if (response.data.success) {
-        // The backend now returns properly formatted data with vehicle and driver info
+      if (data) {
+        // The authenticated API returns data directly
         const transformedRoute = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation || response.data.data.fromLocation,
-          toLocation: response.data.data.endLocation || response.data.data.toLocation,
-          vehicleId: response.data.data.busId || response.data.data.vehicleId,
-          // Vehicle and driver info is now provided directly by the backend
-          vehicle: response.data.data.vehicle || null,
-          driver: response.data.data.driver || null
+          ...data,
+          fromLocation: data.startLocation || data.fromLocation,
+          toLocation: data.endLocation || data.toLocation,
+          vehicleId: data.busId || data.vehicleId,
+          vehicle: data.vehicle || null,
+          driver: data.driver || null
         };
         
         setSelectedRoute(transformedRoute);
@@ -177,25 +192,25 @@ const TransportRoutes: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching route details:', error);
-      showToast('error', 'Failed to fetch route details');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to fetch route details');
     }
   };
 
   // Handle editing a route
   const handleEditRoute = async (route: TransportRoute) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/routes/${route.id}`);
+      const data = await apiGet(`/transport/routes/${route.id}`);
       
-      if (response.data.success) {
-        // The backend now returns properly formatted data with vehicle and driver info
+      if (data) {
+        // The authenticated API returns data directly
         const transformedRoute = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation || response.data.data.fromLocation,
-          toLocation: response.data.data.endLocation || response.data.data.toLocation,
-          vehicleId: response.data.data.busId || response.data.data.vehicleId,
-          // Vehicle and driver info is now provided directly by the backend
-          vehicle: response.data.data.vehicle || null,
-          driver: response.data.data.driver || null
+          ...data,
+          fromLocation: data.startLocation || data.fromLocation,
+          toLocation: data.endLocation || data.toLocation,
+          vehicleId: data.busId || data.vehicleId,
+          vehicle: data.vehicle || null,
+          driver: data.driver || null
         };
         
         setEditRoute(transformedRoute);
@@ -205,7 +220,8 @@ const TransportRoutes: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching route details:', error);
-      showToast('error', 'Failed to fetch route details');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to fetch route details');
     }
   };
 
@@ -220,17 +236,15 @@ const TransportRoutes: React.FC = () => {
     if (!routeToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/transport/routes/${routeToDelete.id}`);
+      await apiDelete(`/transport/routes/${routeToDelete.id}`);
       
-      if (response.data.success) {
-        setRoutes(routes.filter(r => r.id !== routeToDelete.id));
-        showToast('success', 'Route deleted successfully');
-      } else {
-        showToast('error', 'Failed to delete route');
-      }
+      // If we get here, deletion was successful (apiDelete would throw on error)
+      setRoutes(routes.filter(r => r.id !== routeToDelete.id));
+      showToast('success', 'Route deleted successfully');
     } catch (error) {
       console.error('Error deleting route:', error);
-      showToast('error', 'Failed to delete route');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to delete route');
     } finally {
       setIsDeleteModalOpen(false);
       setRouteToDelete(null);
@@ -254,37 +268,35 @@ const TransportRoutes: React.FC = () => {
         driverId: newRoute.driverId
       };
 
-      const response = await axios.post(`${API_URL}/transport/routes`, routeDataForAPI);
+      const data = await apiPost('/transport/routes', routeDataForAPI);
       
-      if (response.data.success) {
-        // Transform response back to frontend format for state
-        const newRouteData = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation,
-          toLocation: response.data.data.endLocation,
-          vehicleId: response.data.data.busId
-        };
-        
-        setRoutes([newRouteData, ...routes]);
-        setNewRoute({
-          name: '',
-          fromLocation: '',
-          toLocation: '',
-          description: '',
-          distance: 0,
-          estimatedTime: 0,
-          vehicleId: '',
-          driverId: '',
-          isActive: true
-        });
-        setIsAddFormOpen(false);
-        showToast('success', 'Route added successfully');
-      } else {
-        showToast('error', response.data.message || 'Failed to add route');
-      }
+      // If we get here, route was added successfully (apiPost would throw on error)
+      // Transform response back to frontend format for state
+      const newRouteData = {
+        ...data,
+        fromLocation: data.startLocation,
+        toLocation: data.endLocation,
+        vehicleId: data.busId
+      };
+      
+      setRoutes([newRouteData, ...routes]);
+      setNewRoute({
+        name: '',
+        fromLocation: '',
+        toLocation: '',
+        description: '',
+        distance: 0,
+        estimatedTime: 0,
+        vehicleId: '',
+        driverId: '',
+        isActive: true
+      });
+      setIsAddFormOpen(false);
+      showToast('success', 'Route added successfully');
     } catch (error) {
       console.error('Error adding route:', error);
-      showToast('error', 'Failed to add route');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to add route');
     }
   };
 
@@ -305,27 +317,25 @@ const TransportRoutes: React.FC = () => {
         driverId: editRoute.driverId
       };
 
-      const response = await axios.put(`${API_URL}/transport/routes/${editRoute.id}`, routeDataForAPI);
+      const data = await apiPut(`/transport/routes/${editRoute.id}`, routeDataForAPI);
       
-      if (response.data.success) {
-        // Transform response back to frontend format for state
-        const updatedRouteData = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation,
-          toLocation: response.data.data.endLocation,
-          vehicleId: response.data.data.busId
-        };
-        
-        setRoutes(routes.map(r => r.id === editRoute.id ? updatedRouteData : r));
-        setEditRoute({});
-        setIsEditModalOpen(false);
-        showToast('success', 'Route updated successfully');
-      } else {
-        showToast('error', response.data.message || 'Failed to update route');
-      }
+      // If we get here, route was updated successfully (apiPut would throw on error)
+      // Transform response back to frontend format for state
+      const updatedRouteData = {
+        ...data,
+        fromLocation: data.startLocation,
+        toLocation: data.endLocation,
+        vehicleId: data.busId
+      };
+      
+      setRoutes(routes.map(r => r.id === editRoute.id ? updatedRouteData : r));
+      setEditRoute({});
+      setIsEditModalOpen(false);
+      showToast('success', 'Route updated successfully');
     } catch (error) {
       console.error('Error updating route:', error);
-      showToast('error', 'Failed to update route');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to update route');
     }
   };
 

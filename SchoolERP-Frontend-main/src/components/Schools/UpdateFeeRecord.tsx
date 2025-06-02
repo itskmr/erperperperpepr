@@ -160,14 +160,27 @@ const UpdateFeeRecord: React.FC<UpdateFeeRecordProps> = ({
         feeCat = formData.feeCategory;
       }
 
-      // Prepare the payload with properly formatted values
+      // Prepare the payload with properly formatted values matching backend validation
       const payload = {
-        ...formData,
-        feeCategory: feeCat,
-        paymentDate: formattedDate,
-        totalFees: parseFloat(formData.totalFees.toString()),
-        amountPaid: parseFloat(formData.amountPaid.toString()),
-        feeAmount: parseFloat(formData.feeAmount.toString())
+        admissionNumber: formData.admissionNumber.trim(),
+        studentName: formData.studentName.trim(),
+        fatherName: formData.fatherName.trim(),
+        class: formData.class,
+        section: formData.section,
+        totalFees: Number(formData.totalFees) || 0,
+        amountPaid: Number(formData.amountPaid) || 0,
+        feeAmount: Number(formData.feeAmount) || 0,
+        paymentDate: formattedDate, // Keep as string, backend expects string
+        paymentMode: formData.paymentMode,
+        receiptNumber: formData.receiptNumber.trim(),
+        status: formData.status,
+        feeCategory: feeCat || '',
+        feeCategories: Array.isArray(formData.feeCategories) ? formData.feeCategories : [],
+        discountType: formData.discountType || null,
+        discountAmount: formData.discountAmount ? Number(formData.discountAmount) : null,
+        discountValue: formData.discountValue ? Number(formData.discountValue) : null,
+        amountAfterDiscount: formData.amountAfterDiscount ? Number(formData.amountAfterDiscount) : null
+        // Only include fields that are in the validation schema
       };
       
       // Call onUpdate with the updated record

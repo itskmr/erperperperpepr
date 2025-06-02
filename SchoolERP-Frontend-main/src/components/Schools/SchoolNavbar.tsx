@@ -7,13 +7,13 @@ import {
   // FileText, 
   User, 
   Home, 
-  Calendar, 
+  // Calendar, 
   Users, 
   // Database, 
   // BarChart2,
   // HelpCircle,
   DollarSign,
-  Book,
+  // Book,
   // Award,
   Briefcase,
   Bell,
@@ -495,7 +495,7 @@ const SchoolNavbar = {
               /> */}
             </NavDropdown>
 
-            {/* School Calendar */}
+            {/* School Calendar
             <NavLink 
               to="/school/GradeManagementSchool" 
               icon={<Book className="h-5 w-5" />} 
@@ -511,7 +511,7 @@ const SchoolNavbar = {
               onClick={() => setIsMobileSidebarOpen(false)}
               isCollapsed={isCollapsed}
               isActive={isPathActive("/Calender")}
-            />
+            /> */}
 
             {/* Analytics & Reports */}
             {/* <NavLink 
