@@ -175,18 +175,29 @@ model Student {
   tcSubmitted              Boolean @default(false)
   marksheetSubmitted       Boolean @default(false)
 
-  // Document URLs (stored in cloud storage)
-  studentImageUrl          String?
-  fatherImageUrl          String?
-  motherImageUrl          String?
-  guardianImageUrl        String?
-  signatureUrl            String?
-  parentSignatureUrl      String?
-  birthCertificateUrl     String?
-  transferCertificateUrl  String?
-  markSheetUrl            String?
-  aadhaarCardUrl          String?
-  familyIdUrl             String?
+  // Document Paths (moved from Documents model)
+  studentImagePath         String? @db.Text
+  fatherImagePath          String? @db.Text
+  motherImagePath          String? @db.Text
+  guardianImagePath        String? @db.Text
+  signaturePath            String? @db.Text
+  parentSignaturePath      String? @db.Text
+  fatherAadharPath         String? @db.Text
+  motherAadharPath         String? @db.Text
+  birthCertificatePath     String? @db.Text
+  migrationCertificatePath String? @db.Text
+  aadhaarCardPath          String? @db.Text
+  familyIdPath             String? @db.Text
+  affidavitCertificatePath String? @db.Text
+  incomeCertificatePath    String? @db.Text
+  addressProof1Path        String? @db.Text
+  addressProof2Path        String? @db.Text
+  academicRegistrationNo   String?
+  transferCertificatePath  String? @db.Text
+  markSheetPath            String? @db.Text
+  fatherSignaturePath      String? @db.Text
+  motherSignaturePath      String? @db.Text
+  guardianSignaturePath    String? @db.Text
 
   // Previous School Information
   previousSchool    PreviousSchool?
@@ -225,7 +236,6 @@ model Student {
   parentInfo    ParentInfo?
   sessionInfo   SessionInfo?
   transportInfo TransportInfo?
-  documents     Documents?
   educationInfo EducationInfo?
   otherInfo     OtherInfo?
   studentTransport StudentTransport[]
@@ -368,31 +378,6 @@ model TransportInfo {
   transportDriver String?
   pickupLocation  String?
   dropLocation    String?
-
-  // Relation
-  studentId String   @unique
-  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-}
-
-model Documents {
-  id                       Int     @id @default(autoincrement())
-  studentImagePath         String? @db.Text
-  fatherImagePath          String? @db.Text
-  motherImagePath          String? @db.Text
-  guardianImagePath        String? @db.Text
-  signaturePath            String? @db.Text
-  parentSignaturePath      String? @db.Text
-  fatherAadharPath         String? @db.Text
-  motherAadharPath         String? @db.Text
-  birthCertificatePath     String? @db.Text
-  migrationCertificatePath String? @db.Text
-  aadhaarCardPath          String? @db.Text
-  familyIdPath            String? @db.Text  // New Family ID document field
-  affidavitCertificatePath String? @db.Text
-  incomeCertificatePath    String? @db.Text
-  addressProof1Path        String? @db.Text
-  addressProof2Path        String? @db.Text
-  academicRegistrationNo   String?
 
   // Relation
   studentId String   @unique
@@ -725,16 +710,9 @@ model Registration {
   motherMobileNo     String?
   motherAadharCardNo String?
 
-  // Optional documents 
-  casteCertificate              String?
-  studentAadharCard             String?
-  fatherAadharCard              String?
-  motherAadharCard              String?
-  previousClassMarksheet        String?
-  transferCertificate           String?
-  studentDateOfBirthCertificate String?
-  School                        School? @relation(fields: [schoolId], references: [id])
-  schoolId                      Int?
+  // School Association
+  schoolId           Int?
+  school             School? @relation(fields: [schoolId], references: [id])
 }
 
 

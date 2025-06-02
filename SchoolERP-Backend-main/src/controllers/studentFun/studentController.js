@@ -9,12 +9,19 @@ const prisma = new PrismaClient();
 export const createStudent = async (req, res) => {
   try {
     console.log("Creating new student with form data");
+    console.log("Form fields received:", Object.keys(req.body));
+    console.log("Files received:", req.files ? Object.keys(req.files) : 'No files');
     
     // Extract basic fields from request body
     const {
       branchName,
       fullName,
       dateOfBirth,
+      age,
+      penNo,
+      apaarId,
+      srNo,
+      registrationNo,
       gender,
       bloodGroup,
       nationality,
@@ -27,167 +34,183 @@ export const createStudent = async (req, res) => {
       emergencyContact,
       admissionNo,
       studentId,
+      rollNumber,
+      className,
+      section,
+      stream,
+      semester,
       admissionDate,
       previousSchool,
-      schoolId = 1, // Default school ID
+      schoolId , // Default school ID
     } = req.body;
     
-    // Extract address fields
+    // Extract address fields - support both nested and flattened formats
     const address = {
-      houseNo: req.body['address.houseNo'] || '',
-      street: req.body['address.street'] || '',
-      city: req.body['address.city'] || '',
-      state: req.body['address.state'] || '',
-      pinCode: req.body['address.pinCode'] || '',
-      permanentHouseNo: req.body['address.permanentHouseNo'] || '',
-      permanentStreet: req.body['address.permanentStreet'] || '',
-      permanentCity: req.body['address.permanentCity'] || '',
-      permanentState: req.body['address.permanentState'] || '',
-      permanentPinCode: req.body['address.permanentPinCode'] || '',
+      houseNo: req.body['address.houseNo'] || req.body.houseNo || '',
+      street: req.body['address.street'] || req.body.street || '',
+      city: req.body['address.city'] || req.body.city || '',
+      state: req.body['address.state'] || req.body.state || '',
+      pinCode: req.body['address.pinCode'] || req.body.pinCode || '',
+      permanentHouseNo: req.body['address.permanentHouseNo'] || req.body.permanentHouseNo || '',
+      permanentStreet: req.body['address.permanentStreet'] || req.body.permanentStreet || '',
+      permanentCity: req.body['address.permanentCity'] || req.body.permanentCity || '',
+      permanentState: req.body['address.permanentState'] || req.body.permanentState || '',
+      permanentPinCode: req.body['address.permanentPinCode'] || req.body.permanentPinCode || '',
+      sameAsPresentAddress: req.body['address.sameAsPresentAddress'] || req.body.sameAsPresentAddress || false,
     };
     
     // Extract parent information
     const father = {
       name: req.body['father.name'] || req.body.fatherName || '',
-      qualification: req.body['father.qualification'] || '',
-      occupation: req.body['father.occupation'] || '',
-      contactNumber: req.body['father.contactNumber'] || '',
-      email: req.body['father.email'] || '',
-      aadhaarNo: req.body['father.aadhaarNo'] || '',
-      annualIncome: req.body['father.annualIncome'] || '',
-      isCampusEmployee: req.body['father.isCampusEmployee'] || 'no',
+      qualification: req.body['father.qualification'] || req.body.fatherQualification || '',
+      occupation: req.body['father.occupation'] || req.body.fatherOccupation || '',
+      contactNumber: req.body['father.contactNumber'] || req.body.fatherMobile || req.body.fatherContact || '',
+      email: req.body['father.email'] || req.body.fatherEmail || '',
+      aadhaarNo: req.body['father.aadhaarNo'] || req.body.fatherAadhaar || '',
+      annualIncome: req.body['father.annualIncome'] || req.body.fatherIncome || '',
+      isCampusEmployee: req.body['father.isCampusEmployee'] || req.body.fatherCampusEmployee || 'no',
     };
     
     const mother = {
       name: req.body['mother.name'] || req.body.motherName || '',
-      qualification: req.body['mother.qualification'] || '',
-      occupation: req.body['mother.occupation'] || '',
-      contactNumber: req.body['mother.contactNumber'] || '',
-      email: req.body['mother.email'] || '',
-      aadhaarNo: req.body['mother.aadhaarNo'] || '',
-      annualIncome: req.body['mother.annualIncome'] || '',
-      isCampusEmployee: req.body['mother.isCampusEmployee'] || 'no',
+      qualification: req.body['mother.qualification'] || req.body.motherQualification || '',
+      occupation: req.body['mother.occupation'] || req.body.motherOccupation || '',
+      contactNumber: req.body['mother.contactNumber'] || req.body.motherMobile || req.body.motherContact || '',
+      email: req.body['mother.email'] || req.body.motherEmail || '',
+      aadhaarNo: req.body['mother.aadhaarNo'] || req.body.motherAadhaar || '',
+      annualIncome: req.body['mother.annualIncome'] || req.body.motherIncome || '',
+      isCampusEmployee: req.body['mother.isCampusEmployee'] || req.body.motherCampusEmployee || 'no',
     };
     
     const guardian = {
-      name: req.body['guardian.name'] || '',
-      address: req.body['guardian.address'] || '',
-      contactNumber: req.body['guardian.contactNumber'] || '',
-      email: req.body['guardian.email'] || '',
-      aadhaarNo: req.body['guardian.aadhaarNo'] || '',
-      occupation: req.body['guardian.occupation'] || '',
-      annualIncome: req.body['guardian.annualIncome'] || '',
+      name: req.body['guardian.name'] || req.body.guardianName || '',
+      address: req.body['guardian.address'] || req.body.guardianAddress || '',
+      contactNumber: req.body['guardian.contactNumber'] || req.body.guardianMobile || req.body.guardianContact || '',
+      email: req.body['guardian.email'] || req.body.guardianEmail || '',
+      aadhaarNo: req.body['guardian.aadhaarNo'] || req.body.guardianAadhaar || '',
+      occupation: req.body['guardian.occupation'] || req.body.guardianOccupation || '',
+      annualIncome: req.body['guardian.annualIncome'] || req.body.guardianIncome || '',
     };
     
-    // Extract session information - only for admission session
+    // Extract session information - support both admit and current sessions
     const sessionInfo = {
-      admitGroup: req.body.admitSession.group,
-      admitClass: req.body.admitSession.class,
-      admitSection: req.body.admitSession.section,
-      admitRollNo: req.body.admitSession.rollNo,
-      currentGroup: null,
-      currentClass: null,
-      currentSection: null,
-      currentRollNo: null,
-      stream: null,
-      semester: null,
-      feeGroup: req.body.currentSession.feeGroup,
-      house: req.body.currentSession.house
+      admitGroup: req.body['admitSession.group'] || req.body.admitGroup || '',
+      admitClass: req.body['admitSession.class'] || req.body.className || req.body.admitClass || '',
+      admitSection: req.body['admitSession.section'] || req.body.section || req.body.admitSection || '',
+      admitRollNo: req.body['admitSession.rollNo'] || req.body.rollNumber || req.body.admitRollNo || '',
+      admitStream: req.body['admitSession.stream'] || req.body.stream || req.body.admitStream || '',
+      admitSemester: req.body['admitSession.semester'] || req.body.semester || req.body.admitSemester || '',
+      admitFeeGroup: req.body['admitSession.feeGroup'] || req.body.feeGroup || req.body.admitFeeGroup || '',
+      admitHouse: req.body['admitSession.house'] || req.body.house || req.body.admitHouse || '',
+      currentGroup: req.body['currentSession.group'] || req.body.currentGroup || null,
+      currentClass: req.body['currentSession.class'] || req.body.currentClass || null,
+      currentSection: req.body['currentSession.section'] || req.body.currentSection || null,
+      currentRollNo: req.body['currentSession.rollNo'] || req.body.currentRollNo || null,
+      currentStream: req.body['currentSession.stream'] || req.body.currentStream || null,
+      currentSemester: req.body['currentSession.semester'] || req.body.currentSemester || null,
+      currentFeeGroup: req.body['currentSession.feeGroup'] || req.body.currentFeeGroup || null,
+      currentHouse: req.body['currentSession.house'] || req.body.currentHouse || null,
     };
     
     // Extract transport information
     const transport = {
-      mode: req.body['transport.mode'] || '',
-      area: req.body['transport.area'] || '',
-      stand: req.body['transport.stand'] || '',
-      route: req.body['transport.route'] || '',
-      driver: req.body['transport.driver'] || '',
+      mode: req.body['transport.mode'] || req.body.transportMode || '',
+      area: req.body['transport.area'] || req.body.transportArea || '',
+      stand: req.body['transport.stand'] || req.body.transportStand || '',
+      route: req.body['transport.route'] || req.body.transportRoute || '',
+      driver: req.body['transport.driver'] || req.body.transportDriver || '',
+      pickupLocation: req.body['transport.pickupLocation'] || req.body.pickupLocation || '',
+      dropLocation: req.body['transport.dropLocation'] || req.body.dropLocation || '',
     };
     
     // Extract academic registration
     const academic = {
-      registrationNo: req.body['academic.registrationNo'] || '',
+      registrationNo: req.body['academic.registrationNo'] || req.body.registrationNo || '',
     };
     
     // Extract last education details
     const lastEducation = {
-      school: req.body['lastEducation.school'] || '',
-      address: req.body['lastEducation.address'] || '',
-      tcDate: req.body['lastEducation.tcDate'] || null,
-      prevClass: req.body['lastEducation.prevClass'] || '',
-      percentage: req.body['lastEducation.percentage'] || '',
-      attendance: req.body['lastEducation.attendance'] || '',
-      extraActivity: req.body['lastEducation.extraActivity'] || '',
+      school: req.body['lastEducation.school'] || req.body.previousSchool || '',
+      address: req.body['lastEducation.address'] || req.body.lastSchoolAddress || '',
+      tcDate: req.body['lastEducation.tcDate'] || req.body.tcDate || null,
+      prevClass: req.body['lastEducation.prevClass'] || req.body.previousClass || '',
+      percentage: req.body['lastEducation.percentage'] || req.body.previousPercentage || '',
+      attendance: req.body['lastEducation.attendance'] || req.body.previousAttendance || '',
+      extraActivity: req.body['lastEducation.extraActivity'] || req.body.extraActivities || '',
     };
     
-    // Extract other information
+    // Extract other information with comprehensive mapping
     const other = {
-      belongToBPL: req.body['other.belongToBPL'] || 'no',
-      minority: req.body['other.minority'] || 'no',
-      disability: req.body['other.disability'] || '',
-      accountNo: req.body['other.accountNo'] || '',
-      bank: req.body['other.bank'] || '',
-      ifscCode: req.body['other.ifscCode'] || '',
-      medium: req.body['other.medium'] || '',
-      lastYearResult: req.body['other.lastYearResult'] || '',
-      singleParent: req.body['other.singleParent'] || 'no',
-      onlyChild: req.body['other.onlyChild'] || 'no',
-      onlyGirlChild: req.body['other.onlyGirlChild'] || 'no',
-      adoptedChild: req.body['other.adoptedChild'] || 'no',
-      siblingAdmissionNo: req.body['other.siblingAdmissionNo'] || '',
-      transferCase: req.body['other.transferCase'] || 'no',
-      livingWith: req.body['other.livingWith'] || '',
-      motherTongue: req.body['other.motherTongue'] || '',
-      admissionType: req.body['other.admissionType'] || 'new',
-      udiseNo: req.body['other.udiseNo'] || '',
+      belongToBPL: req.body['other.belongToBPL'] || req.body.belongToBPL || 'no',
+      minority: req.body['other.minority'] || req.body.minority || 'no',
+      disability: req.body['other.disability'] || req.body.disability || req.body.typeOfDisability || '',
+      accountNo: req.body['other.accountNo'] || req.body.accountNo || '',
+      bank: req.body['other.bank'] || req.body.bank || '',
+      ifscCode: req.body['other.ifscCode'] || req.body.ifscCode || '',
+      medium: req.body['other.medium'] || req.body.medium || '',
+      lastYearResult: req.body['other.lastYearResult'] || req.body.lastYearResult || '',
+      singleParent: req.body['other.singleParent'] || req.body.singleParent || 'no',
+      onlyChild: req.body['other.onlyChild'] || req.body.onlyChild || 'no',
+      onlyGirlChild: req.body['other.onlyGirlChild'] || req.body.onlyGirlChild || 'no',
+      adoptedChild: req.body['other.adoptedChild'] || req.body.adoptedChild || 'no',
+      siblingAdmissionNo: req.body['other.siblingAdmissionNo'] || req.body.siblingAdmissionNo || '',
+      transferCase: req.body['other.transferCase'] || req.body.transferCase || 'no',
+      livingWith: req.body['other.livingWith'] || req.body.livingWith || '',
+      motherTongue: req.body['other.motherTongue'] || req.body.motherTongue || '',
+      admissionType: req.body['other.admissionType'] || req.body.admissionType || 'new',
+      udiseNo: req.body['other.udiseNo'] || req.body.udiseNo || '',
     };
     
-    // Handle file uploads and get paths
+    // Handle file uploads and get paths with improved mapping
     const files = req.files || {};
     
-    // Get file paths if they exist
+    // Get file path function that handles both document.fieldName and direct fieldName
     const getFilePath = (fieldName) => {
+      // Check for documents.fieldName format first
+      const documentField = `documents.${fieldName}`;
+      if (files[documentField] && files[documentField][0]) {
+        return files[documentField][0].path;
+      }
+      
+      // Check for direct fieldName format
       if (files[fieldName] && files[fieldName][0]) {
         return files[fieldName][0].path;
       }
+      
       return null;
-    };
-    
-    const documents = {
-      studentImagePath: getFilePath('documents.studentImage'),
-      fatherImagePath: getFilePath('documents.fatherImage'),
-      motherImagePath: getFilePath('documents.motherImage'),
-      guardianImagePath: getFilePath('documents.guardianImage'),
-      signaturePath: getFilePath('documents.signature'),
-      fatherAadharPath: getFilePath('documents.fatherAadhar'),
-      motherAadharPath: getFilePath('documents.motherAadhar'),
-      birthCertificatePath: getFilePath('documents.birthCertificate'),
-      migrationCertificatePath: getFilePath('documents.migrationCertificate'),
-      aadhaarCardPath: getFilePath('documents.aadhaarCard'),
     };
     
     // Use a transaction to ensure all related records are created or none at all
     const student = await prisma.$transaction(async (prisma) => {
-      // Create the student record first
+      // Create the student record first with comprehensive field mapping including document paths
       const newStudent = await prisma.student.create({
         data: {
-          branchName,
-          fullName,
+          branchName: branchName || '',
+          fullName: fullName || '',
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
+          age: age ? parseInt(age) : null,
+          penNo: penNo || '',
+          apaarId: apaarId || '',
+          srNo: srNo || '',
           gender: gender || "OTHER",
-          bloodGroup,
+          bloodGroup: bloodGroup || '',
           nationality: nationality || "Indian",
-          religion,
-          category,
-          caste,
-          aadhaarNumber,
+          religion: religion || '',
+          category: category || '',
+          caste: caste || '',
+          aadhaarNumber: aadhaarNumber || '',
           mobileNumber: mobileNumber || "0000000000",
           email: email || "",
-          emergencyContact,
+          emergencyContact: emergencyContact || '',
           admissionNo: admissionNo || `ADM-${Date.now()}`,
-          studentId,
+          studentId: studentId || '',
+          rollNumber: rollNumber || '',
+          className: className || sessionInfo.admitClass || '',
+          section: section || sessionInfo.admitSection || '',
+          stream: stream || sessionInfo.admitStream || '',
+          semester: semester || sessionInfo.admitSemester || '',
           admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
-          previousSchool,
+          previousSchool: previousSchool || lastEducation.school || '',
           
           // Address fields - map from nested structure to flat structure
           houseNo: address.houseNo,
@@ -200,11 +223,48 @@ export const createStudent = async (req, res) => {
           permanentCity: address.permanentCity,
           permanentState: address.permanentState,
           permanentPinCode: address.permanentPinCode,
-          sameAsPresentAddress: req.body['address.sameAsPresentAddress'] || false,
+          sameAsPresentAddress: address.sameAsPresentAddress,
           
-          // Parent information - ensure both direct and nested paths are checked
-          fatherName: father.name || req.body.fatherName || '',
-          motherName: mother.name || req.body.motherName || '',
+          // Parent information in main table
+          fatherName: father.name,
+          fatherMobile: father.contactNumber,
+          fatherEmail: father.email,
+          motherName: mother.name,
+          motherMobile: mother.contactNumber,
+          motherEmail: mother.email,
+          
+          // Transport information in main table  
+          transportMode: transport.mode,
+          transportArea: transport.area,
+          transportStand: transport.stand,
+          transportRoute: transport.route,
+          transportDriver: transport.driver,
+          pickupLocation: transport.pickupLocation,
+          dropLocation: transport.dropLocation,
+          
+          // Other fields in main table
+          belongToBPL: other.belongToBPL,
+          typeOfDisability: other.disability,
+          registrationNo: academic.registrationNo,
+          
+          // Document paths (now stored directly in Student model)
+          studentImagePath: getFilePath('studentImage'),
+          fatherImagePath: getFilePath('fatherImage'),
+          motherImagePath: getFilePath('motherImage'),
+          guardianImagePath: getFilePath('guardianImage'),
+          signaturePath: getFilePath('signature'),
+          parentSignaturePath: getFilePath('parentSignature'),
+          fatherAadharPath: getFilePath('fatherAadhar'),
+          motherAadharPath: getFilePath('motherAadhar'),
+          birthCertificatePath: getFilePath('birthCertificate'),
+          transferCertificatePath: getFilePath('transferCertificate'),
+          markSheetPath: getFilePath('markSheet'),
+          aadhaarCardPath: getFilePath('aadhaarCard'),
+          familyIdPath: getFilePath('familyId'),
+          fatherSignaturePath: getFilePath('fatherSignature'),
+          motherSignaturePath: getFilePath('motherSignature'),
+          guardianSignaturePath: getFilePath('guardianSignature'),
+          academicRegistrationNo: academic.registrationNo,  
           
           // Connect to school
           school: {
@@ -215,7 +275,10 @@ export const createStudent = async (req, res) => {
           
           // SessionInfo
           sessionInfo: {
-            create: sessionInfo
+            create: {
+              admitDate: new Date(),
+              ...sessionInfo
+            }
           }
         },
         include: {
@@ -267,30 +330,8 @@ export const createStudent = async (req, res) => {
           transportStand: transport.stand,
           transportRoute: transport.route,
           transportDriver: transport.driver,
-          
-          // Connect to student
-          student: {
-            connect: {
-              id: newStudent.id
-            }
-          }
-        }
-      });
-      
-      // Create Documents record
-      await prisma.documents.create({
-        data: {
-          studentImagePath: documents.studentImagePath,
-          fatherImagePath: documents.fatherImagePath,
-          motherImagePath: documents.motherImagePath,
-          guardianImagePath: documents.guardianImagePath,
-          signaturePath: documents.signaturePath,
-          fatherAadharPath: documents.fatherAadharPath,
-          motherAadharPath: documents.motherAadharPath,
-          birthCertificatePath: documents.birthCertificatePath,
-          migrationCertificatePath: documents.migrationCertificatePath,
-          aadhaarCardPath: documents.aadhaarCardPath,
-          academicRegistrationNo: academic.registrationNo,
+          pickupLocation: transport.pickupLocation,
+          dropLocation: transport.dropLocation,
           
           // Connect to student
           student: {
@@ -324,24 +365,7 @@ export const createStudent = async (req, res) => {
       // Create OtherInfo record
       await prisma.otherInfo.create({
         data: {
-          belongToBPL: other.belongToBPL,
-          minority: other.minority,
-          disability: other.disability,
-          accountNo: other.accountNo,
-          bank: other.bank,
-          ifscCode: other.ifscCode,
-          medium: other.medium,
-          lastYearResult: other.lastYearResult,
-          singleParent: other.singleParent,
-          onlyChild: other.onlyChild,
-          onlyGirlChild: other.onlyGirlChild,
-          adoptedChild: other.adoptedChild,
-          siblingAdmissionNo: other.siblingAdmissionNo,
-          transferCase: other.transferCase,
-          livingWith: other.livingWith,
-          motherTongue: other.motherTongue,
-          admissionType: other.admissionType,
-          udiseNo: other.udiseNo,
+          ...other,
           
           // Connect to student
           student: {
@@ -364,7 +388,7 @@ export const createStudent = async (req, res) => {
       student: {
         id: student.id,
         fullName: student.fullName,
-        admissionNo: student.admissionNo
+        admissionNo: student.admissionNo,
       }
     });
   
@@ -400,7 +424,6 @@ export const getAllStudents = async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
         school: true, 
@@ -457,7 +480,6 @@ export const getStudentById = async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
         previousSchool: true,
@@ -514,195 +536,319 @@ export const updateStudent = async (req, res) => {
     
     console.log(`Updating student ${id} with data:`, Object.keys(studentData));
     
-    // Format dates if they exist in the request
-    if (studentData.dateOfBirth) {
-      studentData.dateOfBirth = new Date(studentData.dateOfBirth);
-    }
-    
     // Handle the update in a transaction to ensure consistency
     const updatedStudent = await prisma.$transaction(async (prisma) => {
-      // Update main student record with all fields
-      const student = await prisma.student.update({
-        where: { id: id.toString() }, // Use string ID for UUID
-        data: {
-          // Basic Information - only update if provided
-          ...(studentData.fullName && { fullName: studentData.fullName }),
-          ...(studentData.admissionNo && { admissionNo: studentData.admissionNo }),
-          ...(studentData.dateOfBirth && { dateOfBirth: studentData.dateOfBirth }),
-          ...(studentData.age && { age: parseInt(studentData.age) }),
-          ...(studentData.gender && { gender: studentData.gender }),
-          ...(studentData.bloodGroup && { bloodGroup: studentData.bloodGroup }),
-          ...(studentData.nationality && { nationality: studentData.nationality }),
-          ...(studentData.religion && { religion: studentData.religion }),
-          ...(studentData.category && { category: studentData.category }),
-          ...(studentData.caste && { caste: studentData.caste }),
-          ...(studentData.aadhaarNumber && { aadhaarNumber: studentData.aadhaarNumber }),
-          ...(studentData.apaarId && { apaarId: studentData.apaarId }),
-          ...(studentData.penNo && { penNo: studentData.penNo }),
-          
-          // Contact Information
-          ...(studentData.mobileNumber && { mobileNumber: studentData.mobileNumber }),
-          ...(studentData.email && { email: studentData.email }),
-          ...(studentData.emailPassword && { emailPassword: studentData.emailPassword }),
-          ...(studentData.emergencyContact && { emergencyContact: studentData.emergencyContact }),
-          
-          // Address fields
-          ...(studentData['address.houseNo'] !== undefined && { houseNo: studentData['address.houseNo'] }),
-          ...(studentData['address.street'] !== undefined && { street: studentData['address.street'] }),
-          ...(studentData['address.city'] !== undefined && { city: studentData['address.city'] }),
-          ...(studentData['address.state'] !== undefined && { state: studentData['address.state'] }),
-          ...(studentData['address.pinCode'] !== undefined && { pinCode: studentData['address.pinCode'] }),
-          ...(studentData['address.permanentHouseNo'] !== undefined && { permanentHouseNo: studentData['address.permanentHouseNo'] }),
-          ...(studentData['address.permanentStreet'] !== undefined && { permanentStreet: studentData['address.permanentStreet'] }),
-          ...(studentData['address.permanentCity'] !== undefined && { permanentCity: studentData['address.permanentCity'] }),
-          ...(studentData['address.permanentState'] !== undefined && { permanentState: studentData['address.permanentState'] }),
-          ...(studentData['address.permanentPinCode'] !== undefined && { permanentPinCode: studentData['address.permanentPinCode'] }),
-          
-          // Parent Information
-          ...(studentData['father.name'] && { fatherName: studentData['father.name'] }),
-          ...(studentData['father.email'] !== undefined && { fatherEmail: studentData['father.email'] }),
-          ...(studentData['mother.name'] !== undefined && { motherName: studentData['mother.name'] }),
-          ...(studentData['mother.email'] !== undefined && { motherEmail: studentData['mother.email'] }),
-          
-          updatedAt: new Date()
+      // Prepare main student record update data
+      const studentUpdateData = {};
+      
+      // Basic Information
+      if (studentData.fullName !== undefined) studentUpdateData.fullName = studentData.fullName;
+      if (studentData.admissionNo !== undefined) studentUpdateData.admissionNo = studentData.admissionNo;
+      if (studentData.penNo !== undefined) studentUpdateData.penNo = studentData.penNo;
+      if (studentData.apaarId !== undefined) studentUpdateData.apaarId = studentData.apaarId;
+      if (studentData.dateOfBirth !== undefined) {
+        studentUpdateData.dateOfBirth = studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null;
+      }
+      if (studentData.age !== undefined) studentUpdateData.age = studentData.age ? parseInt(studentData.age) : null;
+      if (studentData.gender !== undefined) studentUpdateData.gender = studentData.gender;
+      if (studentData.bloodGroup !== undefined) studentUpdateData.bloodGroup = studentData.bloodGroup;
+      if (studentData.nationality !== undefined) studentUpdateData.nationality = studentData.nationality;
+      if (studentData.religion !== undefined) studentUpdateData.religion = studentData.religion;
+      if (studentData.category !== undefined) studentUpdateData.category = studentData.category;
+      if (studentData.caste !== undefined) studentUpdateData.caste = studentData.caste;
+      if (studentData.aadhaarNumber !== undefined) studentUpdateData.aadhaarNumber = studentData.aadhaarNumber;
+      if (studentData.mobileNumber !== undefined) studentUpdateData.mobileNumber = studentData.mobileNumber;
+      
+      // Handle email carefully to avoid unique constraint issues
+      if (studentData.email !== undefined) {
+        // Only set email if it's not empty or null
+        if (studentData.email && studentData.email.trim() !== '') {
+          studentUpdateData.email = studentData.email.trim();
+        } else {
+          studentUpdateData.email = null;
+        }
+      }
+      
+      if (studentData.emailPassword !== undefined) studentUpdateData.emailPassword = studentData.emailPassword;
+      if (studentData.emergencyContact !== undefined) studentUpdateData.emergencyContact = studentData.emergencyContact;
+      
+      // Address Information
+      if (studentData.address) {
+        if (studentData.address.houseNo !== undefined) studentUpdateData.houseNo = studentData.address.houseNo;
+        if (studentData.address.street !== undefined) studentUpdateData.street = studentData.address.street;
+        if (studentData.address.city !== undefined) studentUpdateData.city = studentData.address.city;
+        if (studentData.address.state !== undefined) studentUpdateData.state = studentData.address.state;
+        if (studentData.address.pinCode !== undefined) studentUpdateData.pinCode = studentData.address.pinCode;
+        if (studentData.address.permanentHouseNo !== undefined) studentUpdateData.permanentHouseNo = studentData.address.permanentHouseNo;
+        if (studentData.address.permanentStreet !== undefined) studentUpdateData.permanentStreet = studentData.address.permanentStreet;
+        if (studentData.address.permanentCity !== undefined) studentUpdateData.permanentCity = studentData.address.permanentCity;
+        if (studentData.address.permanentState !== undefined) studentUpdateData.permanentState = studentData.address.permanentState;
+        if (studentData.address.permanentPinCode !== undefined) studentUpdateData.permanentPinCode = studentData.address.permanentPinCode;
+        if (studentData.address.sameAsPresentAddress !== undefined) studentUpdateData.sameAsPresentAddress = studentData.address.sameAsPresentAddress;
+      }
+      
+      // Parent Information
+      if (studentData.father && studentData.father.name !== undefined) {
+        studentUpdateData.fatherName = studentData.father.name;
+      }
+      if (studentData.father && studentData.father.email !== undefined) {
+        // Handle father email carefully
+        if (studentData.father.email && studentData.father.email.trim() !== '') {
+          studentUpdateData.fatherEmail = studentData.father.email.trim();
+        } else {
+          studentUpdateData.fatherEmail = null;
+        }
+      }
+      if (studentData.father && studentData.father.emailPassword !== undefined) {
+        studentUpdateData.fatherEmailPassword = studentData.father.emailPassword;
+      }
+      if (studentData.mother && studentData.mother.name !== undefined) {
+        studentUpdateData.motherName = studentData.mother.name;
+      }
+      if (studentData.mother && studentData.mother.email !== undefined) {
+        // Handle mother email carefully
+        if (studentData.mother.email && studentData.mother.email.trim() !== '') {
+          studentUpdateData.motherEmail = studentData.mother.email.trim();
+        } else {
+          studentUpdateData.motherEmail = null;
+        }
+      }
+      if (studentData.mother && studentData.mother.emailPassword !== undefined) {
+        studentUpdateData.motherEmailPassword = studentData.mother.emailPassword;
+      }
+
+      // Handle document fields directly in Student model
+      const documentFields = [
+        'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+        'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+        'birthCertificatePath', 'transferCertificatePath', 'markSheetPath', 'aadhaarCardPath',
+        'familyIdPath', 'fatherSignaturePath', 'motherSignaturePath', 'guardianSignaturePath',
+        'migrationCertificatePath', 'affidavitCertificatePath', 'incomeCertificatePath',
+        'addressProof1Path', 'addressProof2Path', 'academicRegistrationNo'
+      ];
+      
+      
+      // Update document path fields
+      documentFields.forEach(field => {
+        if (studentData[field] !== undefined) {
+          studentUpdateData[field] = studentData[field];
         }
       });
 
-      // Update session information if provided
+      console.log('Student update data:', Object.keys(studentUpdateData));
+
+      // Update main student record
+      const student = await prisma.student.update({
+        where: { id: id },
+        data: studentUpdateData,
+      });
+
+      // Update session information
       if (studentData.admitSession || studentData.currentSession) {
-        await prisma.sessionInfo.upsert({
-          where: {
-            studentId: id.toString()
-          },
-          update: {
-            // Admit Session
-            ...(studentData['admitSession.class'] && { admitClass: studentData['admitSession.class'] }),
-            ...(studentData['admitSession.section'] && { admitSection: studentData['admitSession.section'] }),
-            ...(studentData['admitSession.rollNo'] && { admitRollNo: studentData['admitSession.rollNo'] }),
-            ...(studentData['admitSession.group'] && { admitGroup: studentData['admitSession.group'] }),
-            ...(studentData['admitSession.stream'] && { admitStream: studentData['admitSession.stream'] }),
-            ...(studentData['admitSession.semester'] && { admitSemester: studentData['admitSession.semester'] }),
-            ...(studentData['admitSession.feeGroup'] && { admitFeeGroup: studentData['admitSession.feeGroup'] }),
-            ...(studentData['admitSession.house'] && { admitHouse: studentData['admitSession.house'] }),
-            
-            // Current Session
-            ...(studentData['currentSession.class'] && { currentClass: studentData['currentSession.class'] }),
-            ...(studentData['currentSession.section'] && { currentSection: studentData['currentSession.section'] }),
-            ...(studentData['currentSession.rollNo'] && { currentRollNo: studentData['currentSession.rollNo'] }),
-            ...(studentData['currentSession.group'] && { currentGroup: studentData['currentSession.group'] }),
-            ...(studentData['currentSession.stream'] && { currentStream: studentData['currentSession.stream'] }),
-            ...(studentData['currentSession.semester'] && { currentSemester: studentData['currentSession.semester'] }),
-            ...(studentData['currentSession.feeGroup'] && { currentFeeGroup: studentData['currentSession.feeGroup'] }),
-            ...(studentData['currentSession.house'] && { currentHouse: studentData['currentSession.house'] })
-          },
-          create: {
-            // Admit Session
-            admitClass: studentData['admitSession.class'] || '',
-            admitSection: studentData['admitSession.section'] || '',
-            admitRollNo: studentData['admitSession.rollNo'] || '',
-            admitGroup: studentData['admitSession.group'] || '',
-            admitStream: studentData['admitSession.stream'] || '',
-            admitSemester: studentData['admitSession.semester'] || '',
-            admitFeeGroup: studentData['admitSession.feeGroup'] || '',
-            admitHouse: studentData['admitSession.house'] || '',
-            admitDate: new Date(),
-            
-            // Current Session
-            currentClass: studentData['currentSession.class'] || '',
-            currentSection: studentData['currentSession.section'] || '',
-            currentRollNo: studentData['currentSession.rollNo'] || '',
-            currentGroup: studentData['currentSession.group'] || '',
-            currentStream: studentData['currentSession.stream'] || '',
-            currentSemester: studentData['currentSession.semester'] || '',
-            currentFeeGroup: studentData['currentSession.feeGroup'] || '',
-            currentHouse: studentData['currentSession.house'] || '',
-            
-            student: {
-              connect: {
-                id: id.toString()
-              }
+        const sessionUpdateData = {};
+        
+        if (studentData.admitSession) {
+          if (studentData.admitSession.class !== undefined) sessionUpdateData.admitClass = studentData.admitSession.class;
+          if (studentData.admitSession.section !== undefined) sessionUpdateData.admitSection = studentData.admitSession.section;
+          if (studentData.admitSession.rollNo !== undefined) sessionUpdateData.admitRollNo = studentData.admitSession.rollNo;
+          if (studentData.admitSession.group !== undefined) sessionUpdateData.admitGroup = studentData.admitSession.group;
+          if (studentData.admitSession.stream !== undefined) sessionUpdateData.admitStream = studentData.admitSession.stream;
+          if (studentData.admitSession.semester !== undefined) sessionUpdateData.admitSemester = studentData.admitSession.semester;
+          if (studentData.admitSession.feeGroup !== undefined) sessionUpdateData.admitFeeGroup = studentData.admitSession.feeGroup;
+          if (studentData.admitSession.house !== undefined) sessionUpdateData.admitHouse = studentData.admitSession.house;
+        }
+        
+        if (studentData.currentSession) {
+          if (studentData.currentSession.class !== undefined) sessionUpdateData.currentClass = studentData.currentSession.class;
+          if (studentData.currentSession.section !== undefined) sessionUpdateData.currentSection = studentData.currentSession.section;
+          if (studentData.currentSession.rollNo !== undefined) sessionUpdateData.currentRollNo = studentData.currentSession.rollNo;
+          if (studentData.currentSession.group !== undefined) sessionUpdateData.currentGroup = studentData.currentSession.group;
+          if (studentData.currentSession.stream !== undefined) sessionUpdateData.currentStream = studentData.currentSession.stream;
+          if (studentData.currentSession.semester !== undefined) sessionUpdateData.currentSemester = studentData.currentSession.semester;
+          if (studentData.currentSession.feeGroup !== undefined) sessionUpdateData.currentFeeGroup = studentData.currentSession.feeGroup;
+          if (studentData.currentSession.house !== undefined) sessionUpdateData.currentHouse = studentData.currentSession.house;
+        }
+
+        if (Object.keys(sessionUpdateData).length > 0) {
+          await prisma.sessionInfo.upsert({
+            where: { studentId: id },
+            update: sessionUpdateData,
+            create: {
+              studentId: id,
+              ...sessionUpdateData
             }
-          }
-        });
+          });
+        }
       }
-      
-      // Update parent information if provided
-      if (studentData['father.qualification'] || studentData['mother.qualification'] || 
-          studentData['father.contactNumber'] || studentData['mother.contactNumber']) {
-        await prisma.parentInfo.upsert({
-          where: {
-            studentId: id.toString()
-          },
-          update: {
-            ...(studentData['father.qualification'] && { fatherQualification: studentData['father.qualification'] }),
-            ...(studentData['father.occupation'] && { fatherOccupation: studentData['father.occupation'] }),
-            ...(studentData['father.contactNumber'] && { fatherContact: studentData['father.contactNumber'] }),
-            ...(studentData['father.aadhaarNo'] && { fatherAadhaarNo: studentData['father.aadhaarNo'] }),
-            ...(studentData['father.annualIncome'] && { fatherAnnualIncome: studentData['father.annualIncome'] }),
-            
-            ...(studentData['mother.qualification'] && { motherQualification: studentData['mother.qualification'] }),
-            ...(studentData['mother.occupation'] && { motherOccupation: studentData['mother.occupation'] }),
-            ...(studentData['mother.contactNumber'] && { motherContact: studentData['mother.contactNumber'] }),
-            ...(studentData['mother.aadhaarNo'] && { motherAadhaarNo: studentData['mother.aadhaarNo'] }),
-            ...(studentData['mother.annualIncome'] && { motherAnnualIncome: studentData['mother.annualIncome'] })
-          },
-          create: {
-            fatherQualification: studentData['father.qualification'] || null,
-            fatherOccupation: studentData['father.occupation'] || null,
-            fatherContact: studentData['father.contactNumber'] || null,
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || null,
-            fatherAnnualIncome: studentData['father.annualIncome'] || null,
-            
-            motherQualification: studentData['mother.qualification'] || null,
-            motherOccupation: studentData['mother.occupation'] || null,
-            motherContact: studentData['mother.contactNumber'] || null,
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || null,
-            motherAnnualIncome: studentData['mother.annualIncome'] || null,
-            
-            student: {
-              connect: {
-                id: id.toString()
-              }
+
+      // Update parent information
+      if (studentData.father || studentData.mother || studentData.guardian) {
+        const parentUpdateData = {};
+        
+        if (studentData.father) {
+          if (studentData.father.qualification !== undefined) parentUpdateData.fatherQualification = studentData.father.qualification;
+          if (studentData.father.occupation !== undefined) parentUpdateData.fatherOccupation = studentData.father.occupation;
+          if (studentData.father.contactNumber !== undefined) parentUpdateData.fatherContact = studentData.father.contactNumber;
+          if (studentData.father.aadhaarNo !== undefined) parentUpdateData.fatherAadhaarNo = studentData.father.aadhaarNo;
+          if (studentData.father.annualIncome !== undefined) parentUpdateData.fatherAnnualIncome = studentData.father.annualIncome;
+          if (studentData.father.isCampusEmployee !== undefined) parentUpdateData.fatherIsCampusEmployee = studentData.father.isCampusEmployee ? 'yes' : 'no';
+        }
+        
+        if (studentData.mother) {
+          if (studentData.mother.qualification !== undefined) parentUpdateData.motherQualification = studentData.mother.qualification;
+          if (studentData.mother.occupation !== undefined) parentUpdateData.motherOccupation = studentData.mother.occupation;
+          if (studentData.mother.contactNumber !== undefined) parentUpdateData.motherContact = studentData.mother.contactNumber;
+          if (studentData.mother.aadhaarNo !== undefined) parentUpdateData.motherAadhaarNo = studentData.mother.aadhaarNo;
+          if (studentData.mother.annualIncome !== undefined) parentUpdateData.motherAnnualIncome = studentData.mother.annualIncome;
+          if (studentData.mother.isCampusEmployee !== undefined) parentUpdateData.motherIsCampusEmployee = studentData.mother.isCampusEmployee ? 'yes' : 'no';
+        }
+        
+        if (studentData.guardian) {
+          if (studentData.guardian.name !== undefined) parentUpdateData.guardianName = studentData.guardian.name;
+          if (studentData.guardian.address !== undefined) parentUpdateData.guardianAddress = studentData.guardian.address;
+          if (studentData.guardian.contactNumber !== undefined) parentUpdateData.guardianContact = studentData.guardian.contactNumber;
+          if (studentData.guardian.email !== undefined) parentUpdateData.guardianEmail = studentData.guardian.email;
+          if (studentData.guardian.aadhaarNo !== undefined) parentUpdateData.guardianAadhaarNo = studentData.guardian.aadhaarNo;
+          if (studentData.guardian.occupation !== undefined) parentUpdateData.guardianOccupation = studentData.guardian.occupation;
+          if (studentData.guardian.annualIncome !== undefined) parentUpdateData.guardianAnnualIncome = studentData.guardian.annualIncome;
+        }
+
+        if (Object.keys(parentUpdateData).length > 0) {
+          await prisma.parentInfo.upsert({
+            where: { studentId: id },
+            update: parentUpdateData,
+            create: {
+              studentId: id,
+              ...parentUpdateData
             }
-          }
-        });
+          });
+        }
+      }
+
+      // Update transport information
+      if (studentData.transport) {
+        const transportUpdateData = {};
+        
+        if (studentData.transport.mode !== undefined) transportUpdateData.transportMode = studentData.transport.mode;
+        if (studentData.transport.area !== undefined) transportUpdateData.transportArea = studentData.transport.area;
+        if (studentData.transport.stand !== undefined) transportUpdateData.transportStand = studentData.transport.stand;
+        if (studentData.transport.route !== undefined) transportUpdateData.transportRoute = studentData.transport.route;
+        if (studentData.transport.driver !== undefined) transportUpdateData.transportDriver = studentData.transport.driver;
+        if (studentData.transport.pickupLocation !== undefined) transportUpdateData.pickupLocation = studentData.transport.pickupLocation;
+        if (studentData.transport.dropLocation !== undefined) transportUpdateData.dropLocation = studentData.transport.dropLocation;
+
+        if (Object.keys(transportUpdateData).length > 0) {
+          await prisma.transportInfo.upsert({
+            where: { studentId: id },
+            update: transportUpdateData,
+            create: {
+              studentId: id,
+              ...transportUpdateData
+            }
+          });
+        }
+      }
+
+      // Update education information
+      if (studentData.lastEducation) {
+        const educationUpdateData = {};
+        
+        if (studentData.lastEducation.school !== undefined) educationUpdateData.lastSchool = studentData.lastEducation.school;
+        if (studentData.lastEducation.address !== undefined) educationUpdateData.lastSchoolAddress = studentData.lastEducation.address;
+        if (studentData.lastEducation.tcDate !== undefined) {
+          educationUpdateData.lastTcDate = studentData.lastEducation.tcDate ? new Date(studentData.lastEducation.tcDate) : null;
+        }
+        if (studentData.lastEducation.prevClass !== undefined) educationUpdateData.lastClass = studentData.lastEducation.prevClass;
+        if (studentData.lastEducation.percentage !== undefined) educationUpdateData.lastPercentage = studentData.lastEducation.percentage;
+        if (studentData.lastEducation.attendance !== undefined) educationUpdateData.lastAttendance = studentData.lastEducation.attendance;
+        if (studentData.lastEducation.extraActivity !== undefined) educationUpdateData.lastExtraActivity = studentData.lastEducation.extraActivity;
+
+        if (Object.keys(educationUpdateData).length > 0) {
+          await prisma.educationInfo.upsert({
+            where: { studentId: id },
+            update: educationUpdateData,
+            create: {
+              studentId: id,
+              ...educationUpdateData
+            }
+          });
+        }
+      }
+
+      // Update other information
+      if (studentData.other) {
+        const otherUpdateData = {};
+        
+        if (studentData.other.belongToBPL !== undefined) otherUpdateData.belongToBPL = studentData.other.belongToBPL;
+        if (studentData.other.minority !== undefined) otherUpdateData.minority = studentData.other.minority;
+        if (studentData.other.disability !== undefined) otherUpdateData.disability = studentData.other.disability;
+        if (studentData.other.accountNo !== undefined) otherUpdateData.accountNo = studentData.other.accountNo;
+        if (studentData.other.bank !== undefined) otherUpdateData.bank = studentData.other.bank;
+        if (studentData.other.ifscCode !== undefined) otherUpdateData.ifscCode = studentData.other.ifscCode;
+        if (studentData.other.medium !== undefined) otherUpdateData.medium = studentData.other.medium;
+        if (studentData.other.lastYearResult !== undefined) otherUpdateData.lastYearResult = studentData.other.lastYearResult;
+        if (studentData.other.singleParent !== undefined) otherUpdateData.singleParent = studentData.other.singleParent;
+        if (studentData.other.onlyChild !== undefined) otherUpdateData.onlyChild = studentData.other.onlyChild;
+        if (studentData.other.onlyGirlChild !== undefined) otherUpdateData.onlyGirlChild = studentData.other.onlyGirlChild;
+        if (studentData.other.adoptedChild !== undefined) otherUpdateData.adoptedChild = studentData.other.adoptedChild;
+        if (studentData.other.siblingAdmissionNo !== undefined) otherUpdateData.siblingAdmissionNo = studentData.other.siblingAdmissionNo;
+        if (studentData.other.transferCase !== undefined) otherUpdateData.transferCase = studentData.other.transferCase;
+        if (studentData.other.livingWith !== undefined) otherUpdateData.livingWith = studentData.other.livingWith;
+        if (studentData.other.motherTongue !== undefined) otherUpdateData.motherTongue = studentData.other.motherTongue;
+        if (studentData.other.admissionType !== undefined) otherUpdateData.admissionType = studentData.other.admissionType;
+        if (studentData.other.udiseNo !== undefined) otherUpdateData.udiseNo = studentData.other.udiseNo;
+
+        if (Object.keys(otherUpdateData).length > 0) {
+          await prisma.otherInfo.upsert({
+            where: { studentId: id },
+            update: otherUpdateData,
+            create: {
+              studentId: id,
+              ...otherUpdateData
+            }
+          });
+        }
       }
 
       return student;
     });
-    
-    // Fetch the updated student with all relations to return
-    const finalUpdatedStudent = await prisma.student.findUnique({
-      where: { id: id.toString() },
+
+    // Fetch the complete updated student data with all relations
+    const completeStudent = await prisma.student.findUnique({
+      where: { id: id },
       include: {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
-        otherInfo: true,
+        otherInfo: true
       }
     });
-    
-    return res.status(200).json({
+
+    console.log('Student updated successfully');
+
+    res.json({
       success: true,
-      message: 'Student information updated successfully',
-      data: finalUpdatedStudent
+      message: 'Student updated successfully',
+      data: completeStudent
     });
-    
+
   } catch (error) {
     console.error('Error updating student:', error);
     
-    if (error.code === 'P2025') {
-      return res.status(404).json({
+    // Handle unique constraint errors specifically
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'field';
+      return res.status(400).json({
         success: false,
-        message: 'Student not found'
+        message: `A student with this ${field} already exists`,
+        error: `Duplicate ${field}`
       });
     }
     
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-      message: 'Failed to update student information',
+      message: 'Error updating student',
       error: error.message
     });
   }
@@ -774,7 +920,6 @@ export const getStudentByAdmissionNo = async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
       }

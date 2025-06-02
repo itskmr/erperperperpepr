@@ -13,7 +13,7 @@ import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import StudentRegistrationForm from './pages/StudentForm';
-import StudentEdit from './pages/StudentEdit';
+import StudentEdit from './components/ManageStudents/StudentEdit';
 // import AuthPage from './pages/AuthPage';
 import AccountsPage from './pages/AccountsPage';
 import UserManagement from './pages/UserManagement';

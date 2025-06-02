@@ -61,13 +61,7 @@ interface FormData {
   motherName?: string;
   motherMobileNo?: string;
   motherAadharCardNo?: string;
-  casteCertificate?: File | null;
-  studentAadharCard?: File | null;
-  fatherAadharCard?: File | null;
-  motherAadharCard?: File | null;
-  previousClassMarksheet?: File | null;
-  transferCertificate?: File | null;
-  studentDateOfBirthCertificate?: File | null;
+
 }
 
 const StudentRegistration = () => {
@@ -107,13 +101,6 @@ const StudentRegistration = () => {
     motherName: "",
     motherMobileNo: "",
     motherAadharCardNo: "",
-    casteCertificate: null,
-    studentAadharCard: null,
-    fatherAadharCard: null,
-    motherAadharCard: null,
-    previousClassMarksheet: null,
-    transferCertificate: null,
-    studentDateOfBirthCertificate: null,
   });
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -123,17 +110,18 @@ const StudentRegistration = () => {
   const steps = [
     { id: 1, title: 'Basic Information', icon: '👤' },
     { id: 2, title: 'Contact & Address', icon: '📍' },
-    { id: 3, title: 'Parent Details', icon: '👪' },
-    { id: 4, title: 'Documents', icon: '📄' }
+    { id: 3, title: 'Parent Details', icon: '👪' }
   ];
 
   const validateCurrentStep = () => {
     const errors: string[] = [];
     
     if (currentStep === 1) {
-      // Only admission number and full name are required in basic information step
-      if (!formData.fullName.trim()) errors.push('Full Name is required');
-      if (!formData.formNo) errors.push('Admission Number (Form Number) is required');  
+      // Required fields validation
+      if (!formData.fullName?.trim()) errors.push('Full Name is required');
+      if (!formData.formNo?.trim()) errors.push('Form Number is required');  
+      if (!formData.registerForClass?.trim()) errors.push('Class is required');
+      if (!formData.regnDate?.trim()) errors.push('Registration Date is required');
     }
     
     if (currentStep === 3) {
@@ -226,22 +214,22 @@ const StudentRegistration = () => {
     );
   };
 
-  const renderFileInput = (label: string, name: string) => {
-    return (
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          {label}
-        </label>
-        <input
-          type="file"
-          name={name}
-          onChange={handleChange}
-          accept=".pdf,.jpg,.jpeg,.png"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-      </div>
-    );
-  };
+  // const renderFileInput = (label: string, name: string) => {
+  //   return (
+  //     <div className="mb-4">
+  //       <label className="block text-sm font-medium text-gray-700 mb-1">
+  //         {label}
+  //       </label>
+  //       <input
+  //         type="file"
+  //         name={name}
+  //         onChange={handleChange}
+  //         accept=".pdf,.jpg,.jpeg,.png"
+  //         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  //       />
+  //     </div>
+  //   );
+  // };
 
   const renderStep = () => {
     switch (currentStep) {
@@ -307,7 +295,7 @@ const StudentRegistration = () => {
             <div>
               <h4 className="text-md font-medium text-gray-700 mb-3">Father's Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('Father Name', 'fatherName', 'text', false)}
+                {renderInput('Father Name', 'fatherName', 'text', false, 'Enter father\'s full name')}
                 {renderInput('Father Mobile Number', 'fatherMobileNo', 'tel', false, '10-digit mobile number')}
                 {renderInput('Father Email', 'fatherEmail', 'email', false, 'father@example.com')}
                 {renderInput('Father Aadhaar Number', 'fatherAadharCardNo', 'text', false, '12-digit Aadhaar number')}
@@ -348,36 +336,36 @@ const StudentRegistration = () => {
           </div>
         );
       
-      case 4:
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Document Upload</h3>
-            <p className="text-sm text-gray-600 mb-4">Upload the following documents (PDF, JPG, PNG formats accepted)</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {renderFileInput('Caste Certificate', 'casteCertificate')}
-              {renderFileInput('Student Aadhaar Card', 'studentAadharCard')}
-              {renderFileInput('Father Aadhaar Card', 'fatherAadharCard')}
-              {renderFileInput('Mother Aadhaar Card', 'motherAadharCard')}
-              {renderFileInput('Previous Class Marksheet', 'previousClassMarksheet')}
-              {renderFileInput('Transfer Certificate', 'transferCertificate')}
-              {renderFileInput('Birth Certificate', 'studentDateOfBirthCertificate')}
-            </div>
+      // case 4:
+      //   return (
+      //     <div className="space-y-4">
+      //       <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Document Upload</h3>
+      //       <p className="text-sm text-gray-600 mb-4">Upload the following documents (PDF, JPG, PNG formats accepted)</p>
+      //       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      //         {renderFileInput('Caste Certificate', 'casteCertificate')}
+      //         {renderFileInput('Student Aadhaar Card', 'studentAadharCard')}
+      //         {renderFileInput('Father Aadhaar Card', 'fatherAadharCard')}
+      //         {renderFileInput('Mother Aadhaar Card', 'motherAadharCard')}
+      //         {renderFileInput('Previous Class Marksheet', 'previousClassMarksheet')}
+      //         {renderFileInput('Transfer Certificate', 'transferCertificate')}
+      //         {renderFileInput('Birth Certificate', 'studentDateOfBirthCertificate')}
+      //       </div>
             
-            {/* Print Form Button */}
-            <div className="mt-6 pt-4 border-t">
-              <button
-                type="button"
-                onClick={generatePrintForm}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                Print Form
-              </button>
-            </div>
-          </div>
-        );
+      //       {/* Print Form Button */}
+      //       <div className="mt-6 pt-4 border-t">
+      //         <button
+      //           type="button"
+      //           onClick={generatePrintForm}
+      //           className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center"
+      //         >
+      //           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      //             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+      //           </svg>
+      //           Print Form
+      //         </button>
+      //       </div>
+      //     </div>
+      //   );
       
       default:
         return null;
@@ -392,9 +380,16 @@ const StudentRegistration = () => {
       return;
     }
 
-    const validationErrors = validateCurrentStep();
-    if (validationErrors.length > 0) {
-      setError(validationErrors.join(', '));
+    // Final validation before submission
+    const allErrors: string[] = [];
+    
+    // Check all required fields
+    if (!formData.fullName?.trim()) allErrors.push('Full Name is required');
+    if (!formData.formNo?.trim()) allErrors.push('Form Number is required');  
+    if (!formData.registerForClass?.trim()) allErrors.push('Class is required');
+    
+    if (allErrors.length > 0) {
+      setError(allErrors.join(', '));
       return;
     }
 
@@ -402,19 +397,38 @@ const StudentRegistration = () => {
     setError(null);
 
     try {
-      const formDataToSend = new FormData();
+      // Prepare clean data object for JSON submission
+      const cleanedData: Record<string, string | number | boolean> = {};
       
-      // Add all form fields
+      // Add all form fields with proper cleaning
       Object.entries(formData).forEach(([key, value]) => {
-        if (value instanceof File) {
-          formDataToSend.append(key, value);
-        } else if (value !== null && value !== undefined) {
-          formDataToSend.append(key, value.toString());
+        if (value !== null && value !== undefined && value !== '') {
+          // Convert boolean values properly
+          if (typeof value === 'boolean') {
+            cleanedData[key] = value;
+          } else if (typeof value === 'string') {
+            // Only add non-empty strings
+            const trimmedValue = value.trim();
+            if (trimmedValue) {
+              cleanedData[key] = trimmedValue;
+            }
+          } else {
+            cleanedData[key] = value;
+          }
         }
       });
 
+      // Debug: Log what we're sending
+      console.log('Clean form data being sent:', cleanedData);
+
       // Get authentication token
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      
+      console.log('Token check:', {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenStart: token?.substring(0, 20) + '...'
+      });
       
       if (!token) {
         throw new Error('Authentication required. Please log in again.');
@@ -423,9 +437,10 @@ const StudentRegistration = () => {
       const response = await fetch('http://localhost:5000/register/student/register', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-          body: formDataToSend,
+        body: JSON.stringify(cleanedData),
       });
 
       const result = await response.json();
@@ -471,13 +486,6 @@ const StudentRegistration = () => {
           motherName: "",
           motherMobileNo: "",
           motherAadharCardNo: "",
-          casteCertificate: null,
-          studentAadharCard: null,
-          fatherAadharCard: null,
-          motherAadharCard: null,
-          previousClassMarksheet: null,
-          transferCertificate: null,
-          studentDateOfBirthCertificate: null,
         });
         setCurrentStep(1);
       } else {
@@ -517,82 +525,6 @@ const StudentRegistration = () => {
     e.preventDefault();
     // Prevent default form submission behavior
     // Only handle submission through the submit button
-  };
-
-  const generatePrintForm = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Student Registration Form - ${formData.fullName}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .form-group { margin-bottom: 15px; }
-            .form-group label { font-weight: bold; }
-            .form-group span { margin-left: 10px; }
-            .section { margin-bottom: 30px; }
-            .section h3 { border-bottom: 2px solid #333; padding-bottom: 5px; }
-            @media print { 
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Student Registration Form</h1>
-            <p>Form No: ${formData.formNo}</p>
-            <p>Date: ${new Date().toLocaleDateString()}</p>
-          </div>
-          
-          <div class="section">
-            <h3>Basic Information</h3>
-            <div class="form-group"><label>Full Name:</label><span>${formData.fullName || 'N/A'}</span></div>
-            <div class="form-group"><label>Form Number:</label><span>${formData.formNo || 'N/A'}</span></div>
-            <div class="form-group"><label>Registration Date:</label><span>${formData.regnDate || 'N/A'}</span></div>
-            <div class="form-group"><label>Register For Class:</label><span>${formData.registerForClass || 'N/A'}</span></div>
-            <div class="form-group"><label>Test Date:</label><span>${formData.testDate || 'N/A'}</span></div>
-            <div class="form-group"><label>Branch Name:</label><span>${formData.branchName || 'N/A'}</span></div>
-            <div class="form-group"><label>Gender:</label><span>${formData.gender || 'N/A'}</span></div>
-            <div class="form-group"><label>Date of Birth:</label><span>${formData.dob || 'N/A'}</span></div>
-      </div>
-     
-          <div class="section">
-            <h3>Contact Information</h3>
-            <div class="form-group"><label>Contact Number:</label><span>${formData.contactNo || 'N/A'}</span></div>
-            <div class="form-group"><label>Student Email:</label><span>${formData.studentEmail || 'N/A'}</span></div>
-            <div class="form-group"><label>Address:</label><span>${formData.address || 'N/A'}</span></div>
-            <div class="form-group"><label>City:</label><span>${formData.city || 'N/A'}</span></div>
-            <div class="form-group"><label>State:</label><span>${formData.state || 'N/A'}</span></div>
-            <div class="form-group"><label>Pincode:</label><span>${formData.pincode || 'N/A'}</span></div>
-          </div>
-
-          <div class="section">
-            <h3>Parent Information</h3>
-            <h4>Father's Details</h4>
-            <div class="form-group"><label>Father Name:</label><span>${formData.fatherName || 'N/A'}</span></div>
-            <div class="form-group"><label>Father Mobile:</label><span>${formData.fatherMobileNo || 'N/A'}</span></div>
-            <div class="form-group"><label>Father Email:</label><span>${formData.fatherEmail || 'N/A'}</span></div>
-            
-            <h4>Mother's Details</h4>
-            <div class="form-group"><label>Mother Name:</label><span>${formData.motherName || 'N/A'}</span></div>
-            <div class="form-group"><label>Mother Mobile:</label><span>${formData.motherMobileNo || 'N/A'}</span></div>
-          </div>
-
-          <div class="no-print" style="margin-top: 30px; text-align: center;">
-            <button onclick="window.print()">Print Form</button>
-            <button onclick="window.close()">Close</button>
-          </div>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(printContent);
-    printWindow.document.close();
   };
 
   return (

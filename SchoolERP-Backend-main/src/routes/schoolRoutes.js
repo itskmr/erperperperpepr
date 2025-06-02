@@ -34,6 +34,7 @@ router.get('/:id', async (req, res) => {
         contactNumber: school.contactNumber,
         email: school.email,
         principalName: school.principalName,
+
         status: school.status
       }
     });
@@ -129,18 +130,9 @@ router.get('/info', async (req, res) => {
     });
 
     if (!school) {
-      // Return default school info if no school found
-      return res.status(200).json({ 
-        success: true, 
-        data: {
-          schoolName: 'Excellence School System',
-          address: '123 Education Street, Learning City, State 12345',
-          phone: '+1 (555) 123-4567',
-          email: 'info@excellenceschool.edu',
-          principal: 'Dr. John Smith',
-          established: 2000,
-          image_url: null
-        }
+      return res.status(404).json({
+        success: false,
+        message: 'School not found'
       });
     }
 
@@ -638,7 +630,6 @@ router.get('/student/profile', verifyToken, async (req, res) => {
         sessionInfo: true,
         parentInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true
       }

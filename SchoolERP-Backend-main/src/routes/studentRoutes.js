@@ -24,6 +24,23 @@ const __dirname = path.dirname(__filename);
 
 // Array of document fields to handle uploads
 const documentFields = [
+  { name: 'documents.studentImage', maxCount: 1 },
+  { name: 'documents.fatherImage', maxCount: 1 },
+  { name: 'documents.motherImage', maxCount: 1 },
+  { name: 'documents.guardianImage', maxCount: 1 },
+  { name: 'documents.signature', maxCount: 1 },
+  { name: 'documents.parentSignature', maxCount: 1 },
+  { name: 'documents.birthCertificate', maxCount: 1 },
+  { name: 'documents.transferCertificate', maxCount: 1 },
+  { name: 'documents.markSheet', maxCount: 1 },
+  { name: 'documents.aadhaarCard', maxCount: 1 },
+  { name: 'documents.fatherAadhar', maxCount: 1 },
+  { name: 'documents.motherAadhar', maxCount: 1 },
+  { name: 'documents.familyId', maxCount: 1 },
+  { name: 'documents.fatherSignature', maxCount: 1 },
+  { name: 'documents.motherSignature', maxCount: 1 },
+  { name: 'documents.guardianSignature', maxCount: 1 },
+  // Also support direct field names for backward compatibility
   { name: 'studentImage', maxCount: 1 },
   { name: 'fatherImage', maxCount: 1 },
   { name: 'motherImage', maxCount: 1 },
@@ -45,7 +62,8 @@ const documentFields = [
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'students');
+    // Use a visible uploads directory in the project root
+    const uploadDir = path.join(process.cwd(), 'uploads', 'students');
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
@@ -56,8 +74,8 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     // Use admission number + field name + timestamp + original extension
-    const admissionNo = req.body.admissionNo || 'unknown';
-    const fieldName = file.fieldname;
+    const admissionNo = req.body.admissionNo || req.body['admissionNo'] || 'unknown';
+    const fieldName = file.fieldname.replace('documents.', ''); // Remove documents prefix if present
     const timestamp = Date.now();
     const ext = path.extname(file.originalname);
     
@@ -113,7 +131,7 @@ router.get('/', async (req, res) => {
     const { 
       page = 1, 
       limit = 10, 
-      schoolId = 1,
+      schoolId,
       class: className,
       section,
       category
@@ -194,7 +212,6 @@ router.get('/admission/:admissionNo', async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
       }
@@ -396,24 +413,10 @@ router.post('/', upload, handleMulterError, async (req, res) => {
 
     if (!existingSchool) {
       // Create a default school if it doesn't exist
-      const defaultSchool = await prisma.school.create({
-        data: {
-          schoolName: "Default School",
-          email: "default@school.com",
-          password: "default123",
-          code: "SC001",
-          address: "Default Address",
-          phone: "1234567890",
-          principal: "Default Principal",
-          established: 2000,
-          role: "SCHOOL",
-          status: "active",
-          username: "default_school",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
+      return res.status(404).json({
+        success: false,
+        message: 'School not found'
       });
-      schoolId = defaultSchool.id;
     }
 
     // Create the student record with session info
@@ -537,14 +540,6 @@ router.post('/', upload, handleMulterError, async (req, res) => {
           }
         },
         
-        // Documents
-        documents: {
-          create: {
-            ...documentPaths,
-            academicRegistrationNo: data['academic.registrationNo'] || null
-          }
-        },
-        
         // Education information
         educationInfo: {
           create: {
@@ -586,7 +581,7 @@ router.post('/', upload, handleMulterError, async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
+        // documents: true,
         educationInfo: true,
         otherInfo: true
       }
@@ -639,7 +634,6 @@ router.get('/:id', async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true
       }
@@ -759,5 +753,47 @@ router.get('/details/:admissionNumber', fetchStudentDetails);
 
 // Add new route for getting students by current class and section
 router.get('/class/:className/section/:section', getStudentsByCurrentClass);
+
+// Serve uploaded files/images
+router.get('/uploads/*', (req, res) => {
+  try {
+    const filePath = req.params[0]; // Get the full path after /uploads/
+    const fullPath = path.join(process.cwd(), 'uploads', filePath);
+    
+    // Check if file exists
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+    
+    // Set appropriate headers based on file extension
+    const ext = path.extname(fullPath).toLowerCase();
+    let contentType = 'application/octet-stream';
+    
+    if (['.jpg', '.jpeg'].includes(ext)) {
+      contentType = 'image/jpeg';
+    } else if (ext === '.png') {
+      contentType = 'image/png';
+    } else if (ext === '.gif') {
+      contentType = 'image/gif';
+    } else if (ext === '.pdf') {
+      contentType = 'application/pdf';
+    }
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    
+    // Send the file
+    res.sendFile(fullPath);
+  } catch (error) {
+    console.error('Error serving file:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error serving file'
+    });
+  }
+});
 
 export default router;

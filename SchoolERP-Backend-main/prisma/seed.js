@@ -35,8 +35,37 @@ async function main() {
         updatedAt: new Date()
       }
     });
-
+    const school1 = await prisma.school.upsert({
+      where: { id: 2 },
+      update: {
+        affiliate: 'JP INTERNATIONAL SCHOOL',
+        affiliateNo: 'JPI-2020-001',
+        website: 'https://www.jpinternational.edu',
+        updatedAt: new Date()
+      },
+      create: {
+        id: 2,
+        schoolName: 'JP INTERNATIONAL SCHOOL',
+        email: 'school1@school.com',
+        password: await bcrypt.hash('123456', 10),
+        code: 'JPI001',
+        address: '123 Education Street, JP',
+        contact: 5550222123n,
+        phone: '5552220124',
+        principal: 'Parv Ruhil',
+        established: 2020,
+        affiliate: 'JP INTERNATIONAL SCHOOL',
+        affiliateNo: 'JPI-2020-001',
+        website: 'https://www.jpinternational.edu',
+        role: 'SCHOOL',
+        status: 'active',
+        lastLogin: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
     console.log('Created school:', school);
+    console.log('Created school:', school1);
 
     // Create teachers
     const teacher1 = await prisma.teacher.create({
@@ -242,26 +271,7 @@ async function main() {
               dropLocation: 'Springfield Elementary School'
             }
           },
-          documents: {
-            create: {
-              studentImagePath: '/uploads/students/bart.jpg',
-              fatherImagePath: '/uploads/parents/homer.jpg',
-              motherImagePath: '/uploads/parents/marge.jpg',
-              guardianImagePath: '/uploads/guardians/abe.jpg',
-              signaturePath: '/uploads/signatures/bart.jpg',
-              parentSignaturePath: '/uploads/signatures/homer.jpg',
-              fatherAadharPath: '/uploads/aadhar/homer.jpg',
-              motherAadharPath: '/uploads/aadhar/marge.jpg',
-              birthCertificatePath: '/uploads/certificates/bart_birth.jpg',
-              migrationCertificatePath: '/uploads/certificates/bart_migration.jpg',
-              aadhaarCardPath: '/uploads/aadhar/bart.jpg',
-              affidavitCertificatePath: '/uploads/certificates/bart_affidavit.jpg',
-              incomeCertificatePath: '/uploads/certificates/income.jpg',
-              addressProof1Path: '/uploads/address/proof1.jpg',
-              addressProof2Path: '/uploads/address/proof2.jpg',
-              academicRegistrationNo: 'REG001'
-            }
-          },
+          
           educationInfo: {
             create: {
               lastSchool: 'Springfield Elementary',
@@ -400,26 +410,6 @@ async function main() {
               transportDriver: 'Otto Mann',
               pickupLocation: '742 Evergreen Terrace',
               dropLocation: 'Springfield Elementary School'
-            }
-          },
-          documents: {
-            create: {
-              studentImagePath: '/uploads/students/lisa.jpg',
-              fatherImagePath: '/uploads/parents/homer.jpg',
-              motherImagePath: '/uploads/parents/marge.jpg',
-              guardianImagePath: '/uploads/guardians/abe.jpg',
-              signaturePath: '/uploads/signatures/lisa.jpg',
-              parentSignaturePath: '/uploads/signatures/homer.jpg',
-              fatherAadharPath: '/uploads/aadhar/homer.jpg',
-              motherAadharPath: '/uploads/aadhar/marge.jpg',
-              birthCertificatePath: '/uploads/certificates/lisa_birth.jpg',
-              migrationCertificatePath: '/uploads/certificates/lisa_migration.jpg',
-              aadhaarCardPath: '/uploads/aadhar/lisa.jpg',
-              affidavitCertificatePath: '/uploads/certificates/lisa_affidavit.jpg',
-              incomeCertificatePath: '/uploads/certificates/income.jpg',
-              addressProof1Path: '/uploads/address/proof1.jpg',
-              addressProof2Path: '/uploads/address/proof2.jpg',
-              academicRegistrationNo: 'REG002'
             }
           },
           educationInfo: {

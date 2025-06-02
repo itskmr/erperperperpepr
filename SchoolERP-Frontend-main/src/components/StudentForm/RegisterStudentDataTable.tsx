@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Eye, Edit, Trash2, Search, Download, X } from "lucide-react";
+import { toast } from 'react-hot-toast';
 
 type Student = {
   // Required fields
@@ -40,14 +41,6 @@ type Student = {
   motherMobileNo?: string;
   motherAadharCardNo?: string;
   
-  // Document fields
-  casteCertificate?: string;
-  studentAadharCard?: string;
-  fatherAadharCard?: string;
-  motherAadharCard?: string;
-  previousClassMarksheet?: string;
-  transferCertificate?: string;
-  studentDateOfBirthCertificate?: string;
   
   // Legacy fields for compatibility
   studentId?: string;
@@ -122,12 +115,15 @@ const RegisterStudentDataTable: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [currentEditStep, setCurrentEditStep] = useState(1);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    student: Student | null;
+  }>({ isOpen: false, student: null });
 
   const editSteps = [
     { id: 1, title: 'Basic Information', icon: '👤' },
     { id: 2, title: 'Contact & Address', icon: '📍' },
-    { id: 3, title: 'Parent Details', icon: '👪' },
-    { id: 4, title: 'Documents', icon: '📄' }
+    { id: 3, title: 'Parent Details', icon: '👪' }
   ];
 
   // Class options for select dropdown
@@ -252,7 +248,7 @@ const RegisterStudentDataTable: React.FC = () => {
   const handleEdit = (student: Student) => {
     setSelectedStudent(student);
     setCurrentEditStep(1); // Reset to first step
-    setFormData({
+      setFormData({
       fullName: student.fullName || '',
       formNo: student.formNo || '',
       regnDate: student.regnDate || '',
@@ -299,6 +295,20 @@ const RegisterStudentDataTable: React.FC = () => {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  const openDeleteConfirmation = (student: Student) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      student: student
+    });
+  };
+
+  const closeDeleteConfirmation = () => {
+    setDeleteConfirmation({
+      isOpen: false,
+      student: null
+    });
   };
 
   const validateCurrentEditStep = () => {
@@ -468,50 +478,6 @@ const RegisterStudentDataTable: React.FC = () => {
           </div>
         );
 
-      case 4:
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Document Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <h4 className="font-medium text-gray-700 mb-2">Current Document Status</h4>
-                <div className="text-sm space-y-1">
-                  <div>Caste Certificate: <span className={`font-medium ${selectedStudent?.casteCertificate ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.casteCertificate ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                  <div>Student Aadhaar: <span className={`font-medium ${selectedStudent?.studentAadharCard ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.studentAadharCard ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                  <div>Father Aadhaar: <span className={`font-medium ${selectedStudent?.fatherAadharCard ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.fatherAadharCard ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                  <div>Mother Aadhaar: <span className={`font-medium ${selectedStudent?.motherAadharCard ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.motherAadharCard ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                  <div>Previous Marksheet: <span className={`font-medium ${selectedStudent?.previousClassMarksheet ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.previousClassMarksheet ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                  <div>Transfer Certificate: <span className={`font-medium ${selectedStudent?.transferCertificate ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.transferCertificate ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                  <div>Birth Certificate: <span className={`font-medium ${selectedStudent?.studentDateOfBirthCertificate ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedStudent?.studentDateOfBirthCertificate ? 'Uploaded' : 'Not uploaded'}
-                  </span></div>
-                </div>
-              </div>
-              <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
-                <h4 className="font-medium text-blue-700 mb-2">Document Upload</h4>
-                <p className="text-sm text-blue-600 mb-2">To update documents, please contact the administration or use the document upload feature in the student portal.</p>
-                <div className="text-xs text-blue-500">
-                  <p>• Documents can be uploaded in PDF, JPG, or PNG format</p>
-                  <p>• Maximum file size: 5MB per document</p>
-                  <p>• Ensure documents are clear and readable</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
       default:
         return <div>Invalid step</div>;
     }
@@ -519,46 +485,155 @@ const RegisterStudentDataTable: React.FC = () => {
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Only allow submission on the final step
+    if (currentEditStep !== editSteps.length) {
+      return;
+    }
+
+    // Final validation before submission
+    const errors = validateCurrentEditStep();
+    if (errors.length > 0) {
+      setEditError(errors.join(', '));
+      return;
+    }
+
     setIsSubmitting(true);
     setEditError(null);
 
     try {
+      // Get authentication token
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+
+      // Prepare clean data object for JSON submission
+      const cleanedData: Record<string, string | number | boolean> = {};
+      
+      // Add form fields with proper cleaning
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          // Convert boolean values properly
+          if (typeof value === 'boolean') {
+            cleanedData[key] = value;
+          } else if (typeof value === 'string') {
+            // Only add non-empty strings
+            const trimmedValue = value.trim();
+            if (trimmedValue) {
+              cleanedData[key] = trimmedValue;
+            }
+          } else {
+            cleanedData[key] = value;
+          }
+        }
+      });
+
+      console.log('Updating student with data:', cleanedData);
+
       const response = await fetch(`http://localhost:5000/register/student/update/${selectedStudent?.formNo}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData),
+        credentials: 'include',
+        body: JSON.stringify(cleanedData),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update student');
+        if (response.status === 401) {
+          // Handle authentication error
+          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
+          throw new Error('Session expired. Please log in again.');
+        }
+        
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to update student (${response.status})`);
       }
 
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to update student');
+      }
+
+      console.log('Student updated successfully:', result);
+      
+      // Show success message
+      toast.success('Student updated successfully!');
+      
+      // Close modal and refresh data
       setIsEditModalOpen(false);
-      fetchStudents();
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to update student');
+      setCurrentEditStep(1); // Reset step
+      fetchStudents(); // Refresh the student list
+      
+    } catch (err: unknown) {
+      console.error('Error updating student:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update student';
+      setEditError(errorMessage);
+      
+      // If it's an authentication error, optionally redirect to login
+      if (errorMessage.includes('log in again')) {
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (studentId: string) => {
-    if (window.confirm("Are you sure you want to delete this student?")) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/students/${studentId}`, {
-          method: "DELETE",
-        });
+  const handleDelete = async (student: Student) => {
+    try {
+      // Get authentication token
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
 
-        if (!response.ok) {
-          throw new Error("Failed to delete student");
+      const response = await fetch(`http://localhost:5000/register/student/delete/${student.formNo}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
+          throw new Error('Session expired. Please log in again.');
         }
+        
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to delete student (${response.status})`);
+      }
 
-    fetchStudents();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete student");
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete student');
+      }
+
+      console.log('Student deleted successfully:', result);
+      closeDeleteConfirmation();
+      fetchStudents();
+      
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete student';
+      setError(errorMessage);
+      
+      if (errorMessage.includes('log in again')) {
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
       }
     }
   };
@@ -948,7 +1023,7 @@ const RegisterStudentDataTable: React.FC = () => {
                           <Edit className="h-5 w-5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(student.studentId || student.formNo)}
+                          onClick={() => openDeleteConfirmation(student)}
                           className="text-red-600 hover:text-red-800"
                           title="Delete Student"
                         >
@@ -966,141 +1041,292 @@ const RegisterStudentDataTable: React.FC = () => {
         {/* View Modal */}
         {isViewModalOpen && selectedStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-blue-700">Student Details</h2>
-                <button
-                  onClick={() => setIsViewModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-                >
-                <X size={24} />
-                </button>
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold">Student Registration Details</h2>
+                  <p className="text-blue-100 mt-1">Form No: {selectedStudent.formNo}</p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg flex items-center transition-colors duration-200"
+                    title="Print Details"
+                  >
+                    <Download size={18} className="mr-2" />
+                    Print
+                  </button>
+                  <button
+                    onClick={() => setIsViewModalOpen(false)}
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-lg transition-colors duration-200"
+                    title="Close"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
-            
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[calc(90vh-120px)] p-6">
+              {/* Student Summary Card */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6 border border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-blue-700">{selectedStudent.fullName}</div>
+                    <div className="text-sm text-gray-600">Student Name</div>
+                  </div>
+                  <div>
+                    <div className="text-xl font-semibold text-green-700">{selectedStudent.registerForClass}</div>
+                    <div className="text-sm text-gray-600">Class</div>
+                  </div>
+                  <div>
+                    <div className="text-xl font-semibold text-purple-700">{selectedStudent.formNo}</div>
+                    <div className="text-sm text-gray-600">Form Number</div>
+                  </div>
+                  <div>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                      selectedStudent.paymentStatus === 'Paid' 
+                        ? 'bg-green-100 text-green-800'
+                        : selectedStudent.paymentStatus === 'Pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {selectedStudent.paymentStatus || 'Pending'}
+                    </span>
+                    <div className="text-sm text-gray-600 mt-1">Payment Status</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Information Sections */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Basic Information */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><strong>Form No:</strong> {selectedStudent.formNo}</div>
-                <div><strong>Full Name:</strong> {selectedStudent.fullName}</div>
-                <div><strong>Registration Date:</strong> {selectedStudent.regnDate ? new Date(selectedStudent.regnDate).toLocaleDateString() : '-'}</div>
-                <div><strong>Register For Class:</strong> {selectedStudent.registerForClass || '-'}</div>
-                <div><strong>Test Date:</strong> {selectedStudent.testDate ? new Date(selectedStudent.testDate).toLocaleDateString() : '-'}</div>
-                <div><strong>Branch Name:</strong> {selectedStudent.branchName || '-'}</div>
-                <div><strong>Gender:</strong> {selectedStudent.gender || '-'}</div>
-                <div><strong>Date of Birth:</strong> {selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString() : '-'}</div>
-                <div><strong>Category:</strong> {selectedStudent.category || '-'}</div>
-                <div><strong>Religion:</strong> {selectedStudent.religion || '-'}</div>
-                <div><strong>Blood Group:</strong> {selectedStudent.bloodGroup || '-'}</div>
-                <div><strong>Admission Category:</strong> {selectedStudent.admissionCategory || '-'}</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-3 mb-4 flex items-center">
+                    <div className="w-2 h-6 bg-blue-500 rounded mr-3"></div>
+                    Basic Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Registration Date:</span>
+                      <span className="text-gray-800">{selectedStudent.regnDate ? new Date(selectedStudent.regnDate).toLocaleDateString() : '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Test Date:</span>
+                      <span className="text-gray-800">{selectedStudent.testDate ? new Date(selectedStudent.testDate).toLocaleDateString() : '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Branch:</span>
+                      <span className="text-gray-800">{selectedStudent.branchName || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Gender:</span>
+                      <span className="text-gray-800">{selectedStudent.gender || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Date of Birth:</span>
+                      <span className="text-gray-800">{selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString() : '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Category:</span>
+                      <span className="text-gray-800">{selectedStudent.category || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Religion:</span>
+                      <span className="text-gray-800">{selectedStudent.religion || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="font-medium text-gray-600">Blood Group:</span>
+                      <span className="text-gray-800">{selectedStudent.bloodGroup || '-'}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Contact Information */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Contact Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><strong>Contact Number:</strong> {selectedStudent.contactNo || '-'}</div>
-                <div><strong>Student Email:</strong> {selectedStudent.studentEmail || '-'}</div>
-                <div><strong>Address:</strong> {selectedStudent.address || '-'}</div>
-                <div><strong>City:</strong> {selectedStudent.city || '-'}</div>
-                <div><strong>State:</strong> {selectedStudent.state || '-'}</div>
-                <div><strong>Pincode:</strong> {selectedStudent.pincode || '-'}</div>
-                <div><strong>Aadhaar Number:</strong> {selectedStudent.studentAadharCardNo || '-'}</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-3 mb-4 flex items-center">
+                    <div className="w-2 h-6 bg-green-500 rounded mr-3"></div>
+                    Contact Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Contact Number:</span>
+                      <span className="text-gray-800">{selectedStudent.contactNo || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Email:</span>
+                      <span className="text-gray-800">{selectedStudent.studentEmail || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Address:</span>
+                      <span className="text-gray-800 text-right max-w-[200px]">{selectedStudent.address || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">City:</span>
+                      <span className="text-gray-800">{selectedStudent.city || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">State:</span>
+                      <span className="text-gray-800">{selectedStudent.state || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Pincode:</span>
+                      <span className="text-gray-800">{selectedStudent.pincode || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="font-medium text-gray-600">Aadhaar Number:</span>
+                      <span className="text-gray-800">{selectedStudent.studentAadharCardNo || '-'}</span>
+                    </div>
                   </div>
                 </div>
 
-            {/* Parent Information */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Parent Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                  <h4 className="font-medium text-gray-700 mb-2">Father's Details</h4>
-                  <div className="space-y-2">
-                    <div><strong>Name:</strong> {selectedStudent.fatherName || '-'}</div>
-                    <div><strong>Mobile:</strong> {selectedStudent.fatherMobileNo || '-'}</div>
-                    <div><strong>Email:</strong> {selectedStudent.fatherEmail || '-'}</div>
-                    <div><strong>Aadhaar:</strong> {selectedStudent.fatherAadharCardNo || '-'}</div>
-                    <div><strong>Campus Employee:</strong> {selectedStudent.isFatherCampusEmployee ? 'Yes' : 'No'}</div>
+                {/* Parent Information */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm lg:col-span-2">
+                  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-3 mb-4 flex items-center">
+                    <div className="w-2 h-6 bg-purple-500 rounded mr-3"></div>
+                    Parent Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Father's Details */}
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-blue-800 mb-3">Father's Details</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Name:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.fatherName || '-'}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Mobile:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.fatherMobileNo || '-'}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Email:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.fatherEmail || '-'}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Aadhaar:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.fatherAadharCardNo || '-'}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Campus Employee:</span>
+                          <span className={`text-sm font-medium ${selectedStudent.isFatherCampusEmployee ? 'text-green-600' : 'text-gray-600'}`}>
+                            {selectedStudent.isFatherCampusEmployee ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    </div>
-                    <div>
-                  <h4 className="font-medium text-gray-700 mb-2">Mother's Details</h4>
-                  <div className="space-y-2">
-                    <div><strong>Name:</strong> {selectedStudent.motherName || '-'}</div>
-                    <div><strong>Mobile:</strong> {selectedStudent.motherMobileNo || '-'}</div>
-                    <div><strong>Aadhaar:</strong> {selectedStudent.motherAadharCardNo || '-'}</div>
-                    </div>
+
+                    {/* Mother's Details */}
+                    <div className="bg-pink-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-pink-800 mb-3">Mother's Details</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Name:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.motherName || '-'}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Mobile:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.motherMobileNo || '-'}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-sm font-medium text-gray-600">Aadhaar:</span>
+                          <span className="text-sm text-gray-800">{selectedStudent.motherAadharCardNo || '-'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-            {/* Additional Information */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Additional Information</h3>
+                {/* Academic & Financial Information */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm lg:col-span-2">
+                  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-3 mb-4 flex items-center">
+                    <div className="w-2 h-6 bg-orange-500 rounded mr-3"></div>
+                    Academic & Financial Information
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><strong>Transaction No:</strong> {selectedStudent.transactionNo || '-'}</div>
-                <div><strong>Registration Charge:</strong> {selectedStudent.regnCharge || '-'}</div>
-                <div><strong>Exam Subject:</strong> {selectedStudent.examSubject || '-'}</div>
-                <div><strong>Payment Status:</strong> 
-                  <span className={`ml-2 px-2 py-1 rounded text-sm ${
-                        selectedStudent.paymentStatus === 'Paid' 
-                          ? 'bg-green-100 text-green-800'
-                          : selectedStudent.paymentStatus === 'Pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {selectedStudent.paymentStatus}
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Transaction No:</span>
+                      <span className="text-gray-800">{selectedStudent.transactionNo || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Registration Charge:</span>
+                      <span className="text-gray-800">{selectedStudent.regnCharge ? `₹${selectedStudent.regnCharge}` : '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Exam Subject:</span>
+                      <span className="text-gray-800">{selectedStudent.examSubject || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Admission Category:</span>
+                      <span className="text-gray-800">{selectedStudent.admissionCategory || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">Single Parent:</span>
+                      <span className={`font-medium ${selectedStudent.singleParent ? 'text-orange-600' : 'text-gray-600'}`}>
+                        {selectedStudent.singleParent ? 'Yes' : 'No'}
                       </span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="font-medium text-gray-600">SMS Alert:</span>
+                      <span className={`font-medium ${selectedStudent.smsAlert ? 'text-green-600' : 'text-gray-600'}`}>
+                        {selectedStudent.smsAlert ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
                   </div>
-                <div><strong>Single Parent:</strong> {selectedStudent.singleParent ? 'Yes' : 'No'}</div>
-                <div><strong>SMS Alert:</strong> {selectedStudent.smsAlert ? 'Enabled' : 'Disabled'}</div>
                 </div>
               </div>
+            </div>
 
-            {/* Documents */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Documents</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><strong>Caste Certificate:</strong> {selectedStudent.casteCertificate ? 'Uploaded' : 'Not uploaded'}</div>
-                <div><strong>Student Aadhaar:</strong> {selectedStudent.studentAadharCard ? 'Uploaded' : 'Not uploaded'}</div>
-                <div><strong>Father Aadhaar:</strong> {selectedStudent.fatherAadharCard ? 'Uploaded' : 'Not uploaded'}</div>
-                <div><strong>Mother Aadhaar:</strong> {selectedStudent.motherAadharCard ? 'Uploaded' : 'Not uploaded'}</div>
-                <div><strong>Previous Marksheet:</strong> {selectedStudent.previousClassMarksheet ? 'Uploaded' : 'Not uploaded'}</div>
-                <div><strong>Transfer Certificate:</strong> {selectedStudent.transferCertificate ? 'Uploaded' : 'Not uploaded'}</div>
-                <div><strong>Birth Certificate:</strong> {selectedStudent.studentDateOfBirthCertificate ? 'Uploaded' : 'Not uploaded'}</div>
-            </div>
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setIsViewModalOpen(false)}
-                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
-              >
-                Close
-              </button>
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-500">
+                  Registration ID: {selectedStudent.registrationId || 'N/A'}
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setIsViewModalOpen(false);
+                      handleEdit(selectedStudent);
+                    }}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center"
+                  >
+                    <Edit size={16} className="mr-2" />
+                    Edit Student
+                  </button>
+                  <button
+                    onClick={() => setIsViewModalOpen(false)}
+                    className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors duration-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      )}
+        )}
 
       {/* Edit Modal - Enhanced Multi-Step Form */}
-      {isEditModalOpen && selectedStudent && (
+        {isEditModalOpen && selectedStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-blue-700">Edit Student Registration</h2>
-              <button
+                  <button
                 onClick={() => setIsEditModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X size={24} />
-              </button>
-            </div>
+                  </button>
+                </div>
             
             {/* Progress Indicator */}
             <div className="mb-6">
-              <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
                 {editSteps.map((step, index) => (
                   <div key={step.id} className="flex items-center">
                     <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
@@ -1115,18 +1341,18 @@ const RegisterStudentDataTable: React.FC = () => {
                         currentEditStep >= step.id ? 'text-blue-600' : 'text-gray-400'
                       }`}>
                         {step.title}
-                      </div>
-                    </div>
+                  </div>
+                </div>
                     {index < editSteps.length - 1 && (
                       <div className={`w-8 h-0.5 mx-4 ${
                         currentEditStep > step.id ? 'bg-blue-600' : 'bg-gray-300'
                       }`} />
                     )}
-                  </div>
-                ))}
               </div>
+                ))}
             </div>
-            
+            </div>
+
             {editError && (
               <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 {editError}
@@ -1149,20 +1375,20 @@ const RegisterStudentDataTable: React.FC = () => {
                 
                 <div className="space-x-4">
                   {currentEditStep < editSteps.length ? (
-                    <button
-                      type="button"
+                <button
+                  type="button"
                       onClick={nextEditStep}
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       Next
-                    </button>
+                </button>
                   ) : (
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
                       className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save Changes'}
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                   )}
                   <button
@@ -1171,10 +1397,60 @@ const RegisterStudentDataTable: React.FC = () => {
                     className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
                   >
                     Cancel
-                  </button>
+                </button>
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-red-700">Delete Student</h2>
+              <button
+                onClick={closeDeleteConfirmation}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to delete this student registration?
+              </p>
+              {deleteConfirmation.student && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p><strong>Student:</strong> {deleteConfirmation.student.fullName}</p>
+                  <p><strong>Form No:</strong> {deleteConfirmation.student.formNo}</p>
+                  <p><strong>Class:</strong> {deleteConfirmation.student.registerForClass}</p>
+                </div>
+              )}
+              <p className="text-red-600 text-sm mt-3">
+                This action cannot be undone!
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={closeDeleteConfirmation}
+                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteConfirmation.student && handleDelete(deleteConfirmation.student)}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
