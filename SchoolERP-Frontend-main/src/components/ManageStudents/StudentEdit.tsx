@@ -27,17 +27,27 @@ interface Student {
   emergencyContact?: string;
   
   // Added image fields
-  studentImageUrl?: string;
-  fatherImageUrl?: string;
-  motherImageUrl?: string;
-  guardianImageUrl?: string;
-  signatureUrl?: string;
-  parentSignatureUrl?: string;
-  birthCertificateUrl?: string;
-  transferCertificateUrl?: string;
-  markSheetUrl?: string;
-  aadhaarCardUrl?: string;
-  familyIdUrl?: string;
+  studentImagePath?: string;
+  fatherImagePath?: string;
+  motherImagePath?: string;
+  guardianImagePath?: string;
+  signaturePath?: string;
+  parentSignaturePath?: string;
+  fatherAadharPath?: string;
+  motherAadharPath?: string;
+  birthCertificatePath?: string;
+  migrationCertificatePath?: string;
+  aadhaarCardPath?: string;
+  familyIdPath?: string;
+  affidavitCertificatePath?: string;
+  incomeCertificatePath?: string;
+  addressProof1Path?: string;
+  addressProof2Path?: string;
+  transferCertificatePath?: string;
+  markSheetPath?: string;
+  fatherSignaturePath?: string;
+  motherSignaturePath?: string;
+  guardianSignaturePath?: string;
   
   address?: {
     houseNo?: string;
@@ -390,17 +400,27 @@ const StudentEdit: React.FC = () => {
           },
           
           // Image URLs
-          studentImageUrl: studentData.studentImageUrl || '',
-          fatherImageUrl: studentData.fatherImageUrl || '',
-          motherImageUrl: studentData.motherImageUrl || '',
-          guardianImageUrl: studentData.guardianImageUrl || '',
-          signatureUrl: studentData.signatureUrl || '',
-          parentSignatureUrl: studentData.parentSignatureUrl || '',
-          birthCertificateUrl: studentData.birthCertificateUrl || '',
-          transferCertificateUrl: studentData.transferCertificateUrl || '',
-          markSheetUrl: studentData.markSheetUrl || '',
-          aadhaarCardUrl: studentData.aadhaarCardUrl || '',
-          familyIdUrl: studentData.familyIdUrl || '',
+          studentImagePath: studentData.studentImagePath || '',
+          fatherImagePath: studentData.fatherImagePath || '',
+          motherImagePath: studentData.motherImagePath || '',
+          guardianImagePath: studentData.guardianImagePath || '',
+          signaturePath: studentData.signaturePath || '',
+          parentSignaturePath: studentData.parentSignaturePath || '',
+          fatherAadharPath: studentData.fatherAadharPath || '',
+          motherAadharPath: studentData.motherAadharPath || '',
+          birthCertificatePath: studentData.birthCertificatePath || '',
+          migrationCertificatePath: studentData.migrationCertificatePath || '',
+          aadhaarCardPath: studentData.aadhaarCardPath || '',
+          familyIdPath: studentData.familyIdPath || '',
+          affidavitCertificatePath: studentData.affidavitCertificatePath || '',
+          incomeCertificatePath: studentData.incomeCertificatePath || '',
+          addressProof1Path: studentData.addressProof1Path || '',
+          addressProof2Path: studentData.addressProof2Path || '',
+          transferCertificatePath: studentData.transferCertificatePath || '',
+          markSheetPath: studentData.markSheetPath || '',
+          fatherSignaturePath: studentData.fatherSignaturePath || '',
+          motherSignaturePath: studentData.motherSignaturePath || '',
+          guardianSignaturePath: studentData.guardianSignaturePath || '',
         };
         
         console.log('Mapped student data:', mappedData);
@@ -716,13 +736,13 @@ const StudentEdit: React.FC = () => {
             {/* Document Upload Section */}
             <h4 className="text-md font-medium text-gray-700 mt-6 border-b pb-2">Document Images</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {renderFileInput('Student Photo', 'studentImageUrl')}
-              {renderFileInput('Student Signature', 'signatureUrl')}
-              {renderFileInput('Birth Certificate', 'birthCertificateUrl')}
-              {renderFileInput('Aadhaar Card', 'aadhaarCardUrl')}
-              {renderFileInput('Transfer Certificate', 'transferCertificateUrl')}
-              {renderFileInput('Mark Sheet', 'markSheetUrl')}
-              {renderFileInput('Family ID', 'familyIdUrl')}
+              {renderFileInput('Student Photo', 'studentImagePath')}
+              {renderFileInput('Student Signature', 'signaturePath')}
+              {renderFileInput('Birth Certificate', 'birthCertificatePath')}
+              {renderFileInput('Aadhaar Card', 'aadhaarCardPath')}
+              {renderFileInput('Transfer Certificate', 'transferCertificatePath')}
+              {renderFileInput('Mark Sheet', 'markSheetPath')}
+              {renderFileInput('Family ID', 'familyIdPath')}
             </div>
           </div>
         );
@@ -828,7 +848,7 @@ const StudentEdit: React.FC = () => {
               {renderInput('Contact Number', 'father.contactNumber', 'tel')}
               {renderInput('Aadhaar Number', 'father.aadhaarNo')}
               {renderInput('Annual Income', 'father.annualIncome')}
-              {renderFileInput('Father Photo', 'fatherImageUrl')}
+              {renderFileInput('Father Photo', 'fatherImagePath')}
             </div>
 
             <h4 className="text-md font-medium text-gray-700 mt-6">Mother Details</h4>
@@ -841,7 +861,7 @@ const StudentEdit: React.FC = () => {
               {renderInput('Contact Number', 'mother.contactNumber', 'tel')}
               {renderInput('Aadhaar Number', 'mother.aadhaarNo')}
               {renderInput('Annual Income', 'mother.annualIncome')}
-              {renderFileInput('Mother Photo', 'motherImageUrl')}
+              {renderFileInput('Mother Photo', 'motherImagePath')}
             </div>
 
             <h4 className="text-md font-medium text-gray-700 mt-6">Guardian Details</h4>
@@ -853,13 +873,13 @@ const StudentEdit: React.FC = () => {
               {renderInput('Aadhaar Number', 'guardian.aadhaarNo')}
               {renderInput('Occupation', 'guardian.occupation')}
               {renderInput('Annual Income', 'guardian.annualIncome')}
-              {renderFileInput('Guardian Photo', 'guardianImageUrl')}
+              {renderFileInput('Guardian Photo', 'guardianImagePath')}
             </div>
             
             {/* Parent Signature Section */}
             <h4 className="text-md font-medium text-gray-700 mt-6 border-b pb-2">Parent Signatures</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {renderFileInput('Parent/Guardian Signature', 'parentSignatureUrl')}
+              {renderFileInput('Parent/Guardian Signature', 'parentSignaturePath')}
             </div>
           </div>
         );

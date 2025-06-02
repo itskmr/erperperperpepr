@@ -17,11 +17,6 @@ interface StudentFormSectionsProps {
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>, documentType: keyof Documents) => void;
 }
 
-interface FormSectionProps {
-  formData: StudentFormData;
-  handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-}
-
 /**
  * Component that renders the appropriate form section based on current step
  */
@@ -230,12 +225,12 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
         // For nested properties
         try {
           const parts = name.split('.');
-          let value: any = { ...data };
+          let value: unknown = { ...data };
           
           // Navigate the path
           for (const part of parts) {
             if (value === null || value === undefined) return '';
-            value = value[part];
+            value = (value as Record<string, unknown>)[part];
           }
           
           // Return empty string if value is null or undefined
@@ -310,201 +305,28 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
   };
 
   // Document Upload Section
-  const renderDocumentCheckbox = (id: string, label: string, name: string) => (
-    <li className="flex items-center gap-2 mb-2">
-      <input 
-        type="checkbox" 
-        id={id} 
-        name={name}
-        onChange={handleChange}
-        className="form-checkbox h-4 w-4 text-blue-600"
-      />
-      <label htmlFor={id} className="text-gray-700">• {label}</label>
-    </li>
-  );
+  // const renderDocumentCheckbox = (id: string, label: string, name: string) => (
+  //   <li className="flex items-center gap-2 mb-2">
+  //     <input 
+  //       type="checkbox" 
+  //       id={id} 
+  //       name={name}
+  //       onChange={handleChange}
+  //       className="form-checkbox h-4 w-4 text-blue-600"
+  //     />
+  //     <label htmlFor={id} className="text-gray-700">• {label}</label>
+  //   </li>
+  // );
 
   // Session Information Section
-  const SessionSection: React.FC<FormSectionProps> = ({ formData, handleChange }) => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Session Information</h3>
-      
-      {/* Admit Session */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Admit Group</label>
-          <input
-            type="text"
-            name="admitSession.group"
-            value={formData.admitSession.group}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Admit Class</label>
-          <input
-            type="text"
-            name="admitSession.class"
-            value={formData.admitSession.class}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Admit Section</label>
-          <input
-            type="text"
-            name="admitSession.section"
-            value={formData.admitSession.section}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Admit Roll No</label>
-          <input
-            type="text"
-            name="admitSession.rollNo"
-            value={formData.admitSession.rollNo}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Current Session */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Current Group</label>
-          <input
-            type="text"
-            name="currentSession.group"
-            value={formData.currentSession.group}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Current Class</label>
-          <input
-            type="text"
-            name="currentSession.class"
-            value={formData.currentSession.class}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Current Section</label>
-          <input
-            type="text"
-            name="currentSession.section"
-            value={formData.currentSession.section}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Current Roll No</label>
-          <input
-            type="text"
-            name="currentSession.rollNo"
-            value={formData.currentSession.rollNo}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Stream</label>
-          <input
-            type="text"
-            name="currentSession.stream"
-            value={formData.currentSession.stream}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Semester</label>
-          <input
-            type="text"
-            name="currentSession.semester"
-            value={formData.currentSession.semester}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Fee Group</label>
-          <input
-            type="text"
-            name="currentSession.feeGroup"
-            value={formData.currentSession.feeGroup}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">House</label>
-          <input
-            type="text"
-            name="currentSession.house"
-            value={formData.currentSession.house}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-      </div>
-    </div>
-  );
+  // const SessionSection: React.FC<FormSectionProps> = ({ formData, handleChange }) => (
+  //   // Component definition commented out
+  // );
 
   // Address Section
-  const AddressSection = () => (
-    <div className="space-y-6">
-      <h3 className="text-lg font-medium text-gray-900">Address Details</h3>
-      
-      {/* Present Address */}
-      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-        <h4 className="text-md font-medium text-gray-800 mb-4">Present Address</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderInput('House No.', 'houseNo', 'text')}
-          {renderInput('Street/Area', 'street', 'text')}
-          {renderInput('City', 'city', 'text', true)}
-          {renderInput('State', 'state', 'text', true)}
-          {renderInput('Pin Code', 'pinCode', 'text', true, '6 digits')}
-        </div>
-      </div>
-
-      {/* Same as Present Address Checkbox */}
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="sameAsPresentAddress"
-          name="sameAsPresentAddress"
-          checked={formData.sameAsPresentAddress}
-          onChange={handleChange}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-        />
-        <label htmlFor="sameAsPresentAddress" className="text-gray-700">
-          Permanent Address same as Present Address
-        </label>
-      </div>
-
-      {/* Permanent Address */}
-      {!formData.sameAsPresentAddress && (
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <h4 className="text-md font-medium text-gray-800 mb-4">Permanent Address</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderInput('House No.', 'permanentHouseNo', 'text')}
-            {renderInput('Street/Area', 'permanentStreet', 'text')}
-            {renderInput('City', 'permanentCity', 'text')}
-            {renderInput('State', 'permanentState', 'text')}
-            {renderInput('Pin Code', 'permanentPinCode', 'text', false, '6 digits')}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  // const AddressSection = () => (
+  //   // Component definition commented out  
+  // );
 
   // Different form sections based on currentStep
   const formSections: { [key: number]: JSX.Element } = {
@@ -882,12 +704,17 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
             {renderFileInput('Student Signature', 'signature')}
             {renderFileInput('Parent Signature', 'parentSignature')}
             {renderFileInput('Birth Certificate', 'birthCertificate', 'application/pdf,image/*')}
+            {renderFileInput('Migration Certificate', 'migrationCertificate', 'application/pdf,image/*')}
             {renderFileInput('Transfer Certificate', 'transferCertificate', 'application/pdf,image/*')}
             {renderFileInput('Mark Sheet', 'markSheet', 'application/pdf,image/*')}
             {renderFileInput('Student Aadhar Card', 'aadhaarCard', 'application/pdf,image/*')}
             {renderFileInput('Father Aadhar Card', 'fatherAadhar', 'application/pdf,image/*')}
             {renderFileInput('Mother Aadhar Card', 'motherAadhar', 'application/pdf,image/*')}
             {renderFileInput('Family ID', 'familyId', 'application/pdf,image/*')}
+            {renderFileInput('Affidavit Certificate', 'affidavitCertificate', 'application/pdf,image/*')}
+            {renderFileInput('Income Certificate', 'incomeCertificate', 'application/pdf,image/*')}
+            {renderFileInput('Address Proof 1', 'addressProof1', 'application/pdf,image/*')}
+            {renderFileInput('Address Proof 2', 'addressProof2', 'application/pdf,image/*')}
           </div>
         </div>
       </div>

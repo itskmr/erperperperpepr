@@ -1,11 +1,13 @@
-import React from 'react';
-import { FaTimes, FaDownload, FaFilePdf, FaFileImage, FaFile } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { FaTimes, FaDownload, FaFilePdf, FaFileImage, FaFile, FaEye } from 'react-icons/fa';
+import { DocumentStatus, DocumentPaths } from '../StudentForm/StudentFormTypes';
 
 interface StudentDocument {
-  id: string;
-  name: string;
   type: string;
-  url: string;
+  name: string;
+  filePath: string | null;
+  hasFile: boolean;
+  url: string | null;
 }
 
 interface Student {
@@ -34,7 +36,6 @@ interface Student {
   tcNumber: string;
   tcDate: string;
   admissionDate: string;
-  documents: StudentDocument[];
   sessionInfo: {
     currentClass: string;
     currentSection: string;
@@ -42,6 +43,9 @@ interface Student {
     stream: string;
     medium: string;
   };
+  // Updated document structure
+  documentPaths?: DocumentPaths;
+  documentStatus?: DocumentStatus;
 }
 
 interface StudentViewProps {
@@ -51,38 +55,105 @@ interface StudentViewProps {
 }
 
 const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) => {
+  const [documents, setDocuments] = useState<StudentDocument[]>([]);
+  const [documentStatus, setDocumentStatus] = useState<DocumentStatus>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && student?.id) {
+      fetchStudentDocuments();
+    }
+  }, [isOpen, student?.id]);
+
+  const fetchStudentDocuments = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/students/${student.id}/documents`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setDocuments(data.documents || []);
+          setDocumentStatus(data.documentStatus || {});
+        } else {
+          console.error('Failed to fetch documents:', data.message);
+        }
+      } else {
+        console.error('Failed to fetch documents:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const getDocumentIcon = (type: string) => {
-    if (type.includes('pdf')) return <FaFilePdf className="text-red-500" />;
-    if (type.includes('image')) return <FaFileImage className="text-blue-500" />;
+    const lowerType = type.toLowerCase();
+    if (lowerType.includes('pdf')) return <FaFilePdf className="text-red-500" />;
+    if (lowerType.includes('image') || lowerType.includes('photo') || lowerType.includes('signature')) {
+      return <FaFileImage className="text-blue-500" />;
+    }
     return <FaFile className="text-gray-500" />;
   };
 
   const handleDownload = async (doc: StudentDocument) => {
+    if (!doc.url) return;
+    
     try {
       const response = await fetch(doc.url);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = doc.name;
+      a.download = `${student.admissionNo}-${doc.name}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
       console.error('Error downloading document:', error);
+      alert('Failed to download document');
     }
   };
 
   const handleView = (doc: StudentDocument) => {
-    window.open(doc.url, '_blank');
+    if (doc.url) {
+      window.open(doc.url, '_blank');
+    }
+  };
+
+  const formatFieldName = (fieldName: string): string => {
+    return fieldName
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .replace('Path', '')
+      .trim();
+  };
+
+  const getDocumentStatusIcon = (verified: boolean) => {
+    return verified ? (
+      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+        ✓ Verified
+      </span>
+    ) : (
+      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+        ⏳ Pending
+      </span>
+    );
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
           <h2 className="text-xl font-semibold">Student Details</h2>
           <button
@@ -94,7 +165,7 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold border-b pb-2">Basic Information</h3>
@@ -133,6 +204,14 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
               <div>
                 <label className="block text-sm font-medium text-gray-600">Category</label>
                 <p className="mt-1">{student.category}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">APAAR ID</label>
+                <p className="mt-1">{student.apaarId || 'Not provided'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600">Aadhaar Number</label>
+                <p className="mt-1">{student.aadhaarNumber || 'Not provided'}</p>
               </div>
             </div>
 
@@ -202,69 +281,112 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
                 <p className="mt-1">{student.motherName}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600">Guardian's Name</label>
+                <label className="block text-sm font-medium text-gray-600">Guardian Name</label>
                 <p className="mt-1">{student.guardianName}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600">Guardian's Relation</label>
+                <label className="block text-sm font-medium text-gray-600">Guardian Relation</label>
                 <p className="mt-1">{student.guardianRelation}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600">Guardian's Mobile</label>
+                <label className="block text-sm font-medium text-gray-600">Guardian Mobile</label>
                 <p className="mt-1">{student.guardianMobile}</p>
               </div>
             </div>
+          </div>
 
-            {/* ID Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">ID Information</h3>
-              <div>
-                <label className="block text-sm font-medium text-gray-600">APAAR ID</label>
-                <p className="mt-1">{student.apaarId}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600">Aadhaar Number</label>
-                <p className="mt-1">{student.aadhaarNumber}</p>
+          {/* Documents Section */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Documents</h3>
+              <div className="flex items-center space-x-2">
+                {documentStatus.documentsVerified && getDocumentStatusIcon(true)}
+                <span className="text-sm text-gray-600">
+                  {documents.length} document(s) uploaded
+                </span>
               </div>
             </div>
 
-            {/* Documents Section */}
-            <div className="col-span-full">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Documents</h3>
-              {student.documents && student.documents.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {student.documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
+            {loading ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : documents.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {documents.map((doc) => (
+                  <div key={doc.type} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-3">
                         {getDocumentIcon(doc.type)}
-                        <span className="text-sm font-medium">{doc.name}</span>
+                        <div>
+                          <h4 className="font-medium text-sm">{doc.name}</h4>
+                          <p className="text-xs text-gray-500">{formatFieldName(doc.type)}</p>
+                        </div>
                       </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center mt-3">
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleView(doc)}
-                          className="p-2 text-blue-500 hover:text-blue-600"
-                          title="View"
+                          className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          title="View Document"
                         >
-                          <FaFilePdf size={18} />
+                          <FaEye />
+                          <span>View</span>
                         </button>
                         <button
                           onClick={() => handleDownload(doc)}
-                          className="p-2 text-green-500 hover:text-green-600"
-                          title="Download"
+                          className="flex items-center space-x-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                          title="Download Document"
                         >
-                          <FaDownload size={18} />
+                          <FaDownload />
+                          <span>Download</span>
                         </button>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <FaFile className="mx-auto h-12 w-12 text-gray-300" />
+                <p className="mt-2">No documents uploaded</p>
+              </div>
+            )}
+
+            {/* Document Status Summary */}
+            {documentStatus && (
+              <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium mb-3">Document Verification Status</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Birth Certificate:</span>
+                    {getDocumentStatusIcon(documentStatus.birthCertificateSubmitted || false)}
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Student Aadhaar:</span>
+                    {getDocumentStatusIcon(documentStatus.studentAadharSubmitted || false)}
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Father Aadhaar:</span>
+                    {getDocumentStatusIcon(documentStatus.fatherAadharSubmitted || false)}
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Mother Aadhaar:</span>
+                    {getDocumentStatusIcon(documentStatus.motherAadharSubmitted || false)}
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Transfer Certificate:</span>
+                    {getDocumentStatusIcon(documentStatus.tcSubmitted || false)}
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Mark Sheet:</span>
+                    {getDocumentStatusIcon(documentStatus.marksheetSubmitted || false)}
+                  </div>
                 </div>
-              ) : (
-                <p className="text-gray-500">No documents available</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

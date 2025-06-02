@@ -161,62 +161,155 @@ export const createStudent = async (req, res) => {
       udiseNo: req.body['other.udiseNo'] || req.body.udiseNo || '',
     };
     
-    // Handle file uploads and get paths with improved mapping
+    // **UPDATED: Handle file uploads and map to schema document path fields**
     const files = req.files || {};
     
-    // Get file path function that handles both document.fieldName and direct fieldName
-    const getFilePath = (fieldName) => {
-      // Check for documents.fieldName format first
-      const documentField = `documents.${fieldName}`;
-      if (files[documentField] && files[documentField][0]) {
-        return files[documentField][0].path;
-      }
-      
-      // Check for direct fieldName format
-      if (files[fieldName] && files[fieldName][0]) {
-        return files[fieldName][0].path;
-      }
-      
-      return null;
+    // Create document paths object based on schema fields
+    const documentPaths = {
+      studentImagePath: null,
+      fatherImagePath: null,
+      motherImagePath: null,
+      guardianImagePath: null,
+      signaturePath: null,
+      parentSignaturePath: null,
+      fatherAadharPath: null,
+      motherAadharPath: null,
+      birthCertificatePath: null,
+      migrationCertificatePath: null,
+      aadhaarCardPath: null,
+      familyIdPath: null,
+      affidavitCertificatePath: null,
+      incomeCertificatePath: null,
+      addressProof1Path: null,
+      addressProof2Path: null,
+      transferCertificatePath: null,
+      markSheetPath: null,
+      fatherSignaturePath: null,
+      motherSignaturePath: null,
+      guardianSignaturePath: null,
     };
+
+    // Document verification status fields
+    const documentStatus = {
+      documentsVerified: false,
+      birthCertificateSubmitted: false,
+      studentAadharSubmitted: false,
+      fatherAadharSubmitted: false,
+      motherAadharSubmitted: false,
+      tcSubmitted: false,
+      marksheetSubmitted: false,
+    };
+    
+    // Map uploaded files to document path fields
+    const fileFieldMapping = {
+      'studentImage': 'studentImagePath',
+      'documents.studentImage': 'studentImagePath',
+      'fatherImage': 'fatherImagePath',
+      'documents.fatherImage': 'fatherImagePath',
+      'motherImage': 'motherImagePath',
+      'documents.motherImage': 'motherImagePath',
+      'guardianImage': 'guardianImagePath',
+      'documents.guardianImage': 'guardianImagePath',
+      'signature': 'signaturePath',
+      'documents.signature': 'signaturePath',
+      'parentSignature': 'parentSignaturePath',
+      'documents.parentSignature': 'parentSignaturePath',
+      'fatherAadhar': 'fatherAadharPath',
+      'documents.fatherAadhar': 'fatherAadharPath',
+      'motherAadhar': 'motherAadharPath',
+      'documents.motherAadhar': 'motherAadharPath',
+      'birthCertificate': 'birthCertificatePath',
+      'documents.birthCertificate': 'birthCertificatePath',
+      'migrationCertificate': 'migrationCertificatePath',
+      'documents.migrationCertificate': 'migrationCertificatePath',
+      'transferCertificate': 'transferCertificatePath',
+      'documents.transferCertificate': 'transferCertificatePath',
+      'markSheet': 'markSheetPath',
+      'documents.markSheet': 'markSheetPath',
+      'aadhaarCard': 'aadhaarCardPath',
+      'documents.aadhaarCard': 'aadhaarCardPath',
+      'familyId': 'familyIdPath',
+      'documents.familyId': 'familyIdPath',
+      'affidavitCertificate': 'affidavitCertificatePath',
+      'documents.affidavitCertificate': 'affidavitCertificatePath',
+      'incomeCertificate': 'incomeCertificatePath',
+      'documents.incomeCertificate': 'incomeCertificatePath',
+      'addressProof1': 'addressProof1Path',
+      'documents.addressProof1': 'addressProof1Path',
+      'addressProof2': 'addressProof2Path',
+      'documents.addressProof2': 'addressProof2Path',
+      'fatherSignature': 'fatherSignaturePath',
+      'documents.fatherSignature': 'fatherSignaturePath',
+      'motherSignature': 'motherSignaturePath',
+      'documents.motherSignature': 'motherSignaturePath',
+      'guardianSignature': 'guardianSignaturePath',
+      'documents.guardianSignature': 'guardianSignaturePath',
+    };
+    
+    // Process uploaded files and map to correct schema fields
+    Object.keys(files).forEach(fieldName => {
+      const file = files[fieldName][0];
+      if (file && fileFieldMapping[fieldName]) {
+        const schemaField = fileFieldMapping[fieldName];
+        documentPaths[schemaField] = file.path;
+        
+        // Set document submission status based on file type
+        if (fieldName.includes('birthCertificate')) {
+          documentStatus.birthCertificateSubmitted = true;
+        } else if (fieldName.includes('aadhaar') || fieldName.includes('aadhaarCard')) {
+          documentStatus.studentAadharSubmitted = true;
+        } else if (fieldName.includes('fatherAadhar')) {
+          documentStatus.fatherAadharSubmitted = true;
+        } else if (fieldName.includes('motherAadhar')) {
+          documentStatus.motherAadharSubmitted = true;
+        } else if (fieldName.includes('transferCertificate')) {
+          documentStatus.tcSubmitted = true;
+        } else if (fieldName.includes('markSheet')) {
+          documentStatus.marksheetSubmitted = true;
+        }
+      }
+    });
+
+    // Check if any documents were uploaded
+    const hasDocuments = Object.values(documentPaths).some(path => path !== null);
+    if (hasDocuments) {
+      documentStatus.documentsVerified = true;
+    }
     
     // Use a transaction to ensure all related records are created or none at all
     const student = await prisma.$transaction(async (prisma) => {
       // Create the student record first with comprehensive field mapping including document paths
       const newStudent = await prisma.student.create({
         data: {
+          // Basic Information
           branchName: branchName || '',
           fullName: fullName || '',
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
-          age: age ? parseInt(age) : null,
+          admissionNo: admissionNo || '',
+          email: email || null,
+          emailPassword: req.body.emailPassword || null,
           penNo: penNo || '',
           apaarId: apaarId || '',
-          srNo: srNo || '',
-          gender: gender || "OTHER",
+          studentId: studentId || '',
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
+          age: age ? parseInt(age) : null,
+          gender: gender || '',
           bloodGroup: bloodGroup || '',
-          nationality: nationality || "Indian",
+          nationality: nationality || 'Indian',
           religion: religion || '',
           category: category || '',
           caste: caste || '',
+          height: req.body.height ? parseFloat(req.body.height) : null,
+          weight: req.body.weight ? parseFloat(req.body.weight) : null,
           aadhaarNumber: aadhaarNumber || '',
-          mobileNumber: mobileNumber || "0000000000",
-          email: email || "",
+          mobileNumber: mobileNumber || '',
           emergencyContact: emergencyContact || '',
-          admissionNo: admissionNo || `ADM-${Date.now()}`,
-          studentId: studentId || '',
-          rollNumber: rollNumber || '',
-          className: className || sessionInfo.admitClass || '',
-          section: section || sessionInfo.admitSection || '',
-          stream: stream || sessionInfo.admitStream || '',
-          semester: semester || sessionInfo.admitSemester || '',
-          admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
-          previousSchool: previousSchool || lastEducation.school || '',
+          loginEnabled: req.body.loginEnabled === 'true' || req.body.loginEnabled === true || false,
           
-          // Address fields - map from nested structure to flat structure
+          // Address fields
           houseNo: address.houseNo,
           street: address.street,
-          city: address.city || "Unknown",
-          state: address.state || "Unknown",
+          city: address.city,
+          state: address.state,
           pinCode: address.pinCode,
           permanentHouseNo: address.permanentHouseNo,
           permanentStreet: address.permanentStreet,
@@ -225,46 +318,23 @@ export const createStudent = async (req, res) => {
           permanentPinCode: address.permanentPinCode,
           sameAsPresentAddress: address.sameAsPresentAddress,
           
-          // Parent information in main table
+          // Parent Information - Only basic fields in Student table
           fatherName: father.name,
-          fatherMobile: father.contactNumber,
-          fatherEmail: father.email,
+          fatherEmail: father.email || null,
+          fatherEmailPassword: req.body.fatherEmailPassword || null,
           motherName: mother.name,
-          motherMobile: mother.contactNumber,
-          motherEmail: mother.email,
-          
-          // Transport information in main table  
-          transportMode: transport.mode,
-          transportArea: transport.area,
-          transportStand: transport.stand,
-          transportRoute: transport.route,
-          transportDriver: transport.driver,
-          pickupLocation: transport.pickupLocation,
-          dropLocation: transport.dropLocation,
+          motherEmail: mother.email || null,
+          motherEmailPassword: req.body.motherEmailPassword || null,
           
           // Other fields in main table
-          belongToBPL: other.belongToBPL,
-          typeOfDisability: other.disability,
-          registrationNo: academic.registrationNo,
+          belongToBPL: other.belongToBPL === 'yes', // Fix boolean conversion
+          disability: other.disability,
           
-          // Document paths (now stored directly in Student model)
-          studentImagePath: getFilePath('studentImage'),
-          fatherImagePath: getFilePath('fatherImage'),
-          motherImagePath: getFilePath('motherImage'),
-          guardianImagePath: getFilePath('guardianImage'),
-          signaturePath: getFilePath('signature'),
-          parentSignaturePath: getFilePath('parentSignature'),
-          fatherAadharPath: getFilePath('fatherAadhar'),
-          motherAadharPath: getFilePath('motherAadhar'),
-          birthCertificatePath: getFilePath('birthCertificate'),
-          transferCertificatePath: getFilePath('transferCertificate'),
-          markSheetPath: getFilePath('markSheet'),
-          aadhaarCardPath: getFilePath('aadhaarCard'),
-          familyIdPath: getFilePath('familyId'),
-          fatherSignaturePath: getFilePath('fatherSignature'),
-          motherSignaturePath: getFilePath('motherSignature'),
-          guardianSignaturePath: getFilePath('guardianSignature'),
-          academicRegistrationNo: academic.registrationNo,  
+          // **NEW: Document paths from schema**
+          ...documentPaths,
+          
+          // **NEW: Document verification status**
+          ...documentStatus,
           
           // Connect to school
           school: {
@@ -292,7 +362,6 @@ export const createStudent = async (req, res) => {
           fatherQualification: father.qualification,
           fatherOccupation: father.occupation,
           fatherContact: father.contactNumber,
-          fatherEmail: father.email,
           fatherAadhaarNo: father.aadhaarNo,
           fatherAnnualIncome: father.annualIncome,
           fatherIsCampusEmployee: father.isCampusEmployee,
@@ -300,7 +369,6 @@ export const createStudent = async (req, res) => {
           motherQualification: mother.qualification,
           motherOccupation: mother.occupation,
           motherContact: mother.contactNumber,
-          motherEmail: mother.email,
           motherAadhaarNo: mother.aadhaarNo,
           motherAnnualIncome: mother.annualIncome,
           motherIsCampusEmployee: mother.isCampusEmployee,
@@ -621,10 +689,10 @@ export const updateStudent = async (req, res) => {
       const documentFields = [
         'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
         'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
-        'birthCertificatePath', 'transferCertificatePath', 'markSheetPath', 'aadhaarCardPath',
-        'familyIdPath', 'fatherSignaturePath', 'motherSignaturePath', 'guardianSignaturePath',
-        'migrationCertificatePath', 'affidavitCertificatePath', 'incomeCertificatePath',
-        'addressProof1Path', 'addressProof2Path', 'academicRegistrationNo'
+        'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+        'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+        'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+        'guardianSignaturePath'
       ];
       
       
@@ -1012,6 +1080,472 @@ export const getStudentsByCurrentClass = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve students',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Add or update a specific document for a student
+ * @route POST /api/students/:id/documents
+ * @access Public
+ */
+export const addStudentDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+    const { documentType, documentName } = req.body;
+    
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Validate document type
+    const validDocumentTypes = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+
+    if (!documentType || !validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type provided',
+        validTypes: validDocumentTypes
+      });
+    }
+    
+    // Get current student
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include all document path fields
+        ...validDocumentTypes.reduce((acc, field) => {
+          acc[field] = true;
+          return acc;
+        }, {}),
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      [documentType]: file.path
+    };
+
+    // Update document verification status based on document type
+    if (documentType === 'birthCertificatePath') {
+      updateData.birthCertificateSubmitted = true;
+    } else if (documentType === 'aadhaarCardPath') {
+      updateData.studentAadharSubmitted = true;
+    } else if (documentType === 'fatherAadharPath') {
+      updateData.fatherAadharSubmitted = true;
+    } else if (documentType === 'motherAadharPath') {
+      updateData.motherAadharSubmitted = true;
+    } else if (documentType === 'transferCertificatePath') {
+      updateData.tcSubmitted = true;
+    } else if (documentType === 'markSheetPath') {
+      updateData.marksheetSubmitted = true;
+    }
+
+    // Set overall documents verified to true
+    updateData.documentsVerified = true;
+    
+    // Update student record
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include all document path fields in response
+        ...validDocumentTypes.reduce((acc, field) => {
+          acc[field] = true;
+          return acc;
+        }, {}),
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: `${documentName || documentType} uploaded successfully`,
+      student: updatedStudent,
+      uploadedDocument: {
+        type: documentType,
+        name: documentName || documentType,
+        filePath: file.path,
+        originalName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error adding student document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to add document',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Delete a specific document from a student
+ * @route DELETE /api/students/:id/documents/:documentType
+ * @access Public
+ */
+export const deleteStudentDocument = async (req, res) => {
+  try {
+    const { id, documentType } = req.params;
+    
+    // Validate document type
+    const validDocumentTypes = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+
+    if (!validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type',
+        validTypes: validDocumentTypes
+      });
+    }
+    
+    // Get current student
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        [documentType]: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    const documentPath = student[documentType];
+    
+    if (!documentPath) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      [documentType]: null
+    };
+
+    // Update document verification status based on document type
+    if (documentType === 'birthCertificatePath') {
+      updateData.birthCertificateSubmitted = false;
+    } else if (documentType === 'aadhaarCardPath') {
+      updateData.studentAadharSubmitted = false;
+    } else if (documentType === 'fatherAadharPath') {
+      updateData.fatherAadharSubmitted = false;
+    } else if (documentType === 'motherAadharPath') {
+      updateData.motherAadharSubmitted = false;
+    } else if (documentType === 'transferCertificatePath') {
+      updateData.tcSubmitted = false;
+    } else if (documentType === 'markSheetPath') {
+      updateData.marksheetSubmitted = false;
+    }
+    
+    // Update student record
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    // Optional: Delete physical file (uncomment if needed)
+    // import fs from 'fs';
+    // try {
+    //   if (documentPath && fs.existsSync(documentPath)) {
+    //     fs.unlinkSync(documentPath);
+    //   }
+    // } catch (fileError) {
+    //   console.warn('Could not delete physical file:', fileError.message);
+    // }
+    
+    return res.status(200).json({
+      success: true,
+      message: `${documentType} deleted successfully`,
+      student: updatedStudent,
+      deletedDocument: {
+        type: documentType,
+        filePath: documentPath
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error deleting student document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete document',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get all documents for a student
+ * @route GET /api/students/:id/documents
+ * @access Public
+ */
+export const getStudentDocuments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Define all document path fields
+    const documentFields = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+    
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include all document path fields
+        ...documentFields.reduce((acc, field) => {
+          acc[field] = true;
+          return acc;
+        }, {}),
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
+    // Convert document fields to a structured format
+    const documents = documentFields.map(field => ({
+      type: field,
+      name: field.replace('Path', '').replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+      filePath: student[field],
+      hasFile: !!student[field],
+      url: student[field] ? `/api/students/uploads/${student[field].split('/').pop()}` : null
+    })).filter(doc => doc.hasFile); // Only return documents that have files
+    
+    return res.status(200).json({
+      success: true,
+      student: {
+        id: student.id,
+        admissionNo: student.admissionNo,
+        fullName: student.fullName
+      },
+      documents: documents,
+      totalDocuments: documents.length,
+      documentStatus: {
+        documentsVerified: student.documentsVerified,
+        birthCertificateSubmitted: student.birthCertificateSubmitted,
+        studentAadharSubmitted: student.studentAadharSubmitted,
+        fatherAadharSubmitted: student.fatherAadharSubmitted,
+        motherAadharSubmitted: student.motherAadharSubmitted,
+        tcSubmitted: student.tcSubmitted,
+        marksheetSubmitted: student.marksheetSubmitted
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching student documents:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch documents',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update student document metadata or replace file
+ * @route PUT /api/students/:id/documents/:documentType
+ * @access Public
+ */
+export const updateStudentDocument = async (req, res) => {
+  try {
+    const { id, documentType } = req.params;
+    const file = req.file; // Optional - only if replacing file
+    const { documentName } = req.body;
+    
+    // Validate document type
+    const validDocumentTypes = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+
+    if (!validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type',
+        validTypes: validDocumentTypes
+      });
+    }
+    
+    // Get current student
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        [documentType]: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {};
+    
+    // If new file is uploaded, update the path
+    if (file) {
+      updateData[documentType] = file.path;
+      
+      // Update document verification status based on document type
+      if (documentType === 'birthCertificatePath') {
+        updateData.birthCertificateSubmitted = true;
+      } else if (documentType === 'aadhaarCardPath') {
+        updateData.studentAadharSubmitted = true;
+      } else if (documentType === 'fatherAadharPath') {
+        updateData.fatherAadharSubmitted = true;
+      } else if (documentType === 'motherAadharPath') {
+        updateData.motherAadharSubmitted = true;
+      } else if (documentType === 'transferCertificatePath') {
+        updateData.tcSubmitted = true;
+      } else if (documentType === 'markSheetPath') {
+        updateData.marksheetSubmitted = true;
+      }
+
+      updateData.documentsVerified = true;
+    }
+    
+    // Update student record
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        [documentType]: true,
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: `${documentType} updated successfully`,
+      student: updatedStudent,
+      updatedDocument: {
+        type: documentType,
+        name: documentName || documentType,
+        filePath: file ? file.path : student[documentType],
+        ...(file && {
+          originalName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          updatedAt: new Date().toISOString()
+        })
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating student document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update document',
       error: error.message
     });
   }

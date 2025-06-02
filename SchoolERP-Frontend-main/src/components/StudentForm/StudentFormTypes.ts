@@ -1,6 +1,6 @@
 // Define all types used in the Student Registration Form
 
-// Define Documents type
+// Define Documents type based on schema document path fields
 export interface Documents {
   studentImage: File | null;
   fatherImage: File | null;
@@ -11,21 +11,54 @@ export interface Documents {
   fatherAadhar: File | null;
   motherAadhar: File | null;
   birthCertificate: File | null;
-  transferCertificate: File | null;
-  markSheet: File | null;
+  migrationCertificate: File | null;
   aadhaarCard: File | null;
   familyId: File | null;
+  affidavitCertificate: File | null;
+  incomeCertificate: File | null;
+  addressProof1: File | null;
+  addressProof2: File | null;
+  transferCertificate: File | null;
+  markSheet: File | null;
   fatherSignature: File | null;
   motherSignature: File | null;
   guardianSignature: File | null;
-  
-  // Document submission status
+}
+
+// Document verification status based on schema
+export interface DocumentStatus {
+  documentsVerified?: boolean;
   birthCertificateSubmitted?: boolean;
   studentAadharSubmitted?: boolean;
   fatherAadharSubmitted?: boolean;
   motherAadharSubmitted?: boolean;
   tcSubmitted?: boolean;
   marksheetSubmitted?: boolean;
+}
+
+// Document paths for existing students (when editing)
+export interface DocumentPaths {
+  studentImagePath?: string | null;
+  fatherImagePath?: string | null;
+  motherImagePath?: string | null;
+  guardianImagePath?: string | null;
+  signaturePath?: string | null;
+  parentSignaturePath?: string | null;
+  fatherAadharPath?: string | null;
+  motherAadharPath?: string | null;
+  birthCertificatePath?: string | null;
+  migrationCertificatePath?: string | null;
+  aadhaarCardPath?: string | null;
+  familyIdPath?: string | null;
+  affidavitCertificatePath?: string | null;
+  incomeCertificatePath?: string | null;
+  addressProof1Path?: string | null;
+  addressProof2Path?: string | null;
+  transferCertificatePath?: string | null;
+  markSheetPath?: string | null;
+  fatherSignaturePath?: string | null;
+  motherSignaturePath?: string | null;
+  guardianSignaturePath?: string | null;
 }
 
 // Define Address type - split into present and permanent
@@ -44,8 +77,8 @@ export interface Address {
   sameAsPresentAddress: boolean;
 }
 
-// Define Parent type
-export interface Parent {
+// Define Father type
+export interface Father {
   name: string;
   qualification: string;
   occupation: string;
@@ -53,7 +86,19 @@ export interface Parent {
   email: string;
   aadhaarNo: string;
   annualIncome: string;
-  isCampusEmployee: 'yes' | 'no';
+  isCampusEmployee: string;
+}
+
+// Define Mother type
+export interface Mother {
+  name: string;
+  qualification: string;
+  occupation: string;
+  contactNumber: string;
+  email: string;
+  aadhaarNo: string;
+  annualIncome: string;
+  isCampusEmployee: string;
 }
 
 // Define Guardian type
@@ -61,14 +106,14 @@ export interface Guardian {
   name: string;
   address: string;
   contactNumber: string;
-  email?: string;
-  aadhaarNo?: string;
-  occupation?: string;
-  annualIncome?: string;
+  email: string;
+  aadhaarNo: string;
+  occupation: string;
+  annualIncome: string;
 }
 
-// Define Session type
-export interface Session {
+// Define Session Information type
+export interface AdmitSession {
   group: string;
   stream: string;
   class: string;
@@ -79,9 +124,15 @@ export interface Session {
   house: string;
 }
 
-// Define Academic type
-export interface Academic {
-  registrationNo: string;
+export interface CurrentSession {
+  group: string;
+  stream: string;
+  class: string;
+  section: string;
+  rollNo: string;
+  semester: string;
+  feeGroup: string;
+  house: string;
 }
 
 // Define Transport type
@@ -91,11 +142,16 @@ export interface Transport {
   stand: string;
   route: string;
   driver: string;
-  pickupLocation?: string;
-  dropLocation?: string;
+  pickupLocation: string;
+  dropLocation: string;
 }
 
-// Define LastEducation type
+// Define Academic type
+export interface Academic {
+  registrationNo: string;
+}
+
+// Define Last Education type
 export interface LastEducation {
   school: string;
   address: string;
@@ -106,110 +162,125 @@ export interface LastEducation {
   extraActivity: string;
 }
 
-// Define Other type
+// Define Other Information type
 export interface Other {
-  belongToBPL: 'yes' | 'no';
-  minority: 'yes' | 'no';
+  belongToBPL: string;
+  minority: string;
   disability: string;
   accountNo: string;
   bank: string;
   ifscCode: string;
   medium: string;
   lastYearResult: string;
-  singleParent: 'yes' | 'no';
-  onlyChild: 'yes' | 'no';
-  onlyGirlChild: 'yes' | 'no';
-  adoptedChild: 'yes' | 'no';
+  singleParent: string;
+  onlyChild: string;
+  onlyGirlChild: string;
+  adoptedChild: string;
   siblingAdmissionNo: string;
-  transferCase: 'yes' | 'no';
+  transferCase: string;
   livingWith: string;
   motherTongue: string;
-  admissionType: 'new' | 'old';
+  admissionType: string;
   udiseNo: string;
 }
 
-// Define StudentFormData type - the complete student data structure
+// Main Student Form Data type
 export interface StudentFormData {
   // Basic Details
+  branchName: string;
   fullName: string;
   admissionNo: string;
   email: string;
-  emailPassword?: string;
-  penNo?: string;
-  apaarId?: string;  // Made optional
-  studentId?: string;
+  emailPassword: string;
+  penNo: string;
+  apaarId: string;
+  studentId: string;
   dateOfBirth: string;
-  age?: number;
+  age: string;
   gender: string;
-  bloodGroup?: string;
-  nationality?: string;
-  religion?: string;
-  category?: string;
-  caste?: string;
+  bloodGroup: string;
+  nationality: string;
+  religion: string;
+  category: string;
+  caste: string;
+  height: string;
+  weight: string;
   aadhaarNumber: string;
   mobileNumber: string;
-  emergencyContact?: string;
-  sameAsPresentAddress: boolean;  // Added this field
-
-  // Address Details
-  address: {
-    houseNo: string;
-    street: string;
-    city: string;
-    state: string;
-    pinCode: string;
-    permanentHouseNo: string;
-    permanentStreet: string;
-    permanentCity: string;
-    permanentState: string;
-    permanentPinCode: string;
-    sameAsPresentAddress: boolean;
-  };
-
-  // Transport Details
-  transportMode: 'Bus' | 'Self' | 'Parent' | '';
-  transportArea?: string;
-  transportStand?: string;
-  transportRoute?: string;
-  transportDriver?: string;
-  driverPhone?: string;
-  pickupLocation?: string;
-  dropLocation?: string;
-
-  // Document Uploads
-  documents: {
-    studentImage?: File;
-    fatherImage?: File;
-    motherImage?: File;
-    guardianImage?: File;
-    signature?: File;
-    parentSignature?: File;
-    fatherAadhar?: File;
-    motherAadhar?: File;
-    birthCertificate?: File;
-    transferCertificate?: File;
-    markSheet?: File;
-    aadhaarCard?: File;
-    familyId?: File;  // Family ID document
-    fatherSignature?: File;
-    motherSignature?: File;
-    guardianSignature?: File;
-  };
-
-  // Session Information
-  admitSession: Session;
-  currentSession: Session;
-
+  emergencyContact: string;
+  loginEnabled: boolean;
+  
+  // Address Information
+  address: Address;
+  
   // Parent Information
-  father: Parent;
-  mother: Parent;
+  father: Father;
+  mother: Mother;
   guardian: Guardian;
-
-  // Additional Information
-  academic: Academic;
+  
+  // Session Information
+  admitSession: AdmitSession;
+  currentSession: CurrentSession;
+  
+  // Transport Information
   transport: Transport;
+  
+  // Academic Information
+  academic: Academic;
+  
+  // Last Education Information
   lastEducation: LastEducation;
+  
+  // Other Information
   other: Other;
+  
+  // Documents
+  documents: Documents;
+  
+  // Document Status (for editing existing students)
+  documentStatus?: DocumentStatus;
+  
+  // Document Paths (for editing existing students)
+  documentPaths?: DocumentPaths;
+  
+  // School ID
+  schoolId: number;
+}
+
+// API Response types
+export interface StudentDocument {
+  type: string;
+  name: string;
+  filePath: string | null;
+  hasFile: boolean;
+  url: string | null;
+}
+
+export interface StudentDocumentsResponse {
+  success: boolean;
+  student: {
+    id: string;
+    admissionNo: string;
+    fullName: string;
+  };
+  documents: StudentDocument[];
+  totalDocuments: number;
+  documentStatus: DocumentStatus;
+}
+
+export interface DocumentUploadResponse {
+  success: boolean;
+  message: string;
+  student: any;
+  uploadedDocument: {
+    type: string;
+    name: string;
+    filePath: string;
+    originalName: string;
+    fileSize: number;
+    mimeType: string;
+    uploadedAt: string;
+  };
 }
 
 // Define Step interface for the progress indicator

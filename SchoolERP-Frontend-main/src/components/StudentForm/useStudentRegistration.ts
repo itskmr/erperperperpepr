@@ -41,6 +41,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
 
   // Initial form state
   const initialFormData: StudentFormData = {
+    branchName: '',
     fullName: '',
     admissionNo: '',
     email: '',
@@ -49,17 +50,20 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     apaarId: '',
     studentId: '',
     dateOfBirth: '',
-    age: 0,
+    age: '',
     gender: '',
     bloodGroup: '',
     nationality: 'Indian',
     religion: '',
     category: '',
     caste: '',
+    height: '',
+    weight: '',
     aadhaarNumber: '',
     mobileNumber: '',
     emergencyContact: '',
-    sameAsPresentAddress: false,
+    loginEnabled: false,
+    schoolId: 1,
     address: {
       houseNo: '',
       street: '',
@@ -73,14 +77,6 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       permanentPinCode: '',
       sameAsPresentAddress: false
     },
-    transportMode: '',
-    transportArea: '',
-    transportStand: '',
-    transportRoute: '',
-    transportDriver: '',
-    driverPhone: '',
-    pickupLocation: '',
-    dropLocation: '',
     father: {
       name: '',
       qualification: '',
@@ -104,7 +100,11 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     guardian: {
       name: '',
       address: '',
-      contactNumber: ''
+      contactNumber: '',
+      email: '',
+      aadhaarNo: '',
+      occupation: '',
+      annualIncome: ''
     },
     academic: {
       registrationNo: ''
@@ -139,22 +139,27 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       dropLocation: ''
     },
     documents: {
-      studentImage: undefined,
-      fatherImage: undefined,
-      motherImage: undefined,
-      guardianImage: undefined,
-      signature: undefined,
-      parentSignature: undefined,
-      birthCertificate: undefined,
-      transferCertificate: undefined,
-      markSheet: undefined,
-      aadhaarCard: undefined,
-      fatherAadhar: undefined,
-      motherAadhar: undefined,
-      familyId: undefined,
-      fatherSignature: undefined,
-      motherSignature: undefined,
-      guardianSignature: undefined
+      studentImage: null,
+      fatherImage: null,
+      motherImage: null,
+      guardianImage: null,
+      signature: null,
+      parentSignature: null,
+      fatherAadhar: null,
+      motherAadhar: null,
+      birthCertificate: null,
+      migrationCertificate: null,
+      aadhaarCard: null,
+      familyId: null,
+      affidavitCertificate: null,
+      incomeCertificate: null,
+      addressProof1: null,
+      addressProof2: null,
+      transferCertificate: null,
+      markSheet: null,
+      fatherSignature: null,
+      motherSignature: null,
+      guardianSignature: null
     },
     lastEducation: {
       school: '',
@@ -222,24 +227,6 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     fetchTransportData();
   }, [fetchTransportData]);
 
-  /**
-   * Updates nested object properties with dot notation
-   * @param obj Object to update
-   * @param path Path in dot notation (e.g. 'father.name')
-   * @param value New value
-   * @returns Updated object
-   */
-  const updateNestedValue = (obj: any, path: string, value: any): any => {
-    const keys = path.split('.');
-    const lastKey = keys.pop()!;
-    const lastObj = keys.reduce((o, k) => {
-      if (o[k] === undefined) o[k] = {};
-      return o[k];
-    }, obj);
-    lastObj[lastKey] = value;
-    return { ...obj };
-  };
-
   // Handle form field changes
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>): void => {
     const { name, value, type } = e.target;
@@ -252,7 +239,14 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     
     // Update form data (handle nested properties)
     if (name.includes('.')) {
-      updatedFormData = updateNestedValue({ ...formData }, name, isCheckbox ? checkboxValue : value);
+      const [parent, child] = name.split('.');
+      updatedFormData = {
+        ...formData,
+        [parent]: {
+          ...(formData[parent as keyof StudentFormData] as Record<string, unknown>),
+          [child]: isCheckbox ? checkboxValue : value
+        }
+      };
     } else {
       updatedFormData = {
         ...formData,
@@ -439,7 +433,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       if (age >= 0) {
         setFormData(prev => ({
           ...prev,
-          age: age
+          age: age.toString()
         }));
       }
     }

@@ -38,11 +38,22 @@ interface Documents {
   motherImage: File | null;
   guardianImage: File | null;
   signature: File | null;
+  parentSignature: File | null;
   fatherAadhar: File | null;
   motherAadhar: File | null;
   birthCertificate: File | null;
   migrationCertificate: File | null;
   aadhaarCard: File | null;
+  familyId: File | null;
+  affidavitCertificate: File | null;
+  incomeCertificate: File | null;
+  addressProof1: File | null;
+  addressProof2: File | null;
+  transferCertificate: File | null;
+  markSheet: File | null;
+  fatherSignature: File | null;
+  motherSignature: File | null;
+  guardianSignature: File | null;
 }
 
 interface Academic {
@@ -251,11 +262,22 @@ export const useStudentRegistration = () => {
       motherImage: null,
       guardianImage: null,
       signature: null,
+      parentSignature: null,
       fatherAadhar: null,
       motherAadhar: null,
       birthCertificate: null,
       migrationCertificate: null,
-      aadhaarCard: null
+      aadhaarCard: null,
+      familyId: null,
+      affidavitCertificate: null,
+      incomeCertificate: null,
+      addressProof1: null,
+      addressProof2: null,
+      transferCertificate: null,
+      markSheet: null,
+      fatherSignature: null,
+      motherSignature: null,
+      guardianSignature: null
     },
     lastEducation: {
       school: '',

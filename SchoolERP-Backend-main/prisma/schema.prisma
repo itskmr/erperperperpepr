@@ -56,6 +56,7 @@ model School {
   buses       Bus[]
   routes      Route[]
   expenses    Expense[]
+  timetables  Timetable[]  // Added timetables relation
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -119,6 +120,7 @@ model Teacher {
   schoolId         Int
   school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   attendance       Attendance[]
+  timetables       Timetable[]
   
   // Timestamps
   createdAt        DateTime  @default(now())
@@ -908,20 +910,29 @@ enum MaintenanceStatus {
 // Timetable Model
 model Timetable {
   id            String    @id @default(uuid())
-  classId       String
-  sectionId     String
-  subjectId     String
-  teacherId     String
-  day           String    // Monday, Tuesday, etc.
-  startTime     String
-  endTime       String
+  className     String    // Class 1, Class 2, etc.
+  section       String    // A, B, C, etc.
+  subjectName   String    // Mathematics, Science, etc.
+  teacherId     Int       // Changed to Int to match Teacher.id
+  day           String    // monday, tuesday, etc.
+  startTime     String    // 10:30, 17:27, etc.
+  endTime       String    // 11:30, 18:28, etc.
   roomNumber    String?
+  
+  // School Association
+  schoolId      Int       @default(1) // Added default value for existing data
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  teacher       Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  @@index([classId, sectionId])
+  @@index([className, section])
   @@index([teacherId])
   @@index([day])
+  @@index([schoolId])
 }
 
 // Expense Model for tracking school expenses
