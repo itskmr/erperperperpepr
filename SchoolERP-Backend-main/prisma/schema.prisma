@@ -57,6 +57,7 @@ model School {
   routes      Route[]
   expenses    Expense[]
   timetables  Timetable[]  // Added timetables relation
+  attendance  Attendance[] // Added attendance relation
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -646,7 +647,6 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
-  EXCUSED
 }
 
 // Add model for attendance tracking
@@ -659,14 +659,19 @@ model Attendance {
   student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacherId   Int
   teacher     Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    Int              // Added school ID for better data isolation
+  school      School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   className   String           // Storing the class name directly instead of using class ID
   section     String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  @@unique([date, studentId]) // Prevent duplicate attendance for same student on same date
   @@index([date, studentId])
   @@index([date, className])
   @@index([studentId, date])
+  @@index([schoolId, date])
+  @@index([schoolId, className, date])
 }
 
 model Registration {

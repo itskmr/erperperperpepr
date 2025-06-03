@@ -70,6 +70,32 @@ router.get('/export',
   attendanceController.exportAttendanceData
 );
 
+// Enhanced Reporting Routes
+
+// Route to get monthly attendance report for a class
+router.get('/reports/monthly', 
+  protect, 
+  authorize('admin', 'school', 'teacher'),
+  requireSchoolContext,
+  attendanceController.getMonthlyAttendanceReport
+);
+
+// Route to get school-wide attendance summary
+router.get('/reports/school-summary', 
+  protect, 
+  authorize('admin', 'school'),
+  requireSchoolContext,
+  attendanceController.getSchoolAttendanceSummary
+);
+
+// Route to get detailed student attendance report
+router.get('/reports/student-detailed', 
+  protect, 
+  authorize('admin', 'school', 'teacher', 'student', 'parent'),
+  requireSchoolContext,
+  attendanceController.getDetailedStudentReport
+);
+
 // Health check route (no auth required)
 router.get('/health', (req, res) => {
   res.status(200).json({

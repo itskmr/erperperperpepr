@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Link } from "react-router-dom";
 import { 
@@ -159,8 +160,8 @@ const TeacherNavbar = {
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             <NavLink 
-              to="/students/attendance" 
-              label="Take Attendance" 
+              to="/teacher/students-attendance" 
+              label="Student Attendance" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             <NavLink 

@@ -324,12 +324,18 @@ const SchoolNavbar = {
               onClick={() => toggleDropdown("administration")}
               isCollapsed={isCollapsed}
             >
-              {/* <NavLink 
-                to="/school/administration/departments" 
-                label="Departments" 
+              <NavLink 
+                to="/school/student-attendance" 
+                label="Student Attendance" 
                 onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/administration/departments")}
-              /> */}
+                isActive={isPathActive("/school/student-attendance")}
+              />
+              <NavLink 
+                to="/school/teacher-attendance" 
+                label="Teacher Attendance" 
+                onClick={() => setIsMobileSidebarOpen(false)}
+                isActive={isPathActive("/school/teacher-attendance")}
+              />
               <NavLink 
                 to="/school/administration/timetable" 
                 label="Timetable" 

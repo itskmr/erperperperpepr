@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FaCalendarAlt, FaSearch, FaDownload, FaFilter, FaEye, FaEdit, FaTrashAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { FaCalendarAlt, FaSearch, FaDownload, FaFilter, FaEdit, FaExclamationTriangle, FaFileAlt } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { toast } from 'react-toastify'; // Assuming react-toastify is used in your project
-import axios from 'axios';
 
 // Import attendance service
 import attendanceService, { 
   Student, 
-  ClassWithSections, 
-  AttendanceStats, 
-  AttendanceData 
+  AttendanceStats 
 } from '../../services/attendanceService';
 
 // Types for component state
@@ -21,14 +18,82 @@ interface Class {
 }
 
 interface AttendanceRecord {
-  id: number;
-  studentId: number;
+  id: string | number;
+  studentId: string | number;
   date: Date;
-  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+  status: 'PRESENT' | 'ABSENT' | 'LATE';
   notes?: string;
 }
 
+// Error Boundary Component
+class AttendanceErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Attendance Management Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-md p-6 m-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <FaExclamationTriangle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Something went wrong with the attendance management
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>Please refresh the page and try again. If the problem persists, contact support.</p>
+                <details className="mt-2">
+                  <summary className="cursor-pointer">Error details</summary>
+                  <pre className="mt-1 text-xs bg-red-100 p-2 rounded">
+                    {this.state.error?.message || 'Unknown error'}
+                  </pre>
+                </details>
+              </div>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className="bg-red-100 px-3 py-2 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
+                  onClick={() => window.location.reload()}
+                >
+                  Refresh Page
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const AttendanceManagement: React.FC = () => {
+  // Helper function to ensure ID is compatible
+  const getStudentIdAsString = (id: string | number): string => {
+    return typeof id === 'string' ? id : id.toString();
+  };
+
+  // Helper function to generate unique record ID
+  const generateRecordId = (studentId: string | number): string => {
+    return `${Date.now()}_${getStudentIdAsString(studentId)}`;
+  };
+
   // States
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedClass, setSelectedClass] = useState<string>('');
@@ -37,7 +102,7 @@ const AttendanceManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [stats, setStats] = useState<AttendanceStats>({ total: 0, present: 0, absent: 0, late: 0, excused: 0 });
+  const [stats, setStats] = useState<AttendanceStats>({ total: 0, present: 0, absent: 0, late: 0 });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -45,6 +110,45 @@ const AttendanceManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'daily' | 'report'>('daily');
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportType, setReportType] = useState<'daily' | 'monthly' | 'student'>('daily');
+  const [reportClass, setReportClass] = useState<string>('');
+  const [reportSection, setReportSection] = useState<string>('');
+  const [reportDate, setReportDate] = useState<string>('');
+  const [reportMonth, setReportMonth] = useState<string>('');
+  const [reportYear, setReportYear] = useState<string>(new Date().getFullYear().toString());
+  const [reportData, setReportData] = useState<{ students: Student[]; stats: AttendanceStats } | null>(null);
+  const [monthlyReportData, setMonthlyReportData] = useState<{
+    reportInfo: {
+      year: number;
+      month: number;
+      monthName: string;
+      className: string;
+      section: string;
+      schoolId: number;
+    };
+    classStats: {
+      totalStudents: number;
+      totalWorkingDays: number;
+      averageAttendance: string;
+    };
+    studentReports: Array<{
+      student: {
+        id: string;
+        name: string;
+        admissionNo: string;
+        rollNumber: string;
+      };
+      attendance: {
+        totalDays: number;
+        presentDays: number;
+        absentDays: number;
+        lateDays: number;
+        attendancePercentage: string;
+      };
+    }>;
+  } | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   
   // Get the teacher ID from localStorage or context
   // This is just an example; you should replace it with your actual auth implementation
@@ -55,16 +159,38 @@ const AttendanceManagement: React.FC = () => {
     const fetchClasses = async () => {
       try {
         setIsLoading(true);
-        const classesTaught = await attendanceService.getTeacherClasses(teacherId);
-        setClasses(classesTaught);
+        setError(null);
         
-        if (classesTaught.length > 0) {
-          setSelectedClass(classesTaught[0].className);
-          if (classesTaught[0].sections && classesTaught[0].sections.length > 0) {
-            setSelectedSection(classesTaught[0].sections[0]);
+        // First try to get teacher-specific classes
+        try {
+          const classesTaught = await attendanceService.getTeacherClasses(teacherId);
+          setClasses(classesTaught);
+          
+          if (classesTaught.length > 0) {
+            setSelectedClass(classesTaught[0].className);
+            if (classesTaught[0].sections && classesTaught[0].sections.length > 0) {
+              setSelectedSection(classesTaught[0].sections[0]);
+            }
+          }
+        } catch (teacherError) {
+          console.warn('Failed to fetch teacher classes, trying general classes:', teacherError);
+          
+          // Fallback to general classes endpoint
+          try {
+            const generalClasses = await attendanceService.getAvailableClasses();
+            setClasses(generalClasses);
+            
+            if (generalClasses.length > 0) {
+              setSelectedClass(generalClasses[0].className);
+              if (generalClasses[0].sections && generalClasses[0].sections.length > 0) {
+                setSelectedSection(generalClasses[0].sections[0]);
+              }
+            }
+          } catch (generalError) {
+            console.error('Failed to fetch general classes:', generalError);
+            setError('Failed to load classes. Please ensure you are logged in and try again.');
           }
         }
-        setError(null);
       } catch (err) {
         console.error('Failed to fetch classes:', err);
         setError('Failed to load classes. Please try again.');
@@ -83,31 +209,57 @@ const AttendanceManagement: React.FC = () => {
       
       try {
         setIsLoading(true);
+        setError(null);
         
         const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-        const data = await attendanceService.getAttendanceData(
-          selectedClass,
-          formattedDate,
-          teacherId,
-          selectedSection || undefined
-        );
         
-        setStudents(data.students);
-        setStats(data.stats);
-        
-        // Convert API data to AttendanceRecord format
-        const records: AttendanceRecord[] = data.students
-          .filter(student => student.status)
-          .map(student => ({
-            id: Date.now() + student.id, // Temporary ID for frontend use
-            studentId: student.id,
-            date: selectedDate,
-            status: student.status as 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED',
-            notes: student.notes || undefined
-          }));
-        
-        setAttendanceRecords(records);
-        setError(null);
+        // Try to get attendance data first
+        try {
+          const data = await attendanceService.getAttendanceData(
+            selectedClass,
+            formattedDate,
+            teacherId,
+            selectedSection || undefined
+          );
+          
+          setStudents(data.students || []);
+          setStats(data.stats || { total: 0, present: 0, absent: 0, late: 0 });
+          
+          // Convert API data to AttendanceRecord format
+          const records: AttendanceRecord[] = (data.students || [])
+            .filter(student => student.status)
+            .map(student => ({
+              id: generateRecordId(student.id), // Use helper function
+              studentId: student.id,
+              date: selectedDate,
+              status: student.status as 'PRESENT' | 'ABSENT' | 'LATE',
+              notes: student.notes || undefined
+            }));
+          
+          setAttendanceRecords(records);
+        } catch (attendanceError) {
+          console.warn('Failed to get attendance data, trying students by class:', attendanceError);
+          
+          // Fallback to getting students by class
+          try {
+            const studentsData = await attendanceService.getStudentsByClass(
+              selectedClass,
+              selectedSection || undefined
+            );
+            
+            setStudents(studentsData || []);
+            setStats({ 
+              total: studentsData.length, 
+              present: 0, 
+              absent: 0, 
+              late: 0 
+            });
+            setAttendanceRecords([]);
+          } catch (studentsError) {
+            console.error('Failed to get students by class:', studentsError);
+            setError('Failed to load students. Please try again.');
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch attendance data:', err);
         setError('Failed to load attendance data. Please try again.');
@@ -128,7 +280,7 @@ const AttendanceManagement: React.FC = () => {
   );
 
   // Handle attendance status change
-  const handleStatusChange = (studentId: number, status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED') => {
+  const handleStatusChange = (studentId: string | number, status: 'PRESENT' | 'ABSENT' | 'LATE') => {
     const existingRecord = attendanceRecords.find(
       record => record.studentId === studentId
     );
@@ -163,28 +315,30 @@ const AttendanceManagement: React.FC = () => {
   };
 
   // Update attendance statistics
-  const updateStats = (newStatus: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED', oldStatus?: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | null) => {
+  const updateStats = (newStatus: 'PRESENT' | 'ABSENT' | 'LATE', oldStatus?: 'PRESENT' | 'ABSENT' | 'LATE' | null) => {
     setStats(prevStats => {
       const updatedStats = { ...prevStats };
       
+      // Ensure all stats are numbers and not NaN
+      if (isNaN(updatedStats.total)) updatedStats.total = 0;
+      if (isNaN(updatedStats.present)) updatedStats.present = 0;
+      if (isNaN(updatedStats.absent)) updatedStats.absent = 0;
+      if (isNaN(updatedStats.late)) updatedStats.late = 0;
+      
       // Decrement old status count if exists
       if (oldStatus) {
-        const oldStatusKey = oldStatus.toLowerCase() as 'present' | 'absent' | 'late' | 'excused';
-        updatedStats[oldStatusKey] = Math.max(0, updatedStats[oldStatusKey] - 1);
+        const oldStatusKey = oldStatus.toLowerCase() as 'present' | 'absent' | 'late';
+        if (updatedStats[oldStatusKey] > 0) {
+          updatedStats[oldStatusKey] = Math.max(0, updatedStats[oldStatusKey] - 1);
+        }
       }
       
       // Increment new status count
-      const newStatusKey = newStatus.toLowerCase() as 'present' | 'absent' | 'late' | 'excused';
-      updatedStats[newStatusKey] += 1;
+      const newStatusKey = newStatus.toLowerCase() as 'present' | 'absent' | 'late';
+      updatedStats[newStatusKey] = (updatedStats[newStatusKey] || 0) + 1;
       
       return updatedStats;
     });
-  };
-
-  // Get attendance status for a student
-  const getAttendanceStatus = (studentId: number): 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | null => {
-    const student = students.find(s => s.id === studentId);
-    return student?.status || null;
   };
 
   // Add notes to a student's attendance
@@ -211,15 +365,57 @@ const AttendanceManagement: React.FC = () => {
       return;
     }
     
+    if (!selectedClass) {
+      toast.error('Please select a class first');
+      return;
+    }
+    
     try {
       setIsSubmitting(true);
       
       // Prepare attendance data with more validation
-      const validStudents = students.filter(student => 
-        student && 
-        typeof student.id === 'number' && 
-        student.status
-      );
+      const validStudents = students.filter(student => {
+        // Check if student has a valid ID (can be string or number)
+        let hasValidId = false;
+        if (student && student.id !== undefined && student.id !== null) {
+          if (typeof student.id === 'number') {
+            hasValidId = !isNaN(student.id);
+          } else if (typeof student.id === 'string') {
+            hasValidId = (student.id as string).trim().length > 0;
+          }
+        }
+        
+        const hasValidStatus = student.status && typeof student.status === 'string' && 
+                              ['PRESENT', 'ABSENT', 'LATE'].includes(student.status);
+        
+        console.log(`Student ${student.name} (ID: ${student.id}, type: ${typeof student.id}): hasValidId=${hasValidId}, status="${student.status}", hasValidStatus=${hasValidStatus}`);
+        
+        return hasValidId && hasValidStatus;
+      });
+
+      // Add error handling for validation
+      if (validStudents.length === 0 && students.length > 0) {
+        const issueDetails = students.map(student => ({
+          name: student.name,
+          id: student.id,
+          idType: typeof student.id,
+          status: student.status,
+          hasStatus: !!student.status
+        }));
+        
+        console.error('No valid students found. Student details:', issueDetails);
+        toast.error(`No students have valid attendance status. Please mark attendance for at least one student before saving.`);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      console.log('Total students:', students.length);
+      console.log('Valid students with status:', validStudents.length);
+      console.log('Students data:', students.map(s => ({ 
+        id: s.id, 
+        name: s.name, 
+        status: s.status 
+      })));
       
       if (validStudents.length === 0) {
         toast.warning('Please mark attendance for at least one student');
@@ -234,9 +430,13 @@ const AttendanceManagement: React.FC = () => {
         notes: student.notes || ""
       }));
       
-      console.log("Attendance data being sent:", attendanceData);
+      console.log("Final attendance data being sent:", attendanceData);
       
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+      console.log("Formatted date:", formattedDate);
+      console.log("Selected class:", selectedClass);
+      console.log("Selected section:", selectedSection);
+      console.log("Teacher ID:", teacherId);
       
       // Use attendanceService with proper typing
       const response = await attendanceService.markAttendance(
@@ -247,8 +447,10 @@ const AttendanceManagement: React.FC = () => {
         selectedSection
       );
       
-      if (response.success) {
-        toast.success('Attendance saved successfully!');
+      console.log("API Response:", response);
+      
+      if (response && response.success) {
+        toast.success(`Attendance saved successfully for ${validStudents.length} students!`);
         
         // Refresh data after saving
         try {
@@ -261,23 +463,67 @@ const AttendanceManagement: React.FC = () => {
           
           if (refreshedData && refreshedData.students) {
             setStudents(refreshedData.students);
-            setStats(refreshedData.stats);
+            if (refreshedData.stats) {
+              // Ensure stats are valid numbers
+              const validStats = {
+                total: refreshedData.stats.total || 0,
+                present: refreshedData.stats.present || 0,
+                absent: refreshedData.stats.absent || 0,
+                late: refreshedData.stats.late || 0
+              };
+              setStats(validStats);
+            }
           }
         } catch (refreshError) {
           console.error("Error refreshing data:", refreshError);
           // Still consider this a success since the save worked
+          toast.info('Attendance saved, but failed to refresh display. Please reload the page.');
         }
       } else {
-        toast.error('Error: ' + (response.message || 'Unknown error'));
+        const errorMessage = response?.message || 'Unknown error occurred';
+        console.error('Save failed with response:', response);
+        toast.error('Error: ' + errorMessage);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to save attendance:', error);
       let errorMessage = 'Unknown error occurred';
       
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+      // Enhanced error handling
+      if (error && typeof error === 'object') {
+        if ('response' in error) {
+          const axiosError = error as { 
+            response?: { 
+              data?: { message?: string; error?: string; errors?: unknown }; 
+              status?: number;
+              statusText?: string;
+            }; 
+            message?: string;
+            request?: unknown;
+          };
+          
+          if (axiosError.response) {
+            console.error('Response status:', axiosError.response.status);
+            console.error('Response data:', axiosError.response.data);
+            
+            if (axiosError.response.data?.message) {
+              errorMessage = axiosError.response.data.message;
+            } else if (axiosError.response.data?.error) {
+              errorMessage = axiosError.response.data.error;
+            } else if (axiosError.response.statusText) {
+              errorMessage = `Server error: ${axiosError.response.statusText}`;
+            } else {
+              errorMessage = `HTTP ${axiosError.response.status} error`;
+            }
+          } else if (axiosError.request) {
+            console.error('Request made but no response received:', axiosError.request);
+            errorMessage = 'No response from server. Please check your internet connection.';
+          } else if (axiosError.message) {
+            errorMessage = axiosError.message;
+          }
+        } else if ('message' in error) {
+          const genericError = error as { message: string };
+          errorMessage = genericError.message;
+        }
       }
       
       toast.error(`Failed to save attendance: ${errorMessage}`);
@@ -336,6 +582,100 @@ const AttendanceManagement: React.FC = () => {
       setSelectedSection(classObj.sections[0]);
     } else {
       setSelectedSection('');
+    }
+  };
+
+  // Handle report generation
+  const handleGenerateReport = async () => {
+    if (!reportClass) {
+      setReportError('Please select a class');
+      return;
+    }
+
+    if (reportType === 'daily' && !reportDate) {
+      setReportError('Please select a date for daily report');
+      return;
+    }
+
+    if (reportType === 'monthly' && (!reportMonth || !reportYear)) {
+      setReportError('Please select month and year for monthly report');
+      return;
+    }
+
+    try {
+      setIsGeneratingReport(true);
+      setReportError(null);
+      setReportData(null);
+      setMonthlyReportData(null);
+
+      if (reportType === 'daily') {
+        const formattedDate = reportDate;
+        const dailyReportData = await attendanceService.generateReport(
+          reportClass,
+          reportSection,
+          formattedDate,
+          teacherId
+        );
+
+        if (dailyReportData) {
+          setReportData(dailyReportData);
+        } else {
+          setReportError('No data found for the selected criteria');
+        }
+      } else if (reportType === 'monthly') {
+        const monthlyData = await attendanceService.getMonthlyAttendanceReport(
+          parseInt(reportYear),
+          parseInt(reportMonth),
+          reportClass,
+          reportSection
+        );
+
+        if (monthlyData) {
+          setMonthlyReportData(monthlyData);
+        } else {
+          setReportError('No monthly data found for the selected criteria');
+        }
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setReportError('An error occurred while generating the report');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  // Handle report export
+  const handleExportReport = async () => {
+    if (!reportData) {
+      setReportError('No report data to export');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const formattedDate = reportDate;
+      const blob = await attendanceService.exportReportData(
+        reportClass,
+        reportSection,
+        formattedDate,
+        reportData.students,
+        reportData.stats
+      );
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_report_${reportClass}_${formattedDate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+      toast.success('Report exported successfully!');
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      setReportError('An error occurred while exporting the report');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -480,7 +820,6 @@ const AttendanceManagement: React.FC = () => {
                           <option>Present</option>
                           <option>Absent</option>
                           <option>Late</option>
-                          <option>Excused</option>
                         </select>
                       </div>
                       
@@ -519,24 +858,20 @@ const AttendanceManagement: React.FC = () => {
               <div className="p-6 bg-white border-b border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <div className="text-lg font-medium text-blue-800">{stats.total}</div>
+                    <div className="text-lg font-medium text-blue-800">{Number.isNaN(stats.total) ? 0 : stats.total || 0}</div>
                     <div className="text-sm text-blue-600">Total Students</div>
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                    <div className="text-lg font-medium text-green-800">{stats.present}</div>
+                    <div className="text-lg font-medium text-green-800">{Number.isNaN(stats.present) ? 0 : stats.present || 0}</div>
                     <div className="text-sm text-green-600">Present</div>
                   </div>
                   <div className="bg-red-50 p-4 rounded-lg border border-red-100">
-                    <div className="text-lg font-medium text-red-800">{stats.absent}</div>
+                    <div className="text-lg font-medium text-red-800">{Number.isNaN(stats.absent) ? 0 : stats.absent || 0}</div>
                     <div className="text-sm text-red-600">Absent</div>
                   </div>
                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
-                    <div className="text-lg font-medium text-yellow-800">{stats.late}</div>
+                    <div className="text-lg font-medium text-yellow-800">{Number.isNaN(stats.late) ? 0 : stats.late || 0}</div>
                     <div className="text-sm text-yellow-600">Late</div>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
-                    <div className="text-lg font-medium text-purple-800">{stats.excused}</div>
-                    <div className="text-sm text-purple-600">Excused</div>
                   </div>
                 </div>
               </div>
@@ -632,16 +967,6 @@ const AttendanceManagement: React.FC = () => {
                                 >
                                   Late
                                 </button>
-                                <button
-                                  onClick={() => handleStatusChange(student.id, 'EXCUSED')}
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    status === 'EXCUSED' 
-                                      ? 'bg-purple-100 text-purple-800' 
-                                      : 'bg-gray-100 text-gray-800 hover:bg-purple-50'
-                                  }`}
-                                >
-                                  Excused
-                                </button>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -706,45 +1031,363 @@ const AttendanceManagement: React.FC = () => {
               </div>
             </>
           ) : (
-            // Reports tab
+            // Reports tab - Now fully functional
             <div className="p-6">
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      The reports section is under development. Please check back soon!
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Monthly Report</h3>
-                  <p className="text-gray-600 mb-4">View attendance statistics for the entire month</p>
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200">
-                    <FaEye className="mr-2" /> View Report
-                  </button>
-                </div>
+              <div className="bg-white">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Attendance Reports</h2>
                 
-                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Student Report</h3>
-                  <p className="text-gray-600 mb-4">View individual student attendance patterns</p>
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200">
-                    <FaEye className="mr-2" /> View Report
-                  </button>
+                {/* Report Controls */}
+                <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
+                      <select 
+                        value={reportType}
+                        onChange={(e) => setReportType(e.target.value as 'monthly' | 'daily' | 'student')}
+                        className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="daily">Daily Report</option>
+                        <option value="monthly">Monthly Report</option>
+                        <option value="student">Student Report</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                      <select 
+                        value={reportClass}
+                        onChange={(e) => setReportClass(e.target.value)}
+                        className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Class</option>
+                        {classes.map(cls => (
+                          <option key={cls.className} value={cls.className}>{cls.className}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                      <select 
+                        value={reportSection}
+                        onChange={(e) => setReportSection(e.target.value)}
+                        className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">All Sections</option>
+                        {reportClass && classes.find(c => c.className === reportClass)?.sections.map(section => (
+                          <option key={section} value={section}>Section {section}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                      {reportType === 'daily' ? (
+                        <input
+                          type="date"
+                          value={reportDate}
+                          onChange={(e) => setReportDate(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : reportType === 'monthly' ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={reportMonth}
+                            onChange={(e) => setReportMonth(e.target.value)}
+                            className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select Month</option>
+                            {[
+                              { value: '1', label: 'January' },
+                              { value: '2', label: 'February' },
+                              { value: '3', label: 'March' },
+                              { value: '4', label: 'April' },
+                              { value: '5', label: 'May' },
+                              { value: '6', label: 'June' },
+                              { value: '7', label: 'July' },
+                              { value: '8', label: 'August' },
+                              { value: '9', label: 'September' },
+                              { value: '10', label: 'October' },
+                              { value: '11', label: 'November' },
+                              { value: '12', label: 'December' }
+                            ].map(month => (
+                              <option key={month.value} value={month.value}>{month.label}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={reportYear}
+                            onChange={(e) => setReportYear(e.target.value)}
+                            className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            {Array.from({ length: 5 }, (_, i) => {
+                              const year = new Date().getFullYear() - i;
+                              return (
+                                <option key={year} value={year.toString()}>{year}</option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      ) : (
+                        <input
+                          type="date"
+                          value={reportDate}
+                          onChange={(e) => setReportDate(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex justify-end space-x-3">
+                    <button 
+                      onClick={handleGenerateReport}
+                      disabled={!reportClass || isGeneratingReport}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
+                    >
+                      {isGeneratingReport ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <FaFileAlt className="mr-2" />
+                          Generate Report
+                        </>
+                      )}
+                    </button>
+                    
+                    {reportData && (
+                      <button 
+                        onClick={handleExportReport}
+                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                      >
+                        <FaDownload className="mr-2" />
+                        Export CSV
+                      </button>
+                    )}
+                  </div>
                 </div>
-                
-                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Class Comparison</h3>
-                  <p className="text-gray-600 mb-4">Compare attendance across different classes</p>
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200">
-                    <FaEye className="mr-2" /> View Report
-                  </button>
-                </div>
+
+                {/* Report Results */}
+                {(reportData || monthlyReportData) && (
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report - {reportClass} 
+                        {reportSection && ` (Section ${reportSection})`}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Generated on {new Date().toLocaleDateString()} 
+                        {reportType === 'daily' && reportDate && ` for ${reportDate}`}
+                        {reportType === 'monthly' && reportMonth && reportYear && ` for ${['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][parseInt(reportMonth)]} ${reportYear}`}
+                      </p>
+                    </div>
+                    
+                    {/* Daily Report Display */}
+                    {reportType === 'daily' && reportData && (
+                      <>
+                        {/* Report Statistics */}
+                        <div className="px-6 py-4 bg-blue-50 border-b border-gray-200">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-blue-600">{reportData.stats?.total || 0}</div>
+                              <div className="text-sm text-gray-600">Total Students</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-green-600">{reportData.stats?.present || 0}</div>
+                              <div className="text-sm text-gray-600">Present</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-red-600">{reportData.stats?.absent || 0}</div>
+                              <div className="text-sm text-gray-600">Absent</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-yellow-600">{reportData.stats?.late || 0}</div>
+                              <div className="text-sm text-gray-600">Late</div>
+                            </div>
+                          </div>
+                          
+                          {reportData.stats && reportData.stats.total > 0 && (
+                            <div className="mt-4 text-center">
+                              <span className="text-lg font-semibold text-gray-700">
+                                Attendance Rate: {(((reportData.stats.present + reportData.stats.late) / reportData.stats.total) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Report Table */}
+                        {reportData.students && reportData.students.length > 0 && (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Student Name
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Roll No.
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Admission No.
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Notes
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {reportData.students.map((student, index) => (
+                                  <tr key={student.id || index} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                      {student.name}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      {student.rollNumber || 'N/A'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      {student.admissionNo}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                        student.status === 'PRESENT' 
+                                          ? 'bg-green-100 text-green-800'
+                                          : student.status === 'ABSENT'
+                                          ? 'bg-red-100 text-red-800'
+                                          : student.status === 'LATE'
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {student.status || 'Not Marked'}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      {student.notes || '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Monthly Report Display */}
+                    {reportType === 'monthly' && monthlyReportData && (
+                      <div className="p-6">
+                        <div className="mb-6">
+                          <h4 className="text-lg font-semibold text-gray-900 mb-2">Monthly Overview</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                              <div className="text-xl font-bold text-blue-600">{monthlyReportData.classStats?.totalStudents || 0}</div>
+                              <div className="text-sm text-gray-600">Total Students</div>
+                            </div>
+                            <div className="bg-green-50 p-4 rounded-lg">
+                              <div className="text-xl font-bold text-green-600">{monthlyReportData.classStats?.totalWorkingDays || 0}</div>
+                              <div className="text-sm text-gray-600">Working Days</div>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded-lg">
+                              <div className="text-xl font-bold text-purple-600">{monthlyReportData.classStats?.averageAttendance || '0.0'}%</div>
+                              <div className="text-sm text-gray-600">Average Attendance</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {monthlyReportData.studentReports && monthlyReportData.studentReports.length > 0 && (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Student Name
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Total Days
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Present
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Absent
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Late
+                                  </th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Attendance %
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {monthlyReportData.studentReports.map((studentReport: {
+                                  student: {
+                                    id: string;
+                                    name: string;
+                                    admissionNo: string;
+                                    rollNumber: string;
+                                  };
+                                  attendance: {
+                                    totalDays: number;
+                                    presentDays: number;
+                                    absentDays: number;
+                                    lateDays: number;
+                                    attendancePercentage: string;
+                                  };
+                                }, index: number) => (
+                                  <tr key={studentReport.student?.id || index} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                      {studentReport.student?.name || 'N/A'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      {studentReport.attendance?.totalDays || 0}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                                      {studentReport.attendance?.presentDays || 0}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                                      {studentReport.attendance?.absentDays || 0}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
+                                      {studentReport.attendance?.lateDays || 0}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                      {studentReport.attendance?.attendancePercentage || '0.0'}%
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {((reportType === 'daily' && reportData && (!reportData.students || reportData.students.length === 0)) ||
+                      (reportType === 'monthly' && monthlyReportData && (!monthlyReportData.studentReports || monthlyReportData.studentReports.length === 0))) && (
+                      <div className="px-6 py-8 text-center">
+                        <p className="text-gray-500">No attendance data found for the selected criteria.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {reportError && (
+                  <div className="bg-red-50 border-l-4 border-red-500 p-4 mt-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <FaExclamationTriangle className="h-5 w-5 text-red-500" />
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-red-700">{reportError}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

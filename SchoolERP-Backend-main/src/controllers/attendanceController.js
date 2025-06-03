@@ -270,7 +270,7 @@ export const markAttendance = async (req, res) => {
         
         // Validate status enum value
         let status = item.status;
-        if (!['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'].includes(status)) {
+        if (!['PRESENT', 'ABSENT', 'LATE'].includes(status)) {
           status = 'PRESENT'; // Default to present if invalid
         }
 
@@ -279,6 +279,7 @@ export const markAttendance = async (req, res) => {
           data: {
             studentId: student.id,
             teacherId: teacherIdNum,
+            schoolId: schoolId,
             date: new Date(date),
             status: status,
             className: className,
@@ -374,6 +375,16 @@ export const markAttendance = async (req, res) => {
  */
 export const getAttendanceByDateClass = async (req, res) => {
   try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { date, className, section } = req.query;
 
     if (!date || !className) {
@@ -385,7 +396,7 @@ export const getAttendanceByDateClass = async (req, res) => {
 
     const attendanceDate = new Date(date);
 
-    // Get attendance records
+    // Get attendance records with school context
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
         date: {
@@ -393,23 +404,21 @@ export const getAttendanceByDateClass = async (req, res) => {
           lt: new Date(attendanceDate.setHours(23, 59, 59, 999)),
         },
         className,
+        schoolId: schoolId, // Added school context
         ...(section && { section }),
       },
       include: {
         student: {
           select: {
             id: true,
-            firstName: true,
-            middleName: true,
-            lastName: true,
-            rollNumber: true,
+            fullName: true,
             admissionNo: true,
           },
         },
       },
       orderBy: {
         student: {
-          rollNumber: 'asc',
+          admissionNo: 'asc',
         },
       },
     });
@@ -422,8 +431,7 @@ export const getAttendanceByDateClass = async (req, res) => {
       notes: record.notes,
       student: {
         id: record.student.id,
-        name: `${record.student.firstName} ${record.student.middleName ? record.student.middleName + ' ' : ''}${record.student.lastName}`,
-        rollNumber: record.student.rollNumber,
+        name: record.student.fullName,
         admissionNo: record.student.admissionNo,
       },
     }));
@@ -432,13 +440,20 @@ export const getAttendanceByDateClass = async (req, res) => {
       success: true,
       message: "Attendance records retrieved successfully",
       data: formattedRecords,
+      meta: {
+        schoolId: schoolId,
+        totalCount: formattedRecords.length,
+        date: date,
+        className: className,
+        section: section || 'All Sections'
+      }
     });
   } catch (error) {
     console.error("Error fetching attendance records:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch attendance records",
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -448,6 +463,16 @@ export const getAttendanceByDateClass = async (req, res) => {
  */
 export const getStudentAttendance = async (req, res) => {
   try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { studentId } = req.params;
     const { startDate, endDate } = req.query;
 
@@ -455,6 +480,22 @@ export const getStudentAttendance = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Student ID is required",
+      });
+    }
+
+    // Verify student belongs to the school
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        schoolId: schoolId
+      },
+      select: { id: true, fullName: true, admissionNo: true }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found in your school",
       });
     }
 
@@ -474,10 +515,11 @@ export const getStudentAttendance = async (req, res) => {
       };
     }
 
-    // Get attendance records for the student
+    // Get attendance records for the student with school context
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
-        studentId: Number(studentId),
+        studentId: studentId,
+        schoolId: schoolId, // Added school context
         ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
       },
       orderBy: {
@@ -490,7 +532,6 @@ export const getStudentAttendance = async (req, res) => {
     const presentDays = attendanceRecords.filter(record => record.status === 'PRESENT').length;
     const absentDays = attendanceRecords.filter(record => record.status === 'ABSENT').length;
     const lateDays = attendanceRecords.filter(record => record.status === 'LATE').length;
-    const excusedDays = attendanceRecords.filter(record => record.status === 'EXCUSED').length;
     
     // Calculate attendance percentage
     const attendancePercentage = totalDays > 0 
@@ -501,15 +542,26 @@ export const getStudentAttendance = async (req, res) => {
       success: true,
       message: "Student attendance records retrieved successfully",
       data: {
+        student: {
+          id: student.id,
+          name: student.fullName,
+          admissionNo: student.admissionNo
+        },
         records: attendanceRecords,
         statistics: {
           totalDays,
           presentDays,
           absentDays,
           lateDays,
-          excusedDays,
           attendancePercentage,
         },
+        meta: {
+          schoolId: schoolId,
+          dateRange: {
+            startDate: startDate || 'All time',
+            endDate: endDate || 'All time'
+          }
+        }
       },
     });
   } catch (error) {
@@ -517,7 +569,7 @@ export const getStudentAttendance = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch student attendance",
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -527,28 +579,46 @@ export const getStudentAttendance = async (req, res) => {
  */
 export const getClassesList = async (req, res) => {
   try {
-    // Get unique class names and sections from the Student model
-    const students = await prisma.student.findMany({
-      select: {
-        className: true,
-        section: true,
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    // Get all classes from the database with school context
+    const allClasses = await prisma.student.findMany({
+      where: {
+        schoolId: schoolId // Added school context
       },
-      distinct: ['className', 'section'],
-      orderBy: [
-        { className: 'asc' },
-        { section: 'asc' },
-      ],
+      select: {
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true
+          }
+        }
+      },
+      // Remove invalid distinct clause - sessionInfo is not a scalar field
     });
 
     // Group by class name
     const classes = {};
-    students.forEach(student => {
-      if (!classes[student.className]) {
-        classes[student.className] = [];
-      }
+    allClasses.forEach(student => {
+      const className = student.sessionInfo?.currentClass;
+      const section = student.sessionInfo?.currentSection;
       
-      if (student.section && !classes[student.className].includes(student.section)) {
-        classes[student.className].push(student.section);
+      if (className) {
+        if (!classes[className]) {
+          classes[className] = [];
+        }
+        
+        if (section && !classes[className].includes(section)) {
+          classes[className].push(section);
+        }
       }
     });
 
@@ -578,6 +648,16 @@ export const getClassesList = async (req, res) => {
  */
 export const getAttendanceStats = async (req, res) => {
   try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { startDate, endDate, className, section } = req.query;
 
     if (!startDate || !endDate || !className) {
@@ -590,7 +670,7 @@ export const getAttendanceStats = async (req, res) => {
     const startDateObj = new Date(startDate);
     const endDateObj = new Date(endDate);
 
-    // Get attendance records
+    // Get attendance records with school context
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
         date: {
@@ -598,15 +678,15 @@ export const getAttendanceStats = async (req, res) => {
           lte: endDateObj,
         },
         className,
+        schoolId: schoolId, // Added school context
         ...(section && { section }),
       },
       include: {
         student: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            rollNumber: true,
+            fullName: true,
+            admissionNo: true,
           },
         },
       },
@@ -624,7 +704,6 @@ export const getAttendanceStats = async (req, res) => {
           present: 0,
           absent: 0,
           late: 0,
-          excused: 0,
         };
       }
       
@@ -640,9 +719,6 @@ export const getAttendanceStats = async (req, res) => {
         case 'LATE':
           dailyStats[dateStr].late++;
           break;
-        case 'EXCUSED':
-          dailyStats[dateStr].excused++;
-          break;
       }
     });
 
@@ -651,7 +727,6 @@ export const getAttendanceStats = async (req, res) => {
     const totalPresent = attendanceRecords.filter(record => record.status === 'PRESENT').length;
     const totalAbsent = attendanceRecords.filter(record => record.status === 'ABSENT').length;
     const totalLate = attendanceRecords.filter(record => record.status === 'LATE').length;
-    const totalExcused = attendanceRecords.filter(record => record.status === 'EXCUSED').length;
     
     const overallAttendanceRate = totalRecords > 0 
       ? ((totalPresent + totalLate) / totalRecords * 100).toFixed(2) 
@@ -666,10 +741,18 @@ export const getAttendanceStats = async (req, res) => {
           totalPresent,
           totalAbsent,
           totalLate,
-          totalExcused,
           overallAttendanceRate,
         },
         dailyStats: Object.values(dailyStats),
+        meta: {
+          schoolId: schoolId,
+          dateRange: {
+            startDate: startDate,
+            endDate: endDate
+          },
+          className: className,
+          section: section || 'All Sections'
+        }
       },
     });
   } catch (error) {
@@ -677,7 +760,7 @@ export const getAttendanceStats = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch attendance statistics",
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -687,6 +770,16 @@ export const getAttendanceStats = async (req, res) => {
  */
 export const getTeacherAttendanceManagement = async (req, res) => {
   try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { className, section, date } = req.query;
     // Make teacherId optional with a default value of 1
     const teacherId = req.query.teacherId || 1; // Default to 1 if not provided
@@ -695,26 +788,33 @@ export const getTeacherAttendanceManagement = async (req, res) => {
     if (className && date) {
       const attendanceDate = new Date(date);
       
-      // Get students for this class
+      // Get students for this class with school context
       const students = await prisma.student.findMany({
         where: {
-          className,
-          ...(section && { section }),
+          schoolId: schoolId, // Added school context
+          sessionInfo: {
+            currentClass: className,
+            ...(section && { currentSection: section }),
+          }
         },
         select: {
           id: true,
-          firstName: true,
-          middleName: true,
-          lastName: true,
-          rollNumber: true,
+          fullName: true,
           admissionNo: true,
+          sessionInfo: {
+            select: {
+              currentRollNo: true,
+              currentClass: true,
+              currentSection: true
+            }
+          }
         },
         orderBy: {
-          rollNumber: 'asc',
+          admissionNo: 'asc',
         },
       });
 
-      // Get existing attendance records for this date and class
+      // Get existing attendance records for this date and class with school context
       const existingRecords = await prisma.attendance.findMany({
         where: {
           date: {
@@ -722,6 +822,7 @@ export const getTeacherAttendanceManagement = async (req, res) => {
             lt: new Date(new Date(date).setHours(23, 59, 59, 999)),
           },
           className,
+          schoolId: schoolId, // Added school context
           ...(section && { section }),
         },
       });
@@ -732,8 +833,8 @@ export const getTeacherAttendanceManagement = async (req, res) => {
         
         return {
           id: student.id,
-          name: `${student.firstName} ${student.middleName ? student.middleName + ' ' : ''}${student.lastName}`,
-          rollNumber: student.rollNumber || '',
+          name: student.fullName,
+          rollNumber: student.sessionInfo?.currentRollNo || '',
           admissionNo: student.admissionNo,
           status: record ? record.status : null,
           notes: record ? record.notes : null,
@@ -745,7 +846,6 @@ export const getTeacherAttendanceManagement = async (req, res) => {
       const present = existingRecords.filter(record => record.status === 'PRESENT').length;
       const absent = existingRecords.filter(record => record.status === 'ABSENT').length;
       const late = existingRecords.filter(record => record.status === 'LATE').length;
-      const excused = existingRecords.filter(record => record.status === 'EXCUSED').length;
 
       return res.status(200).json({
         success: true,
@@ -757,37 +857,45 @@ export const getTeacherAttendanceManagement = async (req, res) => {
             present,
             absent,
             late,
-            excused,
           },
           date: date,
           className,
           section,
+          schoolId: schoolId
         },
       });
     }
 
-    // Get all classes from the database without filtering by teacher
+    // Get all classes from the database with school context
     const allClasses = await prisma.student.findMany({
-      select: {
-        className: true,
-        section: true,
+      where: {
+        schoolId: schoolId // Added school context
       },
-      distinct: ['className', 'section'],
-      orderBy: [
-        { className: 'asc' },
-        { section: 'asc' },
-      ],
+      select: {
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true
+          }
+        }
+      },
+      // Remove invalid distinct clause - sessionInfo is not a scalar field
     });
 
     // Group by class name
     const classesTaught = {};
     allClasses.forEach(student => {
-      if (!classesTaught[student.className]) {
-        classesTaught[student.className] = [];
-      }
+      const className = student.sessionInfo?.currentClass;
+      const section = student.sessionInfo?.currentSection;
       
-      if (student.section && !classesTaught[student.className].includes(student.section)) {
-        classesTaught[student.className].push(student.section);
+      if (className) {
+        if (!classesTaught[className]) {
+          classesTaught[className] = [];
+        }
+        
+        if (section && !classesTaught[className].includes(section)) {
+          classesTaught[className].push(section);
+        }
       }
     });
 
@@ -797,11 +905,20 @@ export const getTeacherAttendanceManagement = async (req, res) => {
       sections: sections.sort(),
     }));
 
-    // Create a mock teacher object for now
-    const teacher = {
-      id: teacherId,
-      fullName: "Default Teacher"
-    };
+    // Get teacher information if teacherId is provided
+    let teacher = { id: teacherId, fullName: "Default Teacher" };
+    if (teacherId && teacherId !== 1) {
+      const teacherData = await prisma.teacher.findFirst({
+        where: { 
+          id: parseInt(teacherId),
+          schoolId: schoolId 
+        },
+        select: { id: true, fullName: true }
+      });
+      if (teacherData) {
+        teacher = teacherData;
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -809,6 +926,7 @@ export const getTeacherAttendanceManagement = async (req, res) => {
       data: {
         teacher,
         classesTaught: formattedClasses,
+        schoolId: schoolId
       },
     });
   } catch (error) {
@@ -816,7 +934,7 @@ export const getTeacherAttendanceManagement = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to get attendance management data",
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -826,6 +944,16 @@ export const getTeacherAttendanceManagement = async (req, res) => {
  */
 export const exportAttendanceData = async (req, res) => {
   try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
     const { date, className, section } = req.query;
 
     if (!date || !className) {
@@ -837,7 +965,7 @@ export const exportAttendanceData = async (req, res) => {
 
     const attendanceDate = new Date(date);
 
-    // Get attendance records
+    // Get attendance records with school context
     const attendanceRecords = await prisma.attendance.findMany({
       where: {
         date: {
@@ -845,23 +973,26 @@ export const exportAttendanceData = async (req, res) => {
           lt: new Date(new Date(date).setHours(23, 59, 59, 999)),
         },
         className,
+        schoolId: schoolId, // Added school context
         ...(section && { section }),
       },
       include: {
         student: {
           select: {
             id: true,
-            firstName: true,
-            middleName: true,
-            lastName: true,
-            rollNumber: true,
+            fullName: true,
             admissionNo: true,
+            sessionInfo: {
+              select: {
+                currentRollNo: true
+              }
+            }
           },
         },
       },
       orderBy: {
         student: {
-          rollNumber: 'asc',
+          admissionNo: 'asc',
         },
       },
     });
@@ -878,8 +1009,8 @@ export const exportAttendanceData = async (req, res) => {
     const csvHeader = 'Roll No,Admission No,Student Name,Status,Notes\n';
     
     const csvRows = attendanceRecords.map(record => {
-      const studentName = `${record.student.firstName} ${record.student.middleName ? record.student.middleName + ' ' : ''}${record.student.lastName}`;
-      const rollNumber = record.student.rollNumber || '';
+      const studentName = record.student.fullName;
+      const rollNumber = record.student.sessionInfo?.currentRollNo || '';
       const admissionNo = record.student.admissionNo || '';
       const status = record.status;
       const notes = record.notes ? `"${record.notes.replace(/"/g, '""')}"` : '';
@@ -891,7 +1022,7 @@ export const exportAttendanceData = async (req, res) => {
 
     // Set headers for CSV download
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="attendance_${className}_${formattedDate}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="attendance_${className}_${section || 'all'}_${formattedDate}.csv"`);
 
     // Send the CSV data
     return res.status(200).send(csvContent);
@@ -900,7 +1031,7 @@ export const exportAttendanceData = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to export attendance data",
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 };
@@ -937,6 +1068,474 @@ export const checkAttendanceAPI = async (req, res) => {
   }
 };
 
+/**
+ * Get monthly attendance report for a class
+ */
+export const getMonthlyAttendanceReport = async (req, res) => {
+  try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    const { year, month, className, section } = req.query;
+
+    if (!year || !month || !className) {
+      return res.status(400).json({
+        success: false,
+        message: "Year, month, and class name are required",
+      });
+    }
+
+    // Calculate start and end dates for the month
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const endDate = new Date(parseInt(year), parseInt(month), 0);
+
+    // Get attendance records for the month
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        className,
+        schoolId: schoolId,
+        ...(section && { section }),
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            admissionNo: true,
+            sessionInfo: {
+              select: {
+                currentRollNo: true
+              }
+            }
+          },
+        },
+      },
+      orderBy: [
+        { date: 'asc' },
+        { student: { admissionNo: 'asc' } }
+      ],
+    });
+
+    // Get all students in the class for complete report
+    const allStudents = await prisma.student.findMany({
+      where: {
+        schoolId: schoolId,
+        sessionInfo: {
+          currentClass: className,
+          ...(section && { currentSection: section }),
+        }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNo: true,
+        sessionInfo: {
+          select: {
+            currentRollNo: true
+          }
+        }
+      },
+      orderBy: {
+        admissionNo: 'asc'
+      }
+    });
+
+    // Create a comprehensive report
+    const studentReports = allStudents.map(student => {
+      const studentRecords = attendanceRecords.filter(record => record.studentId === student.id);
+      
+      const totalDays = studentRecords.length;
+      const presentDays = studentRecords.filter(record => record.status === 'PRESENT').length;
+      const absentDays = studentRecords.filter(record => record.status === 'ABSENT').length;
+      const lateDays = studentRecords.filter(record => record.status === 'LATE').length;
+      
+      const attendancePercentage = totalDays > 0 
+        ? ((presentDays + lateDays) / totalDays * 100).toFixed(2) 
+        : 0;
+
+      return {
+        student: {
+          id: student.id,
+          name: student.fullName,
+          admissionNo: student.admissionNo,
+          rollNumber: student.sessionInfo?.currentRollNo || ''
+        },
+        attendance: {
+          totalDays,
+          presentDays,
+          absentDays,
+          lateDays,
+          attendancePercentage
+        },
+        dailyRecords: studentRecords.map(record => ({
+          date: record.date.toISOString().split('T')[0],
+          status: record.status,
+          notes: record.notes
+        }))
+      };
+    });
+
+    // Calculate class statistics
+    const totalWorkingDays = Math.max(...studentReports.map(sr => sr.attendance.totalDays), 0);
+    const classStats = {
+      totalStudents: allStudents.length,
+      totalWorkingDays,
+      averageAttendance: studentReports.length > 0 
+        ? (studentReports.reduce((sum, sr) => sum + parseFloat(sr.attendance.attendancePercentage), 0) / studentReports.length).toFixed(2)
+        : 0
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Monthly attendance report retrieved successfully",
+      data: {
+        reportInfo: {
+          year: parseInt(year),
+          month: parseInt(month),
+          monthName: new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long' }),
+          className,
+          section: section || 'All Sections',
+          schoolId
+        },
+        classStats,
+        studentReports,
+        meta: {
+          generatedAt: new Date().toISOString(),
+          totalRecords: attendanceRecords.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error generating monthly attendance report:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate monthly attendance report",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
+    });
+  }
+};
+
+/**
+ * Get attendance summary for all classes in a school
+ */
+export const getSchoolAttendanceSummary = async (req, res) => {
+  try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Start date and end date are required",
+      });
+    }
+
+    // Get all attendance records for the school in the date range
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: {
+        date: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+        schoolId: schoolId,
+      },
+      include: {
+        student: {
+          select: {
+            sessionInfo: {
+              select: {
+                currentClass: true,
+                currentSection: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Group by class and section
+    const classStats = {};
+    attendanceRecords.forEach(record => {
+      const className = record.className;
+      const section = record.section || 'No Section';
+      const key = `${className}-${section}`;
+      
+      if (!classStats[key]) {
+        classStats[key] = {
+          className,
+          section: record.section,
+          totalRecords: 0,
+          present: 0,
+          absent: 0,
+          late: 0
+        };
+      }
+      
+      classStats[key].totalRecords++;
+      
+      switch (record.status) {
+        case 'PRESENT':
+          classStats[key].present++;
+          break;
+        case 'ABSENT':
+          classStats[key].absent++;
+          break;
+        case 'LATE':
+          classStats[key].late++;
+          break;
+      }
+    });
+
+    // Calculate percentages and format response
+    const formattedStats = Object.values(classStats).map(stat => ({
+      ...stat,
+      attendanceRate: stat.totalRecords > 0 
+        ? (((stat.present + stat.late) / stat.totalRecords) * 100).toFixed(2)
+        : 0
+    })).sort((a, b) => a.className.localeCompare(b.className));
+
+    // Overall school statistics
+    const totalRecords = attendanceRecords.length;
+    const totalPresent = attendanceRecords.filter(record => record.status === 'PRESENT').length;
+    const totalAbsent = attendanceRecords.filter(record => record.status === 'ABSENT').length;
+    const totalLate = attendanceRecords.filter(record => record.status === 'LATE').length;
+    
+    const overallAttendanceRate = totalRecords > 0 
+      ? (((totalPresent + totalLate) / totalRecords) * 100).toFixed(2)
+      : 0;
+
+    return res.status(200).json({
+      success: true,
+      message: "School attendance summary retrieved successfully",
+      data: {
+        schoolStats: {
+          totalRecords,
+          totalPresent,
+          totalAbsent,
+          totalLate,
+          overallAttendanceRate
+        },
+        classWiseStats: formattedStats,
+        meta: {
+          schoolId,
+          dateRange: {
+            startDate,
+            endDate
+          },
+          generatedAt: new Date().toISOString()
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error generating school attendance summary:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate school attendance summary",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
+    });
+  }
+};
+
+/**
+ * Get detailed student attendance report with analytics
+ */
+export const getDetailedStudentReport = async (req, res) => {
+  try {
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    const { studentId, startDate, endDate } = req.query;
+
+    if (!studentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Student ID is required",
+      });
+    }
+
+    // Verify student belongs to the school
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        schoolId: schoolId
+      },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNo: true,
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true,
+            currentRollNo: true
+          }
+        }
+      }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found in your school",
+      });
+    }
+
+    let dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
+    } else if (startDate) {
+      dateFilter = {
+        gte: new Date(startDate),
+      };
+    } else if (endDate) {
+      dateFilter = {
+        lte: new Date(endDate),
+      };
+    }
+
+    // Get attendance records for the student
+    const attendanceRecords = await prisma.attendance.findMany({
+      where: {
+        studentId: studentId,
+        schoolId: schoolId,
+        ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+      },
+      include: {
+        teacher: {
+          select: {
+            fullName: true
+          }
+        }
+      },
+      orderBy: {
+        date: 'desc',
+      },
+    });
+
+    // Calculate detailed statistics
+    const totalDays = attendanceRecords.length;
+    const presentDays = attendanceRecords.filter(record => record.status === 'PRESENT').length;
+    const absentDays = attendanceRecords.filter(record => record.status === 'ABSENT').length;
+    const lateDays = attendanceRecords.filter(record => record.status === 'LATE').length;
+    
+    const attendancePercentage = totalDays > 0 
+      ? ((presentDays + lateDays) / totalDays * 100).toFixed(2) 
+      : 0;
+
+    // Monthly breakdown
+    const monthlyStats = {};
+    attendanceRecords.forEach(record => {
+      const monthKey = record.date.toISOString().substring(0, 7); // YYYY-MM
+      
+      if (!monthlyStats[monthKey]) {
+        monthlyStats[monthKey] = {
+          month: monthKey,
+          total: 0,
+          present: 0,
+          absent: 0,
+          late: 0
+        };
+      }
+      
+      monthlyStats[monthKey].total++;
+      
+      switch (record.status) {
+        case 'PRESENT':
+          monthlyStats[monthKey].present++;
+          break;
+        case 'ABSENT':
+          monthlyStats[monthKey].absent++;
+          break;
+        case 'LATE':
+          monthlyStats[monthKey].late++;
+          break;
+      }
+    });
+
+    // Add percentage to monthly stats
+    const formattedMonthlyStats = Object.values(monthlyStats).map(stat => ({
+      ...stat,
+      attendanceRate: stat.total > 0 
+        ? (((stat.present + stat.late) / stat.total) * 100).toFixed(2)
+        : 0
+    })).sort((a, b) => a.month.localeCompare(b.month));
+
+    return res.status(200).json({
+      success: true,
+      message: "Detailed student attendance report retrieved successfully",
+      data: {
+        student: {
+          id: student.id,
+          name: student.fullName,
+          admissionNo: student.admissionNo,
+          class: student.sessionInfo?.currentClass,
+          section: student.sessionInfo?.currentSection,
+          rollNumber: student.sessionInfo?.currentRollNo
+        },
+        overallStats: {
+          totalDays,
+          presentDays,
+          absentDays,
+          lateDays,
+          attendancePercentage
+        },
+        monthlyBreakdown: formattedMonthlyStats,
+        recentRecords: attendanceRecords.slice(0, 10).map(record => ({
+          date: record.date.toISOString().split('T')[0],
+          status: record.status,
+          notes: record.notes,
+          markedBy: record.teacher?.fullName || 'Unknown'
+        })),
+        meta: {
+          schoolId,
+          dateRange: {
+            startDate: startDate || 'All time',
+            endDate: endDate || 'All time'
+          },
+          generatedAt: new Date().toISOString()
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error generating detailed student report:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate detailed student report",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
+    });
+  }
+};
+
 export default {
   getStudentsByClass,
   markAttendance,
@@ -947,4 +1546,7 @@ export default {
   getTeacherAttendanceManagement,
   exportAttendanceData,
   checkAttendanceAPI,
+  getMonthlyAttendanceReport,
+  getSchoolAttendanceSummary,
+  getDetailedStudentReport,
 }; 
