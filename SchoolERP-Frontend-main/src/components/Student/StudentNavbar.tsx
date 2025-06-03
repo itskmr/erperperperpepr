@@ -136,16 +136,6 @@ const StudentNavbar = {
               label="Class Schedule" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
-            <NavLink 
-              to="/student/academics/assignments" 
-              label="Assignments" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-            />
-            <NavLink 
-              to="/student/academics/grades" 
-              label="Grades & Reports" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-            />
           </NavDropdown>
 
         </nav>
