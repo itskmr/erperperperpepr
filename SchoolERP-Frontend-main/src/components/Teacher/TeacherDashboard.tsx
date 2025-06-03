@@ -1,1085 +1,719 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Users, TrendingUp, MessageSquare, Calendar, ChevronDown, ChevronUp, Bell, 
-  Zap, UserCheck, Activity, Award, FileText, Book, HelpCircle, Settings,
-  RefreshCw, Filter, Mail, Phone
+  Users, Calendar, CheckCircle, XCircle, Clock, User, Book, Plus,
+  Bell, Activity, GraduationCap, BarChart3, MessageSquare, FileText,
+  Eye, UserCheck, BookOpen, TrendingUp, AlertCircle, RefreshCw,
+  Home, ChevronRight, Target, Award, Mail, Phone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
-// Import components
-import {
-  SelectDropdown, MetricCard, TabGroup, AIAlert, CollapsibleSection, ChartComponent,
-  TeacherProfile, PerformanceBar, StudentRiskCard, ResourceUtilization, CalendarEvent,
-  QuickActionButton, ProgressLoader, AnimatedContainer, SkeletonLoader, HeatmapChart,
-  ChatInterface
-} from './components/DashboardComponents';
+// Types
+interface TeacherInfo {
+  id: number;
+  fullName: string;
+  email: string;
+  designation?: string;
+  schoolId: number;
+  schoolName?: string;
+}
 
-// Import data and hooks
-import {
-  useTeacherData, useLoadingStates, filterOptions,
-  MOCK_PERFORMANCE_DATA, MOCK_ATTENDANCE_DATA, MOCK_ASSIGNMENT_DATA,
-  MOCK_AT_RISK_STUDENTS, MOCK_PARENT_ENGAGEMENT, MOCK_RESOURCE_UTILIZATION,
-  MOCK_CHAT_MESSAGES, MOCK_ATTENDANCE_HEATMAP_DATA
-} from './data/teacherDashboardData';
+interface TodayTimetableEntry {
+  id: string;
+  className: string;
+  section: string;
+  subjectName: string;
+  startTime: string;
+  endTime: string;
+  roomNumber?: string;
+  day: string;
+}
 
-// Lazy loaded components for code splitting
-const ClassInchargeTools = lazy(() => import('./sections/ClassInchargeTools'));
-const ClassPerformance = lazy(() => import('./sections/ClassPerformance'));
+interface TeacherAttendanceStats {
+  thisMonth: {
+    totalDays: number;
+    presentDays: number;
+    absentDays: number;
+    lateDays: number;
+    attendancePercentage: string;
+  };
+  today: {
+    status: 'PRESENT' | 'ABSENT' | 'LATE' | 'NOT_MARKED';
+    checkInTime?: string;
+    checkOutTime?: string;
+  };
+}
 
-// Main dashboard component
+interface DiaryEntry {
+  id: number;
+  title: string;
+  content: string;
+  className: string;
+  section: string;
+  subject: string;
+  date: string;
+  entryType: string;
+  priority: string;
+  isPublic: boolean;
+}
+
+interface DashboardStats {
+  totalStudents: number;
+  totalClasses: number;
+  todayClasses: number;
+  pendingAssignments: number;
+}
+
 const TeacherDashboard: React.FC = () => {
-  // Teacher data state
-  const { teacherData, loading: teacherLoading, error } = useTeacherData('T-1001');
-  const loadingStates = useLoadingStates();
-  
-  // State for filters and tabs
-  const [timeframe, setTimeframe] = useState('weekly');
-  const [selectedClass, setSelectedClass] = useState('all');
-  const [selectedSubject, setSelectedSubject] = useState('all');
-  const [activeMetricsTab, setActiveMetricsTab] = useState('Performance');
-  const [activeReportTab, setActiveReportTab] = useState('At-Risk Students');
+  // State
+  const [teacherInfo, setTeacherInfo] = useState<TeacherInfo | null>(null);
+  const [todayTimetable, setTodayTimetable] = useState<TodayTimetableEntry[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState<TeacherAttendanceStats | null>(null);
+  const [recentDiaryEntries, setRecentDiaryEntries] = useState<DiaryEntry[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Function to refresh dashboard data
-  const refreshDashboard = () => {
-    setIsRefreshing(true);
-    // Simulate refresh with delay
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 1500);
+  // Get teacher info from authentication
+  const getTeacherInfo = (): TeacherInfo | null => {
+    try {
+      const userData = localStorage.getItem('userData');
+      const token = localStorage.getItem('token');
+      
+      if (userData) {
+        const user = JSON.parse(userData);
+        return {
+          id: user.id,
+          fullName: user.fullName || user.name || 'Teacher',
+          email: user.email || '',
+          designation: user.designation || 'Teacher',
+          schoolId: user.schoolId || user.school_id,
+          schoolName: user.schoolName || user.school_name
+        };
+      }
+      
+      // Try to get from JWT token
+      if (token) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return {
+          id: payload.id,
+          fullName: payload.fullName || payload.name || 'Teacher',
+          email: payload.email || '',
+          designation: payload.designation || 'Teacher',
+          schoolId: payload.schoolId || payload.school_id,
+          schoolName: payload.schoolName || payload.school_name
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error parsing teacher info:', error);
+      return null;
+    }
   };
 
-  // Show loader when data is loading
-  if (teacherLoading || !teacherData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-        <ProgressLoader loading={true} progress={60} text="Loading teacher dashboard..." />
-      </div>
-    );
-  }
+  // API helper function
+  const apiCall = async (endpoint: string) => {
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    if (!token) {
+      throw new Error('Authentication token not found. Please log in again.');
+    }
 
-  // Show error if data loading failed
-  if (error) {
+    const response = await fetch(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Authentication failed. Please log in again.');
+      } else if (response.status === 403) {
+        throw new Error('Access denied. You do not have permission to access this resource.');
+      } else {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+    }
+
+    return await response.json();
+  };
+
+  // Fetch today's timetable
+  const fetchTodayTimetable = async () => {
+    try {
+      const teacher = teacherInfo;
+      if (!teacher) return;
+
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+      const response = await apiCall(`/api/timetable?teacherId=${teacher.id}&day=${today}`);
+      
+      if (response.success && response.data) {
+        setTodayTimetable(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching today\'s timetable:', error);
+    }
+  };
+
+  // Fetch teacher attendance stats
+  const fetchAttendanceStats = async () => {
+    try {
+      const teacher = teacherInfo;
+      if (!teacher) return;
+
+      // Get current month attendance
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      const response = await apiCall(
+        `/api/teacher-attendance/reports?startDate=${startOfMonth.toISOString().split('T')[0]}&endDate=${endOfMonth.toISOString().split('T')[0]}&teacherId=${teacher.id}`
+      );
+      
+      if (response.success && response.data?.teachers?.length > 0) {
+        const teacherData = response.data.teachers[0];
+        const stats = teacherData.attendanceStats;
+        
+        // Get today's attendance
+        const todayResponse = await apiCall(`/api/teacher-attendance/date?date=${now.toISOString().split('T')[0]}`);
+        let todayStatus = 'NOT_MARKED' as const;
+        let checkInTime = undefined;
+        let checkOutTime = undefined;
+        
+        if (todayResponse.success && todayResponse.data?.teachers) {
+          const todayTeacher = todayResponse.data.teachers.find((t: any) => t.id === teacher.id);
+          if (todayTeacher?.teacherAttendance?.length > 0) {
+            const attendance = todayTeacher.teacherAttendance[0];
+            todayStatus = attendance.status;
+            checkInTime = attendance.checkInTime;
+            checkOutTime = attendance.checkOutTime;
+          }
+        }
+
+        setAttendanceStats({
+          thisMonth: {
+            totalDays: stats.totalWorkingDays || 0,
+            presentDays: stats.presentDays || 0,
+            absentDays: stats.absentDays || 0,
+            lateDays: stats.lateDays || 0,
+            attendancePercentage: stats.attendancePercentage || '0%'
+          },
+          today: {
+            status: todayStatus,
+            checkInTime,
+            checkOutTime
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching attendance stats:', error);
+    }
+  };
+
+  // Fetch recent diary entries
+  const fetchRecentDiaryEntries = async () => {
+    try {
+      const response = await apiCall('/api/teacher-diary/teacher/entries?limit=5&page=1');
+      
+      if (response.success && response.data?.entries) {
+        setRecentDiaryEntries(response.data.entries);
+      }
+    } catch (error) {
+      console.error('Error fetching recent diary entries:', error);
+    }
+  };
+
+  // Fetch dashboard stats
+  const fetchDashboardStats = async () => {
+    try {
+      const teacher = teacherInfo;
+      if (!teacher) return;
+
+      // Get students count from teacher's classes
+      const studentsResponse = await apiCall('/api/students');
+      const timetableResponse = await apiCall(`/api/timetable?teacherId=${teacher.id}`);
+      
+      let totalStudents = 0;
+      let totalClasses = 0;
+      let todayClasses = 0;
+      
+      if (studentsResponse.success && studentsResponse.data) {
+        totalStudents = studentsResponse.data.length;
+      }
+      
+      if (timetableResponse.success && timetableResponse.data) {
+        totalClasses = timetableResponse.data.length;
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+        todayClasses = timetableResponse.data.filter((entry: any) => entry.day === today).length;
+      }
+
+      setDashboardStats({
+        totalStudents,
+        totalClasses,
+        todayClasses,
+        pendingAssignments: 0 // This would come from assignments API
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
+  // Initialize dashboard
+  const initializeDashboard = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const teacher = getTeacherInfo();
+      if (!teacher) {
+        setError('Teacher information not found. Please log in again.');
+        return;
+      }
+      
+      setTeacherInfo(teacher);
+      
+      // Fetch all data in parallel
+      await Promise.all([
+        fetchTodayTimetable(),
+        fetchAttendanceStats(),
+        fetchRecentDiaryEntries(),
+        fetchDashboardStats()
+      ]);
+      
+    } catch (error) {
+      console.error('Error initializing dashboard:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refresh dashboard
+  const refreshDashboard = async () => {
+    setIsRefreshing(true);
+    await initializeDashboard();
+      setIsRefreshing(false);
+  };
+
+  // Format time
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  // Get current date info
+  const getCurrentDateInfo = () => {
+    const now = new Date();
+    return {
+      date: now.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      time: now.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    };
+  };
+
+  // Initialize on mount
+  useEffect(() => {
+    initializeDashboard();
+  }, []);
+
+  // Loading state
+  if (loading) {
     return (
-      <div className="container mx-auto p-4 text-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto shadow-sm">
-          <h2 className="text-xl font-bold text-red-700 mb-2">Error Loading Dashboard</h2>
-          <p className="text-red-600 mb-4">{error.message}</p>
-          <button
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-all shadow-sm"
-            onClick={() => window.location.reload()}
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading teacher dashboard...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Loading overlay */}
-      <AnimatePresence>
-        {isRefreshing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50"
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <motion.div 
+            className="bg-white rounded-xl shadow-md p-6 text-center"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
           >
-            <ProgressLoader loading={true} progress={70} text="Refreshing dashboard data..." />
+            <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to Load Dashboard</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+          <button
+              onClick={initializeDashboard}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors duration-200"
+          >
+            Try Again
+          </button>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
+    );
+  }
 
-      <div className="max-w-[1600px] mx-auto p-4 sm:p-6">
-        {/* Dashboard Header */}
-        <motion.div 
-          className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl shadow-lg mb-6 overflow-hidden"
+  const dateInfo = getCurrentDateInfo();
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Welcome Section */}
+          <motion.div
+          className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl shadow-lg mb-6 overflow-hidden"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <div className="p-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              <TeacherProfile 
-                name={teacherData.name}
-                role={teacherData.role}
-                isClassIncharge={teacherData.isClassIncharge}
-                profileImage={teacherData.profileImage}
-              />
-              
-              <div className="flex justify-end gap-2">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-opacity-30 transition-all"
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  <Filter size={16} />
-                  {showFilters ? 'Hide Filters' : 'Show Filters'}
-                </motion.button>
-                
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-white bg-opacity-20 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-opacity-30 transition-all"
-                  onClick={refreshDashboard}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-                  Refresh Data
-                </motion.button>
-              </div>
-            </div>
-            
-            {/* Filters Row - conditionally shown */}
-            <AnimatePresence>
-              {showFilters && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="mt-6 pt-4 border-t border-white border-opacity-20 overflow-hidden"
-                >
-                  <div className="flex flex-wrap gap-3">
-                    <SelectDropdown 
-                      label="Class"
-                      options={filterOptions.classOptions}
-                      value={selectedClass}
-                      onChange={setSelectedClass}
-                    />
-                    
-                    <SelectDropdown 
-                      label="Subject"
-                      options={filterOptions.subjectOptions}
-                      value={selectedSubject}
-                      onChange={setSelectedSubject}
-                    />
-                    
-                    <SelectDropdown 
-                      label="Time Period"
-                      options={filterOptions.timeframeOptions}
-                      value={timeframe}
-                      onChange={setTimeframe}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-        
-        {/* Main Dashboard Content */}
-        <div className="grid grid-cols-1 md:grid-cols-6 xl:grid-cols-12 gap-6">
-          
-          {/* Quick stats/KPIs - Full width on mobile, spans 12 columns */}
-          <div className="md:col-span-6 xl:col-span-12">
-            <AnimatedContainer>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-                <MetricCard
-                  title="Total Students"
-                  value={teacherData.assignedClasses.reduce((sum, cls) => sum + cls.students, 0)}
-                  subtitle={`in ${teacherData.assignedClasses.length} classes`}
-                  icon={<Users className="h-5 w-5 text-blue-600" />}
-                  color="bg-blue-100"
-                  trend={{ value: 5, label: "increase this term" }}
-                  delay={100}
-                />
-                
-                <MetricCard
-                  title="Average Attendance"
-                  value={`${Math.round(teacherData.assignedClasses.reduce((sum, cls) => sum + cls.attendance, 0) / teacherData.assignedClasses.length)}%`}
-                  subtitle="this week"
-                  icon={<UserCheck className="h-5 w-5 text-emerald-600" />}
-                  color="bg-emerald-100"
-                  trend={{ value: -2, label: "vs last week" }}
-                  delay={200}
-                />
-                
-                <MetricCard
-                  title="Avg. Performance"
-                  value="78%"
-                  subtitle="across subjects"
-                  icon={<Activity className="h-5 w-5 text-purple-600" />}
-                  color="bg-purple-100"
-                  trend={{ value: 3, label: "vs last term" }}
-                  delay={300}
-                />
-                
-                <MetricCard
-                  title="Parent Engagement"
-                  value={`${MOCK_PARENT_ENGAGEMENT.responseRate}%`}
-                  subtitle="response rate"
-                  icon={<MessageSquare className="h-5 w-5 text-amber-600" />}
-                  color="bg-amber-100"
-                  trend={{ value: 12, label: "increase" }}
-                  delay={400}
-                />
-              </div>
-            </AnimatedContainer>
-          </div>
-          
-          {/* Main Dashboard Columns */}
-          {/* Left column - Performance metrics - spans 8 columns on large screens */}
-          <div className="md:col-span-6 xl:col-span-8 space-y-6">
-            {/* Performance section with tabs */}
-            <motion.div 
-              className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <div className="border-b border-gray-100 p-4">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                    <Activity className="h-5 w-5 text-emerald-600 mr-2" />
-                    Class Performance Metrics
-                  </h2>
-                  
-                  <div className="flex items-center text-xs text-gray-500 bg-gray-50 p-1.5 rounded-md">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500 mr-1"></span>
-                    <span className="mr-3">Current</span>
-                    <span className="w-3 h-3 rounded-full bg-blue-500 mr-1"></span>
-                    <span className="mr-3">Previous</span>
-                    <span className="w-3 h-3 rounded-full bg-gray-300 mr-1"></span>
-                    <span>Average</span>
-                  </div>
+              <div className="flex items-center space-x-4">
+                <div className="bg-white bg-opacity-20 p-3 rounded-lg">
+                  <GraduationCap className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-white">
+                    Welcome back, {teacherInfo?.fullName || 'Teacher'}!
+                  </h1>
+                  <p className="text-emerald-100 text-lg">
+                    {teacherInfo?.schoolName || 'School Dashboard'} • {teacherInfo?.designation || 'Teacher'}
+                  </p>
+                  <p className="text-emerald-200 text-sm">
+                    {dateInfo.date} • {dateInfo.time}
+                  </p>
                 </div>
               </div>
               
-              <div className="p-4">
-                <TabGroup
-                  tabs={['Performance', 'Attendance', 'Assignments']}
-                  activeTab={activeMetricsTab}
-                  onChange={setActiveMetricsTab}
-                />
-                
-                <div className="mt-4">
-                  {/* Performance Tab */}
-                  {activeMetricsTab === 'Performance' && (
-                    <div className="mt-4">
-                      {loadingStates.performance ? (
-                        <div className="space-y-4">
-                          {[1, 2, 3, 4, 5].map(i => (
-                            <SkeletonLoader key={i} height="h-16" />
-                          ))}
-                        </div>
-                      ) : (
-                        <AnimatedContainer>
-                          <div className="space-y-4">
-                            {MOCK_PERFORMANCE_DATA.map((subject, index) => (
-                              <PerformanceBar
-                                key={subject.subject}
-                                subject={subject.subject}
-                                current={subject.current}
-                                previous={subject.previous}
-                                average={subject.average}
-                              />
-                            ))}
-                          </div>
-                        </AnimatedContainer>
-                      )}
-                      <div className="mt-6 text-center">
-                        <motion.button 
-                          className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-100 transition-all flex items-center mx-auto"
-                          whileHover={{ scale: 1.03 }}
-                          whileTap={{ scale: 0.97 }}
-                        >
-                          View Detailed Performance Report
-                          <ChevronDown className="ml-1 h-4 w-4" />
-                        </motion.button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Attendance Tab */}
-                  {activeMetricsTab === 'Attendance' && (
-                    <div className="mt-4">
-                      {loadingStates.attendance ? (
-                        <>
-                          <SkeletonLoader height="h-64" />
-                          <div className="mt-4 grid grid-cols-2 gap-4">
-                            <SkeletonLoader height="h-36" />
-                            <SkeletonLoader height="h-36" />
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <HeatmapChart 
-                            title="Weekly Attendance Distribution by Period" 
-                            data={MOCK_ATTENDANCE_HEATMAP_DATA}
-                          />
-                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-                              <h4 className="text-sm font-medium mb-3 text-gray-700">Attendance by Reason</h4>
-                              <AnimatedContainer>
-                                <div className="space-y-3">
-                                  {MOCK_ATTENDANCE_DATA.reasons.map((item) => (
-                                    <div key={item.reason} className="flex justify-between text-sm items-center">
-                                      <span className="text-gray-800">{item.reason}</span>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={refreshDashboard}
+                  disabled={isRefreshing}
+                  className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-all duration-200 flex items-center space-x-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <motion.div 
+            className="bg-white rounded-lg shadow-md p-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            >
                                       <div className="flex items-center">
-                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden mr-2">
-                                          <motion.div 
-                                            className={`h-full rounded-full ${
-                                              item.reason === 'Sick Leave' ? 'bg-amber-500' : 
-                                              item.reason === 'Personal Leave' ? 'bg-blue-500' : 
-                                              item.reason === 'Unexcused' ? 'bg-red-500' : 'bg-green-500'
-                                            }`}
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${item.percentage}%` }}
-                                            transition={{ duration: 0.8, delay: 0.1 }}
-                                          />
+              <div className="bg-blue-100 p-3 rounded-lg">
+                <Users className="h-6 w-6 text-blue-600" />
                                         </div>
-                                        <span className="font-medium">{item.percentage}%</span>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Students</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats?.totalStudents || 0}</p>
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              </AnimatedContainer>
-                            </div>
-                            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-                              <h4 className="text-sm font-medium mb-3 text-gray-700">Daily Breakdown</h4>
-                              <AnimatedContainer>
-                                <div className="space-y-3">
-                                  {MOCK_ATTENDANCE_DATA.weekly.map((day) => (
-                                    <div key={day.day} className="flex justify-between text-sm items-center">
-                                      <span className="text-gray-800">{day.day}</span>
-                                      <div className="flex items-center">
-                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden mr-2">
-                                          <motion.div 
-                                            className={`h-full bg-emerald-500 rounded-full`}
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${day.present}%` }}
-                                            transition={{ duration: 0.8, delay: 0.1 }}
-                                          />
-                                        </div>
-                                        <span className="font-medium">{day.present}%</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </AnimatedContainer>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Assignments Tab */}
-                  {activeMetricsTab === 'Assignments' && (
-                    <div className="mt-4">
-                      {loadingStates.assignments ? (
-                        <div className="space-y-3">
-                          {[1, 2, 3, 4].map(i => (
-                            <SkeletonLoader key={i} height="h-12" />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead>
-                              <tr className="bg-gray-50">
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Assignment
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Class
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Submission
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  On Time
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              <AnimatedContainer>
-                                {MOCK_ASSIGNMENT_DATA.map((assignment) => (
-                                  <motion.tr 
-                                    key={assignment.id}
-                                    initial={{ opacity: 0, y: 10 }}
+          </motion.div>
+
+          <motion.div 
+            className="bg-white rounded-lg shadow-md p-6"
+            initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    whileHover={{ backgroundColor: '#f9fafb' }}
-                                    className="cursor-pointer"
-                                  >
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {assignment.title}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      {assignment.class}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
                                       <div className="flex items-center">
-                                        <span className="mr-2">{assignment.submitted}/{assignment.total}</span>
-                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                          <motion.div 
-                                            className="h-full bg-emerald-500 rounded-full"
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${(assignment.submitted / assignment.total) * 100}%` }}
-                                            transition={{ duration: 0.8, delay: 0.2 }}
-                                          />
+              <div className="bg-emerald-100 p-3 rounded-lg">
+                <Book className="h-6 w-6 text-emerald-600" />
                                         </div>
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      <div className="flex items-center">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                          assignment.late > 0 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
-                                        }`}>
-                                          {assignment.onTime}/{assignment.submitted} On Time
-                                          {assignment.late > 0 && ` (${assignment.late} Late)`}
-                                        </span>
-                                      </div>
-                                    </td>
-                                  </motion.tr>
-                                ))}
-                              </AnimatedContainer>
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Classes</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats?.totalClasses || 0}</p>
                 </div>
               </div>
             </motion.div>
           
-            {/* Advanced visualizations section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <motion.div 
-                className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
+            className="bg-white rounded-lg shadow-md p-6"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <div className="border-b border-gray-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-gray-800 flex items-center">
-                      <TrendingUp className="h-5 w-5 text-purple-600 mr-2" />
-                      Predictive Student Performance
-                    </h2>
-                    <button className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded">
-                      AI Powered
-                    </button>
-                  </div>
-                </div>
-                <div className="p-4">
-                  {loadingStates.performance ? (
-                    <SkeletonLoader height="h-60" />
-                  ) : (
-                    <>
-                      <div className="h-60 flex items-center justify-center bg-gray-50 rounded mb-3">
-                        {/* This is where we'd integrate a proper chart library like Chart.js or Recharts */}
-                        <div className="relative w-full h-full flex items-center justify-center">
-                          <svg viewBox="0 0 400 150" className="w-full h-full p-4">
-                            <path
-                              d="M0,75 C50,30 100,120 150,90 C200,65 250,95 300,75 C350,55 400,90 400,75"
-                              fill="none"
-                              stroke="#8b5cf6"
-                              strokeWidth="3"
-                            />
-                            <path
-                              d="M0,75 C50,60 100,140 150,105 C200,80 250,110 300,90 C350,70 400,100 400,90"
-                              fill="none"
-                              stroke="#10b981"
-                              strokeWidth="3"
-                              strokeDasharray="5,5"
-                            />
-                          </svg>
-                          <motion.div
-                            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full shadow-lg"
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 1, duration: 0.5 }}
-                          >
-                            +8% predicted growth by end of term
-                          </motion.div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center text-xs text-gray-600">
                         <div className="flex items-center">
-                          <div className="w-3 h-3 rounded-full bg-purple-600 mr-1"></div>
-                          <span>Current Trajectory</span>
+              <div className="bg-orange-100 p-3 rounded-lg">
+                <Clock className="h-6 w-6 text-orange-600" />
                         </div>
-                        <div className="flex items-center">
-                          <div className="w-3 h-3 rounded-full bg-emerald-500 mr-1 border border-dashed border-emerald-500"></div>
-                          <span>With Interventions</span>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Today's Classes</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats?.todayClasses || 0}</p>
                         </div>
-                      </div>
-                      <div className="mt-3">
-                        <div className="text-sm font-medium text-gray-900">Key Findings:</div>
-                        <ul className="text-xs text-gray-700 mt-1 space-y-1">
-                          <motion.li
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.5 }}
-                            className="flex items-center"
-                          >
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2"></div>
-                            95% probability of improvement in Algebra with targeted exercises
-                          </motion.li>
-                          <motion.li
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.7 }}
-                            className="flex items-center"
-                          >
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2"></div>
-                            At-risk areas: Geometry and Problem Solving
-                          </motion.li>
-                          <motion.li
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.9 }}
-                            className="flex items-center"
-                          >
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2"></div>
-                            Group study sessions recommended for 7 students
-                          </motion.li>
-                        </ul>
-                      </div>
-                    </>
-                  )}
                 </div>
               </motion.div>
               
               <motion.div 
-                className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
+            className="bg-white rounded-lg shadow-md p-6"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
-                <div className="border-b border-gray-100 p-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-gray-800 flex items-center">
-                      <Calendar className="h-5 w-5 text-blue-600 mr-2" />
-                      Assignment Completion Trends
-                    </h2>
-                    <SelectDropdown 
-                      label=""
-                      options={[
-                        { value: 'weekly', label: 'Weekly' },
-                        { value: 'monthly', label: 'Monthly' },
-                        { value: 'term', label: 'Term' },
-                      ]}
-                      value="weekly"
-                      onChange={() => {}}
-                    />
-                  </div>
-                </div>
-                <div className="p-4">
-                  {loadingStates.assignments ? (
-                    <SkeletonLoader height="h-60" />
-                  ) : (
-                    <>
-                      <div className="h-60 flex items-center justify-center bg-gray-50 rounded mb-3">
-                        {/* This is where we'd integrate a proper chart library like Chart.js or Recharts */}
-                        <div className="relative w-full h-full p-4">
-                          <div className="grid grid-cols-5 h-full gap-4 items-end pt-6">
-                            {[80, 65, 90, 75, 82].map((value, index) => (
-                              <div key={index} className="relative h-full flex flex-col justify-end">
-                                <motion.div
-                                  className="bg-blue-500 rounded-t-md w-full"
-                                  initial={{ height: 0 }}
-                                  animate={{ height: `${value}%` }}
-                                  transition={{ duration: 0.8, delay: index * 0.1 }}
-                                />
-                                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium">
-                                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][index]}
+            <div className="flex items-center">
+              <div className={`p-3 rounded-lg ${
+                attendanceStats?.today.status === 'PRESENT' ? 'bg-green-100' :
+                attendanceStats?.today.status === 'ABSENT' ? 'bg-red-100' :
+                attendanceStats?.today.status === 'LATE' ? 'bg-yellow-100' : 'bg-gray-100'
+              }`}>
+                {attendanceStats?.today.status === 'PRESENT' ? (
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                ) : attendanceStats?.today.status === 'ABSENT' ? (
+                  <XCircle className="h-6 w-6 text-red-600" />
+                ) : (
+                  <Clock className="h-6 w-6 text-gray-600" />
+                )}
                                 </div>
-                                <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs font-bold">
-                                  {value}%
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Today's Status</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {attendanceStats?.today.status === 'NOT_MARKED' ? 'Not Marked' : 
+                   attendanceStats?.today.status || 'Unknown'}
+                </p>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 grid grid-cols-2 gap-3">
-                        <div className="bg-blue-50 p-3 rounded-lg">
-                          <div className="text-sm font-medium text-blue-800">On-Time: 78%</div>
-                          <div className="text-xs text-blue-600 mt-1">↑ 5% from last week</div>
-                        </div>
-                        <div className="bg-amber-50 p-3 rounded-lg">
-                          <div className="text-sm font-medium text-amber-800">Late: 22%</div>
-                          <div className="text-xs text-amber-600 mt-1">↓ 3% from last week</div>
-                        </div>
-                      </div>
-                    </>
-                  )}
                 </div>
               </motion.div>
             </div>
           
-            {/* AI-powered insights section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Today's Timetable & Attendance */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Today's Timetable */}
             <motion.div 
-              className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
+              className="bg-white rounded-lg shadow-md"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
             >
-              <div className="border-b border-gray-100 p-4">
-                <div className="flex items-center">
-                  <div className="bg-amber-100 p-2 rounded-md mr-3">
-                    <Zap className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <h2 className="text-lg font-semibold text-gray-800">AI-Powered Insights</h2>
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <Calendar className="h-5 w-5 text-emerald-600 mr-2" />
+                    Today's Timetable
+                  </h2>
+                  <Link 
+                    to="/teacher/timetable"
+                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center"
+                  >
+                    View Full Timetable
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Link>
                 </div>
               </div>
               
-              <div className="p-4">
-                <TabGroup
-                  tabs={['At-Risk Students', 'Recommendations', 'Auto-Generated Reports']}
-                  activeTab={activeReportTab}
-                  onChange={setActiveReportTab}
-                />
-                
-                <div className="mt-4">
-                  {/* At-Risk Students Tab */}
-                  {activeReportTab === 'At-Risk Students' && (
+              <div className="p-6">
+                {todayTimetable.length > 0 ? (
                     <div className="space-y-4">
-                      {loadingStates.atRiskStudents ? (
-                        <>
-                          {[1, 2, 3].map(i => (
-                            <SkeletonLoader key={i} height="h-28" />
-                          ))}
-                        </>
-                      ) : (
-                        <AnimatedContainer>
-                          {MOCK_AT_RISK_STUDENTS.map((student) => (
-                            <StudentRiskCard
-                              key={student.id}
-                              name={student.name}
-                              classGrade={student.class}
-                              subject={student.subject}
-                              current={student.current}
-                              trend={student.trend}
-                              reason={student.reason}
-                              onMessageClick={() => alert(`Message to ${student.name}'s parent`)}
-                              onScheduleClick={() => alert(`Scheduling intervention for ${student.name}`)}
-                            />
-                          ))}
-                        </AnimatedContainer>
-                      )}
+                    {todayTimetable.map((entry, index) => (
+                      <div key={entry.id} className="flex items-center p-4 bg-gray-50 rounded-lg">
+                        <div className="flex-shrink-0">
+                          <div className="bg-emerald-100 p-2 rounded-lg">
+                            <Clock className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    </div>
+                        <div className="ml-4 flex-1">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-medium text-gray-900">
+                              {entry.subjectName} - {entry.className} {entry.section}
+                            </h3>
+                            <span className="text-sm text-gray-500">
+                              {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
+                            </span>
+                          </div>
+                          {entry.roomNumber && (
+                            <p className="text-sm text-gray-600 mt-1">Room: {entry.roomNumber}</p>
+                          )}
+                          </div>
+                        </div>
+                    ))}
+                          </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No classes scheduled for today</p>
                     </div>
                   )}
-                  
-                  {/* Recommendations Tab */}
-                  {activeReportTab === 'Recommendations' && (
-                    <div className="space-y-3">
-                      <AIAlert
-                        title="Three students have attendance issues"
-                        description="Jason, Maria, and Alex have missed more than 3 classes this month."
-                        action="Send Automated Reminders"
-                        severity="medium"
-                        onActionClick={() => alert('Sending automated reminders')}
-                      />
-                      
-                      <AIAlert
-                        title="Class 10B performance declining in Mathematics"
-                        description="Average performance has dropped by 8% compared to last month."
-                        action="Schedule Review Session"
-                        severity="high"
-                        onActionClick={() => alert('Scheduling review session')}
-                      />
-                      
-                      <AIAlert
-                        title="Five students may benefit from additional resources"
-                        description="Based on recent quiz results in Mathematics Advanced."
-                        action="View Recommended Materials"
-                        severity="low"
-                        onActionClick={() => alert('Viewing recommended materials')}
-                      />
-                      
-                      <AIAlert
-                        title="Parent-teacher conference recommended"
-                        description="For Emily Chen based on recent performance changes."
-                        action="Schedule Meeting"
-                        severity="medium"
-                        onActionClick={() => alert('Scheduling parent meeting')}
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Auto-Generated Reports Tab */}
-                  {activeReportTab === 'Auto-Generated Reports' && (
-                    <div className="space-y-3">
-                      <motion.div 
-                        className="bg-white border border-gray-200 rounded-lg p-3"
-                        whileHover={{ y: -2, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="font-medium text-gray-900">Weekly Performance Summary</h3>
-                            <p className="text-sm text-gray-600">Auto-generated on March 17, 2025</p>
-                          </div>
-                          <button className="text-emerald-600 hover:text-emerald-800 text-sm font-medium">
-                            Download PDF
-                          </button>
-                        </div>
-                      </motion.div>
-                      
-                      <motion.div 
-                        className="bg-white border border-gray-200 rounded-lg p-3"
-                        whileHover={{ y: -2, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="font-medium text-gray-900">Class Incharge Monthly Report</h3>
-                            <p className="text-sm text-gray-600">Auto-generated on March 01, 2025</p>
-                          </div>
-                          <button className="text-emerald-600 hover:text-emerald-800 text-sm font-medium">
-                            Download PDF
-                          </button>
-                        </div>
-                      </motion.div>
-                      
-                      <motion.div 
-                        className="bg-white border border-gray-200 rounded-lg p-3"
-                        whileHover={{ y: -2, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="font-medium text-gray-900">Parent-Teacher Conference Notes</h3>
-                            <p className="text-sm text-gray-600">Drafts prepared for 5 students</p>
-                          </div>
-                          <button className="text-emerald-600 hover:text-emerald-800 text-sm font-medium">
-                            Review & Edit
-                          </button>
-                        </div>
-                      </motion.div>
-                    </div>
-                  )}
-                </div>
               </div>
             </motion.div>
-          </div>
           
-          {/* Right column - Sidebar content - spans 4 columns on large screens */}
-          <div className="md:col-span-6 xl:col-span-4 space-y-6">
-            {/* Class Incharge specific tools - only shown if incharge */}
-            {teacherData.isClassIncharge && (
+            {/* Teacher Attendance Summary */}
               <motion.div
+              className="bg-white rounded-lg shadow-md"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <Suspense fallback={<SkeletonLoader height="h-64" />}>
-                  <ClassInchargeTools 
-                    inchargeClasses={teacherData.inchargeClasses}
-                    resourceUtilization={MOCK_RESOURCE_UTILIZATION}
-                  />
-                </Suspense>
-              </motion.div>
-            )}
-            
-            {/* Quick Action Buttons - Moved to top of sidebar */}
-            <motion.div 
-              className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-            >
-              <div className="border-b border-gray-100 p-4">
-                <h2 className="text-base font-semibold text-gray-800">Quick Actions</h2>
-              </div>
-              <div className="p-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <QuickActionButton
-                    icon={<UserCheck className="h-5 w-5 mb-1" />}
-                    label="Take Attendance"
-                    color="bg-emerald-50 hover:bg-emerald-100 text-emerald-700"
-                  />
-                  <QuickActionButton
-                    icon={<FileText className="h-5 w-5 mb-1" />}
-                    label="Create Assignment"
-                    color="bg-blue-50 hover:bg-blue-100 text-blue-700"
-                  />
-                  <QuickActionButton
-                    icon={<Book className="h-5 w-5 mb-1" />}
-                    label="Add Materials"
-                    color="bg-purple-50 hover:bg-purple-100 text-purple-700"
-                  />
-                  <QuickActionButton
-                    icon={<MessageSquare className="h-5 w-5 mb-1" />}
-                    label="Message Students"
-                    color="bg-amber-50 hover:bg-amber-100 text-amber-700"
-                  />
-                </div>
-              </div>
-            </motion.div>
-            
-            {/* Calendar & upcoming events */}
-            <motion.div 
-              className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-            >
-              <div className="border-b border-gray-100 p-4">
-                <div className="flex items-center">
-                  <div className="bg-red-100 p-2 rounded-md mr-3">
-                    <Calendar className="h-5 w-5 text-red-600" />
-                  </div>
-                  <h2 className="text-base font-semibold text-gray-800">Upcoming Schedule</h2>
-                </div>
-              </div>
-              
-              <div className="p-4">
-                <div className="space-y-3">
-                  <CalendarEvent
-                    month="MAR"
-                    day={21}
-                    title="Class 10B Mathematics Test"
-                    time="09:30 AM - 11:00 AM"
-                    type="class"
-                  />
-                  
-                  <CalendarEvent
-                    month="MAR"
-                    day={22}
-                    title="Department Meeting"
-                    time="01:30 PM - 03:00 PM"
-                    type="meeting"
-                  />
-                  
-                  <CalendarEvent
-                    month="MAR"
-                    day={23}
-                    title="Parent-Teacher Conference"
-                    time="04:00 PM - 06:00 PM"
-                    type="event"
-                  />
-                  
-                  <motion.button 
-                    className="w-full text-sm font-medium text-indigo-600 border border-indigo-100 bg-indigo-50 py-2 rounded-md mt-2 hover:bg-indigo-100 transition-colors flex items-center justify-center"
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Calendar className="h-4 w-4 mr-2" />
-                    View Full Calendar
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-            
-            {/* Parent engagement section */}
-            <motion.div 
-              className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
-              <div className="border-b border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="bg-blue-100 p-2 rounded-md mr-3">
-                      <MessageSquare className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <h2 className="text-base font-semibold text-gray-800">Parent Engagement</h2>
-                  </div>
-                  <div className="flex gap-1">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="bg-blue-50 p-1.5 rounded text-blue-600"
-                    >
-                      <Mail size={16} />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="bg-green-50 p-1.5 rounded text-green-600"
-                    >
-                      <Phone size={16} />
-                    </motion.button>
-                  </div>
-                </div>
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                  <BarChart3 className="h-5 w-5 text-emerald-600 mr-2" />
+                  My Attendance Summary
+                </h2>
               </div>
               
-              <div className="p-4">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <motion.div 
-                      className="bg-blue-50 p-3 rounded-lg text-center shadow-sm"
-                      whileHover={{ y: -3 }}
-                    >
-                      <p className="text-sm text-gray-600">Response Rate</p>
-                      <p className="text-xl font-semibold text-gray-900 mt-1">{MOCK_PARENT_ENGAGEMENT.responseRate}%</p>
-                    </motion.div>
-                    
-                    <motion.div 
-                      className="bg-blue-50 p-3 rounded-lg text-center shadow-sm"
-                      whileHover={{ y: -3 }}
-                    >
-                      <p className="text-sm text-gray-600">Avg. Response Time</p>
-                      <p className="text-xl font-semibold text-gray-900 mt-1">{MOCK_PARENT_ENGAGEMENT.averageResponseTime}</p>
+              <div className="p-6">
+                {attendanceStats ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">
+                        {attendanceStats.thisMonth.presentDays}
+                  </div>
+                      <div className="text-sm text-green-800">Present Days</div>
+                </div>
+                    <div className="text-center p-4 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">
+                        {attendanceStats.thisMonth.absentDays}
+              </div>
+                      <div className="text-sm text-red-800">Absent Days</div>
+                </div>
+                    <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {attendanceStats.thisMonth.lateDays}
+              </div>
+                      <div className="text-sm text-yellow-800">Late Days</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {attendanceStats.thisMonth.attendancePercentage}
+                  </div>
+                      <div className="text-sm text-blue-800">Attendance %</div>
+                  </div>
+                </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">Attendance data not available</p>
+              </div>
+                )}
+              </div>
                     </motion.div>
                   </div>
                   
-                  <TabGroup
-                    tabs={['Recent Conversation', 'All Parents']}
-                    activeTab={'Recent Conversation'}
-                    onChange={() => {}}
-                  />
-                  
-                  <ChatInterface 
-                    messages={MOCK_CHAT_MESSAGES} 
-                    onSendMessage={(message) => console.log('Message sent:', message)}
-                  />
-                </div>
-              </div>
-            </motion.div>
-            
-            {/* Recent Activity & Notifications */}
+          {/* Right Column - Recent Diary & Quick Actions */}
+          <div className="space-y-6">
+            {/* Recent Diary Entries */}
             <motion.div 
-              className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden"
+              className="bg-white rounded-lg shadow-md"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.7 }}
             >
-              <div className="border-b border-gray-100 p-4">
+              <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="bg-amber-100 p-2 rounded-md mr-3">
-                      <Bell className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <h2 className="text-base font-semibold text-gray-800">Recent Activity</h2>
-                  </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                    {teacherData.notifications.length} New
-                  </span>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <BookOpen className="h-5 w-5 text-emerald-600 mr-2" />
+                    Recent Diary Entries
+                  </h2>
+                  <Link 
+                    to="/teacher/diary"
+                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center"
+                  >
+                    View All
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Link>
                 </div>
               </div>
               
-              <div className="p-4">
-                <div className="space-y-3">
-                  <AnimatedContainer>
-                    {teacherData.recentActivities.map((activity) => (
-                      <motion.div 
-                        key={activity.id} 
-                        className="flex items-start border-b border-gray-100 pb-3 last:border-0 last:pb-0"
-                        whileHover={{ x: 3 }}
-                      >
-                        <div className={`p-2 rounded-full mr-3 
-                          ${activity.type === 'assignment' ? 'bg-blue-100 text-blue-600' : 
-                          activity.type === 'grade' ? 'bg-emerald-100 text-emerald-600' : 
-                          activity.type === 'attendance' ? 'bg-amber-100 text-amber-600' : 
-                          'bg-purple-100 text-purple-600'}`}
-                        >
-                          {activity.type === 'assignment' ? <FileText className="h-4 w-4" /> : 
-                           activity.type === 'grade' ? <Award className="h-4 w-4" /> : 
-                           activity.type === 'attendance' ? <UserCheck className="h-4 w-4" /> : 
-                           <MessageSquare className="h-4 w-4" />}
+              <div className="p-6">
+                {recentDiaryEntries.length > 0 ? (
+                  <div className="space-y-4">
+                    {recentDiaryEntries.slice(0, 3).map((entry) => (
+                      <div key={entry.id} className="border-l-4 border-emerald-500 pl-4">
+                        <h3 className="text-sm font-medium text-gray-900">{entry.title}</h3>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {entry.className} {entry.section} • {entry.subject}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(entry.date).toLocaleDateString()}
+                        </p>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-900">{activity.description}</p>
-                          <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
-                        </div>
-                      </motion.div>
                     ))}
-                  </AnimatedContainer>
                 </div>
-                
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <motion.button 
-                    className="text-sm text-emerald-600 hover:text-emerald-800 flex items-center"
-                    whileHover={{ x: 3 }}
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No recent diary entries</p>
+                    <Link 
+                      to="/teacher/diary" 
+                      className="text-emerald-600 hover:text-emerald-700 text-sm font-medium mt-2 inline-block"
+                    >
+                      Create your first entry
+                    </Link>
+                </div>
+                )}
+              </div>
+            </motion.div>
+        
+            {/* Quick Access Shortcuts */}
+        <motion.div 
+              className="bg-white rounded-lg shadow-md"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.8 }}
+        >
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                  <Target className="h-5 w-5 text-emerald-600 mr-2" />
+                  Quick Access
+                </h2>
+          </div>
+              
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <Link 
+                    to="/teacher/timetable"
+                    className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200"
                   >
-                    View All Activity
-                    <ChevronDown className="ml-1 h-4 w-4" />
-                  </motion.button>
+                    <Calendar className="h-6 w-6 text-blue-600 mb-2" />
+                    <span className="text-sm font-medium text-blue-800">View Full Timetable</span>
+                  </Link>
+
+                  <Link 
+                    to="/teacher/attendance"
+                    className="flex flex-col items-center p-4 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors duration-200"
+                  >
+                    <UserCheck className="h-6 w-6 text-emerald-600 mb-2" />
+                    <span className="text-sm font-medium text-emerald-800">Mark Student Attendance</span>
+                  </Link>
+
+                  <Link 
+                    to="/teacher/diary"
+                    className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors duration-200"
+                  >
+                    <Plus className="h-6 w-6 text-purple-600 mb-2" />
+                    <span className="text-sm font-medium text-purple-800">Create Diary</span>
+                  </Link>
+
+                  <Link 
+                    to="/teacher/students"
+                    className="flex flex-col items-center p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors duration-200"
+                  >
+                    <Eye className="h-6 w-6 text-orange-600 mb-2" />
+                    <span className="text-sm font-medium text-orange-800">View Students</span>
+                  </Link>
                 </div>
               </div>
             </motion.div>
-          </div>
-        </div>
-        
-        {/* Footer section with additional resources */}
-        <motion.div 
-          className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-        >
-          <div className="border-b border-gray-100 bg-gray-50 px-4 py-3">
-            <h3 className="text-sm font-medium text-gray-700">Teacher Resources & Settings</h3>
-          </div>
-          <div className="p-4">
-            <div className="flex flex-col sm:flex-row justify-between gap-6">
-              <div className="mb-4 sm:mb-0">
-                <h3 className="text-sm font-medium text-gray-700 flex items-center mb-3">
-                  <HelpCircle className="h-4 w-4 mr-1 text-emerald-600" />
-                  Teacher Resources
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  <motion.a 
-                    href="#" 
-                    className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 shadow-sm flex items-center"
-                    whileHover={{ y: -2, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                  >
-                    <Book className="h-3 w-3 mr-1.5" />
-                    Teaching Guides
-                  </motion.a>
-                  <motion.a 
-                    href="#" 
-                    className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 shadow-sm flex items-center"
-                    whileHover={{ y: -2, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                  >
-                    <FileText className="h-3 w-3 mr-1.5" />
-                    Lesson Plan Templates
-                  </motion.a>
-                  <motion.a 
-                    href="#" 
-                    className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 shadow-sm flex items-center"
-                    whileHover={{ y: -2, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                  >
-                    <Award className="h-3 w-3 mr-1.5" />
-                    Professional Development
-                  </motion.a>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 flex items-center mb-3">
-                  <Settings className="h-4 w-4 mr-1 text-emerald-600" />
-                  Dashboard Settings
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  <motion.button 
-                    className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 shadow-sm flex items-center"
-                    whileHover={{ y: -2, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                    onClick={refreshDashboard}
-                  >
-                    <RefreshCw className="h-3 w-3 mr-1.5" />
-                    Refresh Data
-                  </motion.button>
-                  <motion.button 
-                    className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 shadow-sm flex items-center"
-                    whileHover={{ y: -2, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                  >
-                    <Settings className="h-3 w-3 mr-1.5" />
-                    Customize Widgets
-                  </motion.button>
-                  <motion.button 
-                    className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-50 shadow-sm flex items-center"
-                    whileHover={{ y: -2, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" }}
-                  >
-                    <Bell className="h-3 w-3 mr-1.5" />
-                    Notification Preferences
-                  </motion.button>
-                </div>
-              </div>
             </div>
           </div>
-        </motion.div>
       </div>
     </div>
   );

@@ -148,57 +148,6 @@ const StudentNavbar = {
             />
           </NavDropdown>
 
-          {/* Profile Section */}
-          <NavDropdown 
-            title="Profile" 
-            icon={<User className="h-5 w-5 text-blue-600" />}
-            isOpen={activeDropdown === "profile"} 
-            onClick={() => toggleDropdown("profile")}
-          >
-{/*             <NavLink 
-              to="/student/StudentProfileDashboard" 
-              label="View Profile" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-            /> */}
-            <NavLink 
-              to="/student/profile/edit" 
-              label="Edit Profile" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-            />
-            <NavLink 
-              to="/student/profile/settings" 
-              label="Settings" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-            />
-          </NavDropdown>
-
-          {/* Chat Section */}
-          <NavLink 
-            to="/student/chat" 
-            icon={<MessageSquare className="h-5 w-5 text-blue-600" />} 
-            label="Chat" 
-            onClick={() => setIsMobileSidebarOpen(false)}
-            badge={2}
-          />
-
-          {/* Help & Support */}
-          <NavDropdown 
-            title="Help & Support" 
-            icon={<HelpCircle className="h-5 w-5 text-blue-600" />}
-            isOpen={activeDropdown === "help"} 
-            onClick={() => toggleDropdown("help")}
-          >
-            <NavLink 
-              to="/student/StudentFAQ" 
-              label="FAQ" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-            />
-            <NavLink 
-              to="/student/help/contact" 
-              label="Contact Support" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-            />
-          </NavDropdown>
         </nav>
       </div>
     );
