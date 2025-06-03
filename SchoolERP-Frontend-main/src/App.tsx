@@ -31,6 +31,7 @@ import Timetable from './components/Schools/Timetable';
 // import  StudentFeeDetails  from './components/StudentFeeDetails'
 import TeacherProfile from './components/Teacher/TeacherProfile'
 import SchoolProfile from './components/Schools/SchoolProfile'
+import { default as TeacherStudentDirectory } from './components/Teacher/StudentDirectory'
 
 import ManageSchools from './components/Admin/ManageSchools';
 import ManageUsers from './components/Admin/ManageUser';
@@ -62,8 +63,6 @@ import StudentRegistration from "./pages/StudentRegister";
 import AdminDashboard from "./components/Admin/AdminDashboard";
 import TeacherDashboard from "./components/Teacher/TeacherDashboard";
 import RegisterStudentDataTable from "./components/StudentForm/RegisterStudentDataTable";
-// import StudentFormProgress from "./components/StudentForm/StudentFormProgress";
-// Student components
 
 import StudentDashboard from "./components/Student/StudentDashboard";
 import TeacherDiary from './components/Teacher/TeacherDiary';
@@ -74,7 +73,8 @@ import TeacherTimetable from './components/Teacher/TeacherTimetable';
 import StudentTimetable from './components/Student/StudentTimetable';
 
 // Parent components
-import { ParentDashboard, ParentAttendance } from './components/parent';
+import { ParentAttendance } from './components/parent';
+import NewParentDashboard from './components/parent/NewParentDashboard';
 // import FeedbackPage from './pages/parent/FeedbackPage';
 // import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
 // import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
@@ -630,16 +630,6 @@ function AppContent({
         />
         
         <Route
-          path="/school/student-attendance"
-          element={
-            <ProtectedRoute allowedRoles={['school']}>
-              <Layout userRole={userRole} onLogout={handleLogout}>
-                <AttendanceManagement />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/teacher/students-attendance"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
@@ -649,6 +639,18 @@ function AppContent({
             </ProtectedRoute>
           }
         />
+        
+        <Route
+          path="/teacher/students"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherStudentDirectory />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         <Route
           path="/teacher/dashboard"
           element={
@@ -894,7 +896,7 @@ function AppContent({
           element={
             <ProtectedRoute allowedRoles={['parent']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <ParentDashboard />
+                <NewParentDashboard />
               </Layout>
             </ProtectedRoute>
           }

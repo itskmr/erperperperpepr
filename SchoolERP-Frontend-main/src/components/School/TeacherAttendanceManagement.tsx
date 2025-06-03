@@ -523,11 +523,11 @@ const TeacherAttendanceManagement: React.FC = () => {
                       <div>
                         <p className="text-blue-100 text-sm font-medium">Total Teachers</p>
                         <p className="text-2xl font-bold">{stats.total}</p>
-                      </div>
+                  </div>
                       <div className="bg-blue-400 p-3 rounded-full">
                         <Users className="h-6 w-6" />
-                      </div>
-                    </div>
+                  </div>
+                  </div>
                   </div>
                   
                   <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">

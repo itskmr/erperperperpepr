@@ -20,7 +20,9 @@ import {
   CheckCircle,
   Loader,
   Bus,
-  FileText
+  FileText,
+  UserCheck,
+  Clock
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +34,33 @@ import {
   getRelativeTime
 } from '../../services/schoolProfileService';
 
+// Helper function to get current logged-in school user info
+const getCurrentSchoolUser = () => {
+  try {
+    const userData = localStorage.getItem('userData');
+    const userRole = localStorage.getItem('userRole');
+    
+    if (userData && userRole === 'school') {
+      const user = JSON.parse(userData);
+      return {
+        email: user.email || 'school@example.com',
+        schoolName: user.schoolName || user.name || 'School',
+        id: user.id,
+        isLoggedIn: true
+      };
+    }
+  } catch (error) {
+    console.error('Error parsing school user data:', error);
+  }
+  
+  return {
+    email: null,
+    schoolName: null,
+    id: null,
+    isLoggedIn: false
+  };
+};
+
 const SchoolProfile: React.FC = () => {
   const [schoolData, setSchoolData] = useState<SchoolProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +68,7 @@ const SchoolProfile: React.FC = () => {
   const [isSaving, setSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState(getCurrentSchoolUser());
   const [formData, setFormData] = useState<UpdateSchoolProfileData>({
     schoolName: '',
     email: '',
@@ -58,6 +88,8 @@ const SchoolProfile: React.FC = () => {
   // Load school profile data on component mount
   useEffect(() => {
     loadSchoolProfile();
+    // Update current user info in case it changed
+    setCurrentUser(getCurrentSchoolUser());
   }, []);
 
   const loadSchoolProfile = async () => {
@@ -67,10 +99,11 @@ const SchoolProfile: React.FC = () => {
       const data = await schoolProfileService.getSchoolProfile();
       setSchoolData(data);
       
-      // Initialize form data
+      // Initialize form data with logged-in user's email as fallback
+      const userInfo = getCurrentSchoolUser();
       setFormData({
         schoolName: data.schoolName,
-        email: data.email,
+        email: data.email || userInfo.email || '',
         address: data.address || '',
         contact: data.contact || '',
         phone: data.phone || '',
@@ -92,9 +125,10 @@ const SchoolProfile: React.FC = () => {
 
   const handleEdit = () => {
     if (schoolData) {
+      const userInfo = getCurrentSchoolUser();
       setFormData({
         schoolName: schoolData.schoolName,
-        email: schoolData.email,
+        email: schoolData.email || userInfo.email || '',
         address: schoolData.address || '',
         contact: schoolData.contact || '',
         phone: schoolData.phone || '',
@@ -132,6 +166,22 @@ const SchoolProfile: React.FC = () => {
       setSchoolData(updatedData);
       setIsEditing(false);
       toast.success('School profile updated successfully!');
+      
+      // Update localStorage if email was changed
+      if (formData.email !== currentUser.email) {
+        try {
+          const userData = localStorage.getItem('userData');
+          if (userData) {
+            const user = JSON.parse(userData);
+            user.email = formData.email;
+            localStorage.setItem('userData', JSON.stringify(user));
+            setCurrentUser(getCurrentSchoolUser());
+            toast.success('Your login email has been updated!');
+          }
+        } catch (error) {
+          console.error('Error updating user email in localStorage:', error);
+        }
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update school profile';
       toast.error(errorMessage);
@@ -214,7 +264,7 @@ const SchoolProfile: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header with current user info */}
         <motion.div 
           className="flex items-center justify-between mb-8"
           initial={{ opacity: 0, y: -20 }}
@@ -225,7 +275,17 @@ const SchoolProfile: React.FC = () => {
             <School className="h-10 w-10 text-blue-600 mr-4" />
             <div>
               <h1 className="text-3xl font-bold text-gray-900">School Profile</h1>
-              <p className="text-gray-600">Manage your school information and settings</p>
+              <div className="flex items-center mt-1">
+                <p className="text-gray-600">Manage your school information and settings</p>
+                {currentUser.isLoggedIn && currentUser.email && (
+                  <div className="ml-4 flex items-center">
+                    <UserCheck className="h-4 w-4 text-green-600 mr-1" />
+                    <span className="text-sm text-green-700 font-medium">
+                      Logged in as: {currentUser.email}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
@@ -261,6 +321,35 @@ const SchoolProfile: React.FC = () => {
             </div>
           )}
         </motion.div>
+
+        {/* Current User Info Card */}
+        {currentUser.isLoggedIn && (
+          <motion.div 
+            className="mb-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-md p-4"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center">
+                <div className="bg-white bg-opacity-20 p-2 rounded-lg mr-3">
+                  <UserCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm opacity-90">Currently logged in as</p>
+                  <p className="font-semibold">{currentUser.email}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm opacity-90">Last login</p>
+                <p className="font-medium flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {schoolData.lastLogin ? getRelativeTime(schoolData.lastLogin) : 'Unknown'}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Validation Errors */}
         <AnimatePresence>
@@ -400,17 +489,36 @@ const SchoolProfile: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <Mail className="h-4 w-4 inline mr-1" />
                       Email Address
+                      {currentUser.isLoggedIn && formData.email === currentUser.email && (
+                        <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                          Current Login
+                        </span>
+                      )}
                     </label>
                     {isEditing ? (
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="school@example.com"
-                      />
+                      <div>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => handleInputChange('email', e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="school@example.com"
+                        />
+                        {currentUser.isLoggedIn && formData.email !== currentUser.email && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            ⚠️ Changing this will update your login email
+                          </p>
+                        )}
+                      </div>
                     ) : (
-                      <p className="text-gray-900">{schoolData.email}</p>
+                      <div className="flex items-center">
+                        <p className="text-gray-900">{schoolData.email || currentUser.email || 'Not provided'}</p>
+                        {currentUser.isLoggedIn && (schoolData.email === currentUser.email || !schoolData.email) && (
+                          <span title="This is your current login email">
+                            <CheckCircle className="h-4 w-4 text-green-600 ml-2" />
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                   
