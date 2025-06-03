@@ -224,26 +224,7 @@ const TeacherNavbar = {
             Teacher Profile
           </div>
         </Link>
-        
-        <Link
-          to="/teacher/preferences"
-          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
-        >
-          <div className="flex items-center">
-            <Settings className="h-4 w-4 mr-3 text-blue-600" />
-            Teaching Preferences
-          </div>
-        </Link>
-
-        <Link
-          to="/teacher/help"
-          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
-        >
-          <div className="flex items-center">
-            <MessageCircle className="h-4 w-4 mr-3 text-purple-600" />
-            Help & Support
-          </div>
-        </Link>
+      
         
         <button
           onClick={onLogout}

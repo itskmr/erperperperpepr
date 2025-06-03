@@ -73,8 +73,7 @@ import TeacherTimetable from './components/Teacher/TeacherTimetable';
 import StudentTimetable from './components/Student/StudentTimetable';
 
 // Parent components
-import { ParentAttendance } from './components/parent';
-import NewParentDashboard from './components/parent/NewParentDashboard';
+import { ParentDashboard, ParentAttendance } from './components/parent';
 // import FeedbackPage from './pages/parent/FeedbackPage';
 // import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
 // import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
@@ -532,6 +531,17 @@ function AppContent({
         />
 
         <Route
+          path="/school/student-attendance"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                < AttendanceManagement/>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/school/teacher-attendance"
           element={
             <ProtectedRoute allowedRoles={['school']}>
@@ -896,7 +906,7 @@ function AppContent({
           element={
             <ProtectedRoute allowedRoles={['parent']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <NewParentDashboard />
+                <ParentDashboard />
               </Layout>
             </ProtectedRoute>
           }
