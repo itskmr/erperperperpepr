@@ -57,7 +57,7 @@ import FeeCollectionApp from "./components/Schools/FeesCollection";
 import  AttendanceManagement from "./components/Teacher/AttendanceManagement";
 import CheckBounceSystem from "./components/Schools/ChequeBounce";
 import GradeManagementSchool from "./components/Schools/ExamGrade";
-import BusTracking from "./components/Schools/Bustracking";
+// import BusTracking from "./components/Schools/Bustracking";
 import StudentRegistration from "./pages/StudentRegister";
 import AdminDashboard from "./components/Admin/AdminDashboard";
 import TeacherDashboard from "./components/Teacher/TeacherDashboard";
@@ -65,12 +65,17 @@ import RegisterStudentDataTable from "./components/StudentForm/RegisterStudentDa
 // import StudentFormProgress from "./components/StudentForm/StudentFormProgress";
 // Student components
 
+import StudentDashboard from "./components/Student/StudentDashboard";
+import TeacherDiary from './components/Teacher/TeacherDiary';
+import DiaryViewer from './components/common/DiaryViewer';
+import SchoolDiaryView from './components/Schools/SchoolDiaryView';
+import TeacherAttendanceManagement from "./components/School/TeacherAttendanceManagement";
 
 // Parent components
 import { ParentDashboard, ParentAttendance } from './components/parent';
 // import FeedbackPage from './pages/parent/FeedbackPage';
-import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
-import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
+// import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
+// import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
 // Uncomment these when the components are available
 // import StudentFeeDetails from './pages/StudentFeeDetails';
 // import PaymentGateway from './pages/PaymentGateway';
@@ -87,6 +92,10 @@ import StudentChat from './components/Student/chat';
 import StudentProfileDashboard from './components/Student/StudentProfileDashboard';
 import StudentFAQ from './components/Student/StudentFAQ';
 
+// Import auth test utility for debugging
+import './utils/authTest';
+import './utils/testAuthFix';
+
 // PathTracker component to save current path in sessionStorage
 const PathTracker = () => {
   const location = useLocation();
@@ -100,9 +109,6 @@ const PathTracker = () => {
   
   return null;
 };
-
-// Student components 
-import StudentDashboard from "./components/Student/StudentDashboard";
 
 // The main App component that provides authentication state
 function App() {
@@ -458,6 +464,17 @@ function AppContent({
           }
         />
         
+        <Route
+          path="/school/faculty-management/teacher-diary"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <SchoolDiaryView />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         {/* Transport Management Routes */}
         <Route
           path="/school/transport-management/driver-directory"
@@ -511,14 +528,47 @@ function AppContent({
             </ProtectedRoute>
           }
         />
-      
 
         <Route
+          path="/school/teacher-attendance"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherAttendanceManagement /> 
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
+      
+
+        {/* <Route
           path="/school/BusTracking"
           element={
             <ProtectedRoute allowedRoles={['school']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <BusTracking />
+              </Layout>
+            </ProtectedRoute>
+          }
+        /> */}
+
+        <Route
+          path="/teacher/diary"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherDiary />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/diary/view/:id"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DiaryViewer userRole="school" />
               </Layout>
             </ProtectedRoute>
           }
@@ -670,7 +720,7 @@ function AppContent({
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* <Route
           path="/school/feedback"
           element={
             <ProtectedRoute allowedRoles={['school']}>
@@ -679,7 +729,7 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
         <Route
           path="/school/students/register/addNew"
           element={
@@ -730,7 +780,7 @@ function AppContent({
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* <Route
           path="/teacher/feedback"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
@@ -739,7 +789,7 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
 
 
 
@@ -883,6 +933,17 @@ function AppContent({
             <ProtectedRoute allowedRoles={['parent']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <ParentAttendance />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parent/academics/diary"
+          element={
+            <ProtectedRoute allowedRoles={['parent']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DiaryViewer userRole="parent" />
               </Layout>
             </ProtectedRoute>
           }
@@ -1293,6 +1354,17 @@ function AppContent({
                   <h1 className="text-2xl font-bold text-gray-800 mb-6">Class Schedule</h1>
                   <p className="text-gray-600">Your class schedule information will appear here.</p>
                 </div>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/student/academics/diary"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DiaryViewer userRole="student" />
               </Layout>
             </ProtectedRoute>
           }

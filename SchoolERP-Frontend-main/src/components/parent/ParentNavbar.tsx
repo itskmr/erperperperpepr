@@ -134,6 +134,12 @@ const ParentNavbar = {
             onClick={() => toggleDropdown("academic")}
           >
             <NavLink 
+              to="/parent/academics/diary" 
+              icon={<BookOpen className="h-4 w-4 text-pink-600" />}
+              label="Class Diary" 
+              onClick={closeMenu}
+            />
+            <NavLink 
               to="/parent/academics/attendance" 
               icon={<Clock className="h-4 w-4 text-pink-600" />}
               label="Attendance" 

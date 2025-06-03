@@ -26,11 +26,22 @@ export const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'school_management_secret_key');
     
+    // Get user role from either 'role' or 'type' field (students/parents use 'type')
+    const userRole = decoded.role || decoded.type;
+    
+    console.log('Authentication debug:', {
+      decodedRole: decoded.role,
+      decodedType: decoded.type,
+      finalUserRole: userRole,
+      userId: decoded.id,
+      studentId: decoded.studentId
+    });
+    
     // Get user based on role
     let user;
     let schoolId = null;
     
-    switch (decoded.role) {
+    switch (userRole) {
       case 'admin':
         user = await prisma.admin.findUnique({ 
           where: { id: decoded.id },
@@ -65,20 +76,38 @@ export const protect = async (req, res, next) => {
         break;
         
       case 'parent':
-        // For parents, we need to get school through student
-        const parentInfo = await prisma.parentInfo.findUnique({
-          where: { id: decoded.id },
-          include: { 
-            student: { 
-              select: { schoolId: true, fullName: true } 
-            } 
-          }
-        });
-        user = parentInfo;
-        schoolId = parentInfo?.student?.schoolId;
+        // For parents, get the student's school ID directly from the JWT token
+        // Since parent login sets studentId and schoolId in the token
+        if (decoded.studentId) {
+          const student = await prisma.student.findUnique({
+            where: { id: decoded.studentId },
+            select: { schoolId: true, fullName: true }
+          });
+          schoolId = student?.schoolId;
+          // Create a pseudo user object for parent
+          user = {
+            id: decoded.studentId, // Use student ID for parent context
+            email: decoded.email,
+            parentType: decoded.parentType,
+            studentName: student?.fullName
+          };
+        } else {
+          // Fallback to old parent structure (if any)
+          const parentInfo = await prisma.parentInfo.findUnique({
+            where: { id: decoded.id },
+            include: { 
+              student: { 
+                select: { schoolId: true, fullName: true } 
+              } 
+            }
+          });
+          user = parentInfo;
+          schoolId = parentInfo?.student?.schoolId;
+        }
         break;
         
       default:
+        console.log('Invalid user role in token:', userRole);
         return res.status(400).json({ 
           success: false, 
           error: "Invalid user role in token" 
@@ -86,6 +115,7 @@ export const protect = async (req, res, next) => {
     }
     
     if (!user) {
+      console.log('User not found for role:', userRole, 'ID:', decoded.id);
       return res.status(401).json({ 
         success: false, 
         error: "Token is valid but user not found" 
@@ -101,7 +131,7 @@ export const protect = async (req, res, next) => {
     }
     
     // For students, check if login is enabled
-    if (decoded.role === 'student' && !user.loginEnabled) {
+    if (userRole === 'student' && !user.loginEnabled) {
       return res.status(403).json({ 
         success: false, 
         error: "Student login is not enabled. Please contact administration." 
@@ -112,10 +142,17 @@ export const protect = async (req, res, next) => {
     req.user = {
       id: user.id,
       email: user.email,
-      role: decoded.role,
+      role: userRole, // Use the determined role
+      type: userRole, // Also set type for backward compatibility
       schoolId: schoolId,
       userData: user
     };
+    
+    console.log('Authentication successful:', {
+      userId: req.user.id,
+      role: req.user.role,
+      schoolId: req.user.schoolId
+    });
     
     // Verify school exists and is active (if schoolId is present)
     if (schoolId) {

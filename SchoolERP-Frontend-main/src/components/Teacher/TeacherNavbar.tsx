@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Link } from "react-router-dom";
 import { 
@@ -8,12 +7,9 @@ import {
   FileText, 
   User, 
   Home, 
-  Calendar, 
   Users, 
-  Database, 
-  BarChart2,
-  HelpCircle,
-  MessageSquare
+  MessageSquare,
+  BookOpen
 } from "lucide-react";
 
 interface TeacherNavbarProps {
@@ -135,7 +131,7 @@ const TeacherNavbar = {
               label="Manage Classes" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
-            <NavLink 
+            {/* <NavLink 
               to="/classes/TeachingMaterials" 
               label="Teaching Materials" 
               onClick={() => setIsMobileSidebarOpen(false)}
@@ -143,6 +139,12 @@ const TeacherNavbar = {
             <NavLink 
               to="/teachers/myclasses/assignment" 
               label="Assignments" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            /> */}
+            <NavLink 
+              to="/teacher/diary" 
+              icon={<BookOpen className="h-4 w-4 text-emerald-600" />}
+              label="Teacher Diary" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
           </NavDropdown>
@@ -171,7 +173,7 @@ const TeacherNavbar = {
             />
           </NavDropdown>
 
-          {/* Examinations - Teacher view */}
+          {/* Examinations - Teacher view
           <NavDropdown 
             title="Examinations" 
             icon={<FileText className="h-5 w-5 text-orange-600" />}
@@ -188,7 +190,7 @@ const TeacherNavbar = {
               label="Exam Schedule" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
-          </NavDropdown>
+          </NavDropdown> */}
 
           {/* Teacher Resources - New section */}
           {/* <NavDropdown 
@@ -230,7 +232,7 @@ const TeacherNavbar = {
             onClick={() => setIsMobileSidebarOpen(false)}
           /> */}
 
-          {/* Parent Feedback */}
+          {/* Parent Feedback
           <NavLink 
             to="/teacher/feedback" 
             icon={<MessageSquare className="h-5 w-5 text-purple-600" />} 
@@ -242,7 +244,7 @@ const TeacherNavbar = {
             icon={<MessageSquare className="h-5 w-5 text-purple-600" />} 
             label="Studentfrom" 
             onClick={() => setIsMobileSidebarOpen(false)}
-          />
+          /> */}
         </nav>
       </div>
     );

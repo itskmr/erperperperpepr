@@ -169,4 +169,177 @@ export const attemptSchoolLogin = async (email = 'school@test.com', password = '
     console.log('❌ School login failed with network error:', error);
     return null;
   }
+};
+
+// Function to test teacher diary API specifically
+export const testTeacherDiaryAPI = async () => {
+  console.log('=== TESTING TEACHER DIARY API ===');
+  
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  
+  if (!token) {
+    console.log('❌ No token found - cannot test');
+    return false;
+  }
+  
+  try {
+    // First test the health endpoint
+    const healthResponse = await fetch('/api/teacher-diary/health', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Health check response status:', healthResponse.status);
+    
+    if (healthResponse.ok) {
+      const healthData = await healthResponse.json();
+      console.log('✅ Teacher diary API health check passed');
+      console.log('Health response:', healthData);
+    } else {
+      console.log('❌ Teacher diary API health check failed');
+      const healthError = await healthResponse.json().catch(() => ({}));
+      console.log('Health error:', healthError);
+    }
+    
+    // Test the actual entries endpoint
+    const entriesResponse = await fetch('/api/teacher-diary/teacher/entries?page=1&limit=5', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Entries response status:', entriesResponse.status);
+    
+    if (entriesResponse.ok) {
+      const entriesData = await entriesResponse.json();
+      console.log('✅ Teacher diary entries API test passed');
+      console.log('Entries response:', entriesData);
+      return true;
+    } else {
+      console.log('❌ Teacher diary entries API test failed');
+      const entriesError = await entriesResponse.json().catch(() => ({}));
+      console.log('Entries error:', entriesError);
+      return false;
+    }
+    
+  } catch (error) {
+    console.log('❌ Teacher diary API test failed with network error:', error);
+    return false;
+  }
+};
+
+// Function to check JWT consistency
+export const checkJWTConsistency = async () => {
+  console.log('=== CHECKING JWT CONSISTENCY ===');
+  
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  
+  if (!token) {
+    console.log('❌ No token found - cannot check consistency');
+    return false;
+  }
+  
+  try {
+    // Test multiple endpoints to see if JWT works consistently
+    const endpoints = [
+      '/api/teacher-diary/health',
+      '/api/teacher-diary/classes',
+      '/api/students?page=1&limit=1'
+    ];
+    
+    const results = await Promise.allSettled(
+      endpoints.map(endpoint => 
+        fetch(endpoint, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }).then(response => ({
+          endpoint,
+          status: response.status,
+          ok: response.ok,
+          data: response.json()
+        }))
+      )
+    );
+    
+    console.log('JWT consistency test results:');
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const { endpoint, status, ok } = result.value;
+        console.log(`${ok ? '✅' : '❌'} ${endpoint}: ${status}`);
+      } else {
+        console.log(`❌ ${endpoints[index]}: Network error`);
+      }
+    });
+    
+    const allSuccessful = results.every(result => 
+      result.status === 'fulfilled' && result.value.ok
+    );
+    
+    if (allSuccessful) {
+      console.log('✅ JWT is working consistently across endpoints');
+    } else {
+      console.log('❌ JWT inconsistency detected - check backend configuration');
+    }
+    
+    return allSuccessful;
+    
+  } catch (error) {
+    console.log('❌ JWT consistency check failed:', error);
+    return false;
+  }
+};
+
+// Comprehensive authentication diagnostic
+export const runAuthDiagnostic = async () => {
+  console.log('🔍 RUNNING COMPREHENSIVE AUTH DIAGNOSTIC');
+  console.log('==========================================');
+  
+  // Step 1: Check current auth state
+  debugAuth();
+  
+  // Step 2: Test basic authentication
+  console.log('\n🔧 Testing basic authentication...');
+  const basicAuthWorks = await testAuthentication();
+  
+  // Step 3: Test teacher diary specific API
+  console.log('\n📚 Testing teacher diary API...');
+  const diaryApiWorks = await testTeacherDiaryAPI();
+  
+  // Step 4: Test JWT consistency
+  console.log('\n🔐 Testing JWT consistency...');
+  const jwtConsistent = await checkJWTConsistency();
+  
+  // Step 5: Provide recommendations
+  console.log('\n💡 RECOMMENDATIONS:');
+  
+  if (!basicAuthWorks) {
+    console.log('❌ Basic authentication failed - try logging in again');
+    console.log('   Run: clearAuthData() then login through proper endpoint');
+  }
+  
+  if (!diaryApiWorks) {
+    console.log('❌ Teacher diary API not working - check backend teacher diary routes');
+    console.log('   Ensure backend is running on port 5000');
+  }
+  
+  if (!jwtConsistent) {
+    console.log('❌ JWT inconsistency detected - backend may have mismatched secrets');
+    console.log('   Check that all backend files use the same JWT_SECRET');
+  }
+  
+  if (basicAuthWorks && diaryApiWorks && jwtConsistent) {
+    console.log('✅ All authentication tests passed!');
+    console.log('   Your authentication setup is working correctly');
+  }
+  
+  console.log('\n🔧 QUICK FIXES:');
+  console.log('- Clear auth data: clearAuthData()');
+  console.log('- Simulate login: simulateLogin()');
+  console.log('- Attempt school login: attemptSchoolLogin()');
+  console.log('- Test specific API: testTeacherDiaryAPI()');
 }; 

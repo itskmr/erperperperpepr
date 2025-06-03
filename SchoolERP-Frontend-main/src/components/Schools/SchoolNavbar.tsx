@@ -24,6 +24,7 @@ import {
   //  EyeOff,
   // MessageSquare,
   Truck,
+  BookOpen,
   // MapPin,
   // UserCheck
 } from "lucide-react";
@@ -395,11 +396,17 @@ const SchoolNavbar = {
               onClick={() => toggleDropdown("faculty")}
               isCollapsed={isCollapsed}
             >
+                <NavLink 
+                  to="/school/faculty-management/teacher-directory" 
+                  label="Teacher Directory" 
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                  isActive={isPathActive("/school/faculty-management/teacher-directory")}
+                />
               <NavLink 
-                to="/school/faculty-management/teacher-directory" 
-                label="Teacher Directory" 
+                to="/school/faculty-management/teacher-diary" 
+                label="Teacher Diary" 
                 onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/faculty-management/teacher-directory")}
+                isActive={isPathActive("/school/faculty-management/teacher-diary")}
               />
               {/* <NavLink 
                 to="/school/BusTracking" 

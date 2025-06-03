@@ -6,8 +6,8 @@ import jwt from 'jsonwebtoken';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// JWT Secret (should be in environment variable in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// JWT Secret (should be in environment variable in production) - standardized across all files
+const JWT_SECRET = process.env.JWT_SECRET || 'school_management_secret_key';
 
 // GET a school by ID
 router.get('/:id', async (req, res) => {
