@@ -74,9 +74,44 @@ const TeacherDirectory: React.FC = () => {
   const fetchTeachers = useCallback(async () => {
     try {
       setLoading(true);
-      const storedSchoolId = localStorage.getItem('schoolId') || '1';
+      
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('🔍 Fetching teachers for school ID:', schoolId);
       // School isolation will be handled automatically by backend auth middleware
-      const data = await apiGet(`/teachers/school/${storedSchoolId}`);
+      const data = await apiGet(`/teachers/school/${schoolId}`);
       
       if (Array.isArray(data)) {
         setTeachers(data);
@@ -105,8 +140,43 @@ const TeacherDirectory: React.FC = () => {
   const searchTeachers = useCallback(async () => {
     try {
       setLoading(true);
-      const storedSchoolId = localStorage.getItem('schoolId') || '1';
-      let url = `/teachers/school/${storedSchoolId}/search?`;
+      
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('🔍 Searching teachers for school ID:', schoolId);
+      let url = `/teachers/school/${schoolId}/search?`;
       
       if (searchTerm) {
         url += `searchTerm=${encodeURIComponent(searchTerm)}&`;
@@ -255,6 +325,39 @@ const TeacherDirectory: React.FC = () => {
         return;
       }
 
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        toast.error('School context not found. Please login again.');
+        return;
+      }
+
       // Calculate age if dateOfBirth is provided
       let age: number | undefined;
       if (formData.dateOfBirth) {
@@ -288,7 +391,7 @@ const TeacherDirectory: React.FC = () => {
         inchargeClass: formData.isClassIncharge ? formData.inchargeClass : null,
         inchargeSection: formData.isClassIncharge ? formData.inchargeSection : null,
         status: formData.status || 'active',
-        schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
+        schoolId: schoolId, // Use authenticated school context
         documents: [],
         password: '123456', // Default password for new teachers
         
@@ -522,6 +625,39 @@ const TeacherDirectory: React.FC = () => {
       }
     }
 
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        toast.error('School context not found. Please login again.');
+        return;
+      }
+
       // Create the teacher update object with only provided fields
       const teacherToUpdate = {
         // Required fields
@@ -545,7 +681,7 @@ const TeacherDirectory: React.FC = () => {
           inchargeSection: editTeacher.inchargeSection
         }),
         ...(editTeacher.status && { status: editTeacher.status }),
-        schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
+        schoolId: schoolId, // Use authenticated school context
         
         // Optional personal information - only include if provided
         ...(editTeacher.religion && { religion: editTeacher.religion }),

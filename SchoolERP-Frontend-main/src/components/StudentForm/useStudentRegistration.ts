@@ -61,7 +61,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     mobileNumber: '',
     emergencyContact: '',
     loginEnabled: false,
-    schoolId: 1,
+    schoolId: 2, 
     address: {
       houseNo: '',
       street: '',
@@ -332,12 +332,46 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     setError('');
 
     try {
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setIsSubmitting(false);
+        return;
+      }
+
       // Create FormData for file uploads
       const formDataToSend = new FormData();
       
       // Add all text fields, ensuring proper nesting
       Object.entries(formData).forEach(([key, value]) => {
-        if (key !== 'documents') {
+        if (key !== 'documents' && key !== 'schoolId') { // Exclude schoolId from form data processing
           if (typeof value === 'object' && value !== null) {
             Object.entries(value).forEach(([nestedKey, nestedValue]) => {
               if (!(key === 'address' && nestedKey === 'sameAsPresentAddress')) {
@@ -364,11 +398,12 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
         }
       });
       
-      // Add school ID
-      formDataToSend.append('schoolId', '1');
+      // Add school ID from authenticated context
+      formDataToSend.append('schoolId', String(schoolId));
 
       console.log("Sending student data to API");
       console.log("Form data keys:", Array.from(formDataToSend.keys()));
+      console.log("Using school ID:", schoolId);
       
       const result = await apiPostFormData(STUDENT_API.CREATE, formDataToSend);
       
