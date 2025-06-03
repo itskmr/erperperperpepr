@@ -31,6 +31,7 @@ import Timetable from './components/Schools/Timetable';
 // import  StudentFeeDetails  from './components/StudentFeeDetails'
 import TeacherProfile from './components/Teacher/TeacherProfile'
 import SchoolProfile from './components/Schools/SchoolProfile'
+import { default as TeacherStudentDirectory } from './components/Teacher/StudentDirectory'
 
 import ManageSchools from './components/Admin/ManageSchools';
 import ManageUsers from './components/Admin/ManageUser';
@@ -630,16 +631,6 @@ function AppContent({
         />
         
         <Route
-          path="/school/student-attendance"
-          element={
-            <ProtectedRoute allowedRoles={['school']}>
-              <Layout userRole={userRole} onLogout={handleLogout}>
-                <AttendanceManagement />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/teacher/students-attendance"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
@@ -649,6 +640,18 @@ function AppContent({
             </ProtectedRoute>
           }
         />
+        
+        <Route
+          path="/teacher/students"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherStudentDirectory />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         <Route
           path="/teacher/dashboard"
           element={
