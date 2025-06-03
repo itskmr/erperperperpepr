@@ -94,7 +94,7 @@ router.put('/:id',
 // Delete timetable entry
 router.delete('/:id', 
   protect, 
-  authorize('admin', 'school'),
+  authorize('admin', 'school', 'teacher'),
   requireSchoolContext,
   deleteTimetableEntry
 );

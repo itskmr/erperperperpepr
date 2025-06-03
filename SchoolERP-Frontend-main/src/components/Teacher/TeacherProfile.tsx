@@ -71,7 +71,7 @@ const defaultTeacher = {
   address: "123 Education Street, Teaching City",
   education: "M.Sc. Mathematics, B.Ed",
   experience: "8 years",
-  profileImage: "https://randomuser.me/api/portraits/men/67.jpg",
+  profileImage: "",
   isClassIncharge: true,
   inchargeClass: "10",
   inchargeSection: "A",

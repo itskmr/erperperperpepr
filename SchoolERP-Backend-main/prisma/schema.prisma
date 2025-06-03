@@ -882,7 +882,7 @@ model Driver {
   experience       Int       @default(0)
   joiningDate      DateTime
   isActive         Boolean   @default(true)
-  photo            String?   
+  photo            String?   @db.Text  // Changed to TEXT to support larger images
   
   // Personal Information
   dateOfBirth      DateTime?
@@ -995,7 +995,7 @@ model Expense {
   approvedBy      String?   // ID or name of person who approved
   approvedAt      DateTime?
   notes           String?   @db.Text
-  attachments     String?   @db.Text // JSON string of file URLs/paths
+  attachments     String?   @db.Text // JSON string of file URLs
   
   // School Association
   schoolId        Int?

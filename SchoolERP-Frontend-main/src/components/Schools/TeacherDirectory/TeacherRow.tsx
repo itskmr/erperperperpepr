@@ -27,11 +27,21 @@ const TeacherRow: React.FC<TeacherRowProps> = ({
       <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap">
         <div className="flex items-center">
           <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10">
-            <img
-              className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover"
-              src={teacher.profileImage}
-              alt={teacher.fullName}
-            />
+            {teacher.profileImage ? (
+              <img
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover"
+                src={teacher.profileImage}
+                alt={teacher.fullName}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm ${teacher.profileImage ? 'hidden' : ''}`}>
+              {teacher.fullName.charAt(0).toUpperCase()}
+            </div>
           </div>
           <div className="ml-2 sm:ml-4">
             <div className="text-xs sm:text-sm font-medium text-gray-900">

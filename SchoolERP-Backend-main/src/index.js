@@ -23,6 +23,8 @@ import timetableRoutes from "./routes/timetableRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import teacherAttendanceRoutes from "./routes/teacherAttendanceRoutes.js";
 import teacherDiaryRoutes from "./routes/teacherDiaryRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import schoolProfileRoutes from "./routes/schoolProfileRoutes.js";
 
 // Initialize environment variables
 dotenv.config();
@@ -208,6 +210,12 @@ app.use("/teacher-attendance", teacherAttendanceRoutes);
 // Add teacher diary routes
 app.use("/api/teacher-diary", teacherDiaryRoutes);
 app.use("/teacher-diary", teacherDiaryRoutes);
+
+// Add dashboard routes
+app.use("/api/dashboard", dashboardRoutes);
+
+// Add school profile routes
+app.use("/api/school/profile", schoolProfileRoutes);
 
 // Direct route mappings for school endpoints
 app.post("/api/schools/student/login", (req, res) => {

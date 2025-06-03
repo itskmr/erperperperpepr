@@ -1,32 +1,34 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { 
   School, 
-  Settings, 
   LogOut, 
-  // FileText, 
+  FileText, 
   User, 
   Home, 
-  // Calendar, 
+  Calendar, 
   Users, 
-  // Database, 
-  // BarChart2,
-  // HelpCircle,
+  Database, 
+  BarChart2,
   DollarSign,
-  // Book,
-  // Award,
+  Book,
+  Award,
   Briefcase,
   Bell,
   ChevronLeft,
   ChevronRight,
   Menu,
-  // Eye,
-  //  EyeOff,
-  // MessageSquare,
+  MessageSquare,
   Truck,
   BookOpen,
-  // MapPin,
-  // UserCheck
+  MapPin,
+  UserCheck,
+  ClipboardList,
+  GraduationCap,
+  CreditCard,
+  Calculator,
+  Layers,
+  UserPlus
 } from "lucide-react";
 
 interface SchoolNavbarProps {
@@ -197,6 +199,33 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon, label, onClick, badge, isCo
 
 // Update the handleSignOutClick function in ProfileDropdown
 const ProfileDropdown = ({ onLogout }: { onLogout?: () => void }) => {
+  // Get user data from localStorage to display email
+  const getUserEmail = () => {
+    try {
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        return user.email || user.schoolName || 'school@example.edu';
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+    return 'school@example.edu'; // fallback email
+  };
+
+  const getUserName = () => {
+    try {
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        return user.schoolName || user.fullName || user.name || 'School Admin';
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+    return 'School Admin'; // fallback name
+  };
+
   const handleSignOutClick = () => {
     if (onLogout) {
       onLogout(); // This will call the handleLogout function from App.tsx
@@ -216,11 +245,16 @@ const ProfileDropdown = ({ onLogout }: { onLogout?: () => void }) => {
   };
   
   return (
-    <div className="origin-top-right absolute right-0 mt-2 w-60 rounded-lg shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-50 animate-fadeIn">
+    <div className="origin-top-right absolute right-0 mt-2 w-64 rounded-lg shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-50 animate-fadeIn">
       <div className="px-4 py-3 border-b border-gray-100">
         <p className="text-sm text-gray-500">Signed in as</p>
-        <p className="text-sm font-medium text-gray-900 truncate">principal@school.edu</p>
-        <div className="mt-1">
+        <p className="text-sm font-medium text-gray-900 truncate" title={getUserEmail()}>
+          {getUserEmail()}
+        </p>
+        <p className="text-xs text-gray-600 truncate mt-1" title={getUserName()}>
+          {getUserName()}
+        </p>
+        <div className="mt-2">
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
             School Admin
           </span>
@@ -237,26 +271,6 @@ const ProfileDropdown = ({ onLogout }: { onLogout?: () => void }) => {
         </div>
       </Link>
       
-      <Link
-        to="/school/settings"
-        className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150"
-      >
-        <div className="flex items-center">
-          <Settings className="h-4 w-4 mr-3 text-blue-600" />
-          School Settings
-        </div>
-      </Link>
-      
-      <Link
-        to="/school/notifications"
-        className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150"
-      >
-        <div className="flex items-center">
-          <Bell className="h-4 w-4 mr-3 text-blue-600" />
-          Notification Settings
-        </div>
-      </Link>
-      
       <button
         onClick={handleSignOutClick}
         className="block w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"
@@ -270,303 +284,324 @@ const ProfileDropdown = ({ onLogout }: { onLogout?: () => void }) => {
   );
 };
 
+// SchoolSidebar component
+const SchoolSidebar: React.FC<SchoolNavbarProps> = (props) => {
+  const { activeDropdown, toggleDropdown, setIsMobileSidebarOpen } = props;
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const location = useLocation();
+  
+  // Function to check if a path is active based on current location
+  const isPathActive = (path: string) => {
+    // For root path, only match exactly
+    if (path === "/dashboard") {
+      return location.pathname === "/dashboard";
+    }
+    // For other paths, match if the location starts with the path
+    return location.pathname.startsWith(path);
+  };
+  
+  return (
+    <div className={`flex flex-col h-full bg-white shadow-md transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        {!isCollapsed && (
+          <div className="flex items-center">
+            <School className="h-7 w-7 text-blue-600" />
+            <span className="ml-2 text-lg font-semibold text-gray-800">School Admin</span>
+          </div>
+        )}
+        
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200 ${isCollapsed ? 'mx-auto' : ''}`}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        </button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto py-4 bg-white">
+        <nav className={`space-y-2 ${isCollapsed ? 'px-2' : 'px-3'}`}>
+          {/* School Dashboard */}
+          <NavLink 
+            to="/dashboard" 
+            icon={<Home className="h-5 w-5" />} 
+            label="School Dashboard" 
+            onClick={() => setIsMobileSidebarOpen(false)}
+            isCollapsed={isCollapsed}
+            isActive={isPathActive("/dashboard")}
+          />
+
+          {/* Administration */}
+          <NavDropdown 
+            title="Administration" 
+            icon={<Briefcase className="h-5 w-5" />}
+            isOpen={activeDropdown === "administration"} 
+            onClick={() => toggleDropdown("administration")}
+            isCollapsed={isCollapsed}
+          >
+            <NavLink 
+              to="/school/student-attendance" 
+              icon={<UserCheck className="h-4 w-4" />}
+              label="Student Attendance" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/student-attendance")}
+            />
+            <NavLink 
+              to="/school/teacher-attendance" 
+              icon={<ClipboardList className="h-4 w-4" />}
+              label="Teacher Attendance" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/teacher-attendance")}
+            />
+            <NavLink 
+              to="/school/administration/timetable" 
+              icon={<Calendar className="h-4 w-4" />}
+              label="Timetable" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/administration/timetable")}
+            />
+          </NavDropdown>
+
+          {/* Student Management */}
+          <NavDropdown 
+            title="Student Management" 
+            icon={<Users className="h-5 w-5" />}
+            isOpen={activeDropdown === "students"} 
+            onClick={() => toggleDropdown("students")}
+            isCollapsed={isCollapsed}
+          >
+            <NavLink 
+              to="/students/StudentRegistrationForm" 
+              icon={<UserPlus className="h-4 w-4" />}
+              label="Admissions" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/students/StudentRegistrationForm")}
+            />
+            <NavLink 
+              to="/school/students/manage-students" 
+              icon={<Database className="h-4 w-4" />}
+              label="Manage Students" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/students/manage-students")}
+            />
+             <NavLink 
+              to="/school/students/register/addNew" 
+              icon={<FileText className="h-4 w-4" />}
+              label="Register Student" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/students/register/addNew")}
+            />
+            <NavLink 
+              to="/school/students/tc-form" 
+              icon={<Award className="h-4 w-4" />}
+              label="TC Form" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/students/tc-form")}
+            />
+             <NavLink 
+              to="/school/students/register/allStudents" 
+              icon={<Layers className="h-4 w-4" />}
+              label="All Register Student" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/students/register/allRegisterStudent")}
+            />
+          </NavDropdown>
+
+          {/* Faculty Management */}
+          <NavDropdown 
+            title="Faculty Management" 
+            icon={<GraduationCap className="h-5 w-5" />}
+            isOpen={activeDropdown === "faculty"} 
+            onClick={() => toggleDropdown("faculty")}
+            isCollapsed={isCollapsed}
+          >
+            <NavLink 
+              to="/school/faculty-management/teacher-directory" 
+              icon={<Users className="h-4 w-4" />}
+              label="Teacher Directory" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/faculty-management/teacher-directory")}
+            />
+            <NavLink 
+              to="/school/faculty-management/teacher-diary" 
+              icon={<BookOpen className="h-4 w-4" />}
+              label="Teacher Diary" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/faculty-management/teacher-diary")}
+            />
+            {/* <NavLink 
+              to="/school/BusTracking" 
+              label="Bus tracking" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/BusTracking")}
+            /> */}
+            {/* <NavLink 
+              to="/School/ClassAssignment" 
+              label="Class Assignments" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/School/ClassAssignment")}
+            /> */}
+            {/* <NavLink 
+              to="/School/TeacherEvaluationPage" 
+              label="Teacher Evaluations" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/School/TeacherEvaluationPage")}
+            /> */}
+          </NavDropdown>
+
+          {/* Transport Management */}
+          <NavDropdown 
+            title="Transport Management" 
+            icon={<Truck className="h-5 w-5" />}
+            isOpen={activeDropdown === "transport"} 
+            onClick={() => toggleDropdown("transport")}
+            isCollapsed={isCollapsed}
+          >
+            <NavLink 
+              to="/school/transport-management/driver-directory" 
+              icon={<User className="h-4 w-4" />}
+              label="Driver Directory" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/transport-management/driver-directory")}
+            />
+            <NavLink 
+              to="/school/transport-management/vehicle-management" 
+              icon={<Truck className="h-4 w-4" />}
+              label="Vehicle Management" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/transport-management/vehicle-management")}
+            />
+            <NavLink 
+              to="/school/transport-management/transport-routes" 
+              icon={<MapPin className="h-4 w-4" />}
+              label="Transport Routes" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/transport-management/transport-routes")}
+            />
+          </NavDropdown>
+
+          {/* Financial Management */}
+          <NavDropdown 
+            title="Financial Management" 
+            icon={<DollarSign className="h-5 w-5" />}
+            isOpen={activeDropdown === "finance"} 
+            onClick={() => toggleDropdown("finance")}
+            isCollapsed={isCollapsed}
+          >
+            {/* <NavLink 
+              to="/school/financial-management/account-page" 
+              label="Accounts Management" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/financial-management/account-page")}
+            /> */}
+            <NavLink 
+              to="/School/FeeCollection" 
+              icon={<CreditCard className="h-4 w-4" />}
+              label="Fees Collection" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/School/FeeCollection")}
+            />
+            {/* <NavLink 
+              to="/School/CheckBounceSystem" 
+              label="Check Bounce " 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/School/CheckBounceSystem")}
+            />
+            <NavLink 
+              to="/School/BudgetPlanning" 
+              label="Budget Planning" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/School/BudgetPlanning")}
+            /> */}
+            <NavLink 
+              to="/school/financial-management/fee-structure" 
+              icon={<Layers className="h-4 w-4" />}
+              label="Fee Structure" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/financial-management/fee-structure")}
+            />
+            <NavLink 
+              to="/School/ExpenseTracker" 
+              icon={<Calculator className="h-4 w-4" />}
+              label="Expense Tracking" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/School/ExpenseTracker")}
+            />
+            {/* <NavLink 
+              to="/school/students/financial-management/student-management" 
+              label="Dues & Payments" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/students/financial-management/student-management")}
+            /> */}
+          </NavDropdown>
+
+          {/* School Calendar */}
+          <NavLink 
+            to="/school/GradeManagementSchool" 
+            icon={<Book className="h-5 w-5" />} 
+            label="Exams & Grade Management" 
+            onClick={() => setIsMobileSidebarOpen(false)}
+            isCollapsed={isCollapsed}
+            isActive={isPathActive("/school/GradeManagementSchool")}
+          />
+          <NavLink 
+            to="/Calender" 
+            icon={<Calendar className="h-5 w-5" />} 
+            label="School Calendar" 
+            onClick={() => setIsMobileSidebarOpen(false)}
+            isCollapsed={isCollapsed}
+            isActive={isPathActive("/Calender")}
+          />
+
+          {/* Analytics & Reports */}
+          <NavLink 
+            to="/School/report" 
+            icon={<BarChart2 className="h-5 w-5" />} 
+            label="Analytics & Reports" 
+            onClick={() => setIsMobileSidebarOpen(false)}
+            isCollapsed={isCollapsed}
+            isActive={isPathActive("/School/report")}
+          />
+
+          {/* Communication & Feedback */}
+          <NavDropdown 
+            title="Communication" 
+            icon={<MessageSquare className="h-5 w-5" />}
+            isOpen={activeDropdown === "communication"} 
+            onClick={() => toggleDropdown("communication")}
+            isCollapsed={isCollapsed}
+          >
+            <NavLink 
+              to="/school/feedback" 
+              icon={<MessageSquare className="h-4 w-4" />}
+              label="Feedback Management" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/feedback")}
+            />
+            <NavLink 
+              to="/school/announcements" 
+              icon={<Bell className="h-4 w-4" />}
+              label="Announcements" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/announcements")}
+            />
+            <NavLink 
+              to="/school/messages" 
+              icon={<MessageSquare className="h-4 w-4" />}
+              label="Messages" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/messages")}
+            />
+          </NavDropdown>
+        </nav>
+      </div>
+    </div>
+  );
+};
+
 const SchoolNavbar = {
   renderSidebar: (props: SchoolNavbarProps) => {
-    const { activeDropdown, toggleDropdown, setIsMobileSidebarOpen } = props;
-    const [isCollapsed, setIsCollapsed] = useState(false);
-    const location = useLocation();
-    
-    // Function to check if a path is active based on current location
-    const isPathActive = (path: string) => {
-      // For root path, only match exactly
-      if (path === "/dashboard") {
-        return location.pathname === "/dashboard";
-      }
-      // For other paths, match if the location starts with the path
-      return location.pathname.startsWith(path);
-    };
-    
-    return (
-      <div className={`flex flex-col h-full bg-white shadow-md transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
-        <div className="flex items-center justify-between p-3 border-b border-gray-100">
-          {!isCollapsed && (
-            <div className="flex items-center">
-              <School className="h-7 w-7 text-blue-600" />
-              <span className="ml-2 text-lg font-semibold text-gray-800">School Admin</span>
-            </div>
-          )}
-          
-          <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200 ${isCollapsed ? 'mx-auto' : ''}`}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-          </button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto py-4 bg-white">
-          <nav className={`space-y-2 ${isCollapsed ? 'px-2' : 'px-3'}`}>
-            {/* School Dashboard */}
-            <NavLink 
-              to="/dashboard" 
-              icon={<Home className="h-5 w-5" />} 
-              label="School Dashboard" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-              isCollapsed={isCollapsed}
-              isActive={isPathActive("/dashboard")}
-            />
-
-            {/* Administration */}
-            <NavDropdown 
-              title="Administration" 
-              icon={<Briefcase className="h-5 w-5" />}
-              isOpen={activeDropdown === "administration"} 
-              onClick={() => toggleDropdown("administration")}
-              isCollapsed={isCollapsed}
-            >
-              <NavLink 
-                to="/school/student-attendance" 
-                label="Student Attendance" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/student-attendance")}
-              />
-              <NavLink 
-                to="/school/teacher-attendance" 
-                label="Teacher Attendance" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/teacher-attendance")}
-              />
-              <NavLink 
-                to="/school/administration/timetable" 
-                label="Timetable" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/administration/timetable")}
-              />
-            </NavDropdown>
-
-
-            {/* Student Management */}
-            <NavDropdown 
-              title="Student Management" 
-              icon={<Users className="h-5 w-5" />}
-              isOpen={activeDropdown === "students"} 
-              onClick={() => toggleDropdown("students")}
-              isCollapsed={isCollapsed}
-            >
-              <NavLink 
-                to="/students/StudentRegistrationForm" 
-                label="Admissions" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/students/StudentRegistrationForm")}
-              />
-              <NavLink 
-                to="/school/students/manage-students" 
-                label="Manage Students" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/students/manage-students")}
-              />
-               <NavLink 
-                to="/school/students/register/addNew" 
-                label="Register Student" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/students/register/addNew")}
-              />
-              <NavLink 
-                to="/school/students/tc-form" 
-                label="TC From" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/students/tc-from")}
-              />
-               <NavLink 
-                to="/school/students/register/allStudents" 
-                label="All Register Student" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/students/register/allRegisterStudent")}
-              />
-            </NavDropdown>
-
-         
-
-            {/* Faculty Management */}
-            <NavDropdown 
-              title="Faculty Management" 
-              icon={<Users className="h-5 w-5" />}
-              isOpen={activeDropdown === "faculty"} 
-              onClick={() => toggleDropdown("faculty")}
-              isCollapsed={isCollapsed}
-            >
-                <NavLink 
-                  to="/school/faculty-management/teacher-directory" 
-                  label="Teacher Directory" 
-                  onClick={() => setIsMobileSidebarOpen(false)}
-                  isActive={isPathActive("/school/faculty-management/teacher-directory")}
-                />
-              <NavLink 
-                to="/school/faculty-management/teacher-diary" 
-                label="Teacher Diary" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/faculty-management/teacher-diary")}
-              />
-              {/* <NavLink 
-                to="/school/BusTracking" 
-                label="Bus tracking" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/BusTracking")}
-              /> */}
-              <NavLink 
-                to="/School/ClassAssignment" 
-                label="Class Assignments" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/School/ClassAssignment")}
-              />
-              {/* <NavLink 
-                to="/School/TeacherEvaluationPage" 
-                label="Teacher Evaluations" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/School/TeacherEvaluationPage")}
-              /> */}
-            </NavDropdown>
-
-            {/* Transport Management */}
-            <NavDropdown 
-              title="Transport Management" 
-              icon={<Truck className="h-5 w-5" />}
-              isOpen={activeDropdown === "transport"} 
-              onClick={() => toggleDropdown("transport")}
-              isCollapsed={isCollapsed}
-            >
-              <NavLink 
-                to="/school/transport-management/driver-directory" 
-                label="Driver Directory" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/transport-management/driver-directory")}
-              />
-              <NavLink 
-                to="/school/transport-management/vehicle-management" 
-                label="Vehicle Management" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/transport-management/vehicle-management")}
-              />
-              <NavLink 
-                to="/school/transport-management/transport-routes" 
-                label="Transport Routes" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/transport-management/transport-routes")}
-              />
-            </NavDropdown>
-
-            {/* Financial Management */}
-            <NavDropdown 
-              title="Financial Management" 
-              icon={<DollarSign className="h-5 w-5" />}
-              isOpen={activeDropdown === "finance"} 
-              onClick={() => toggleDropdown("finance")}
-              isCollapsed={isCollapsed}
-            >
-              {/* <NavLink 
-                to="/school/financial-management/account-page" 
-                label="Accounts Management" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/financial-management/account-page")}
-              /> */}
-              <NavLink 
-                to="/School/FeeCollection" 
-                label="Fees Collection" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/School/FeeCollection")}
-              />
-              {/* <NavLink 
-                to="/School/CheckBounceSystem" 
-                label="Check Bounce " 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/School/CheckBounceSystem")}
-              />
-              <NavLink 
-                to="/School/BudgetPlanning" 
-                label="Budget Planning" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/School/BudgetPlanning")}
-              /> */}
-              <NavLink 
-                to="/school/financial-management/fee-structure" 
-                label="Fee Structure" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/financial-management/fee-structure")}
-              />
-              <NavLink 
-                to="/School/ExpenseTracker" 
-                label="Expense Tracking" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/School/ExpenseTracker")}
-              />
-              {/* <NavLink 
-                to="/school/students/financial-management/student-management" 
-                label="Dues & Payments" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/students/financial-management/student-management")}
-              /> */}
-            </NavDropdown>
-
-            {/* School Calendar
-            <NavLink 
-              to="/school/GradeManagementSchool" 
-              icon={<Book className="h-5 w-5" />} 
-              label="Exams & Grade Management" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-              isCollapsed={isCollapsed}
-              isActive={isPathActive("/school/GradeManagementSchool")}
-            />
-            <NavLink 
-              to="/Calender" 
-              icon={<Calendar className="h-5 w-5" />} 
-              label="School Calendar" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-              isCollapsed={isCollapsed}
-              isActive={isPathActive("/Calender")}
-            /> */}
-
-            {/* Analytics & Reports */}
-            {/* <NavLink 
-              to="/School/report" 
-              icon={<BarChart2 className="h-5 w-5" />} 
-              label="Analytics & Reports" 
-              onClick={() => setIsMobileSidebarOpen(false)}
-              isCollapsed={isCollapsed}
-              isActive={isPathActive("/School/report")}
-            /> */}
-
-            {/* Communication & Feedback */}
-            {/* <NavDropdown 
-              title="Communication" 
-              icon={<MessageSquare className="h-5 w-5 text-blue-600" />}
-              isOpen={activeDropdown === "communication"} 
-              onClick={() => toggleDropdown("communication")}
-              isCollapsed={isCollapsed}
-            >
-              <NavLink 
-                to="/school/feedback" 
-                label="Feedback Management" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/feedback")}
-              />
-              <NavLink 
-                to="/school/announcements" 
-                label="Announcements" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/announcements")}
-              />
-              <NavLink 
-                to="/school/messages" 
-                label="Messages" 
-                onClick={() => setIsMobileSidebarOpen(false)}
-                isActive={isPathActive("/school/messages")}
-              />
-            </NavDropdown> */}
-          </nav>
-        </div>
-      </div>
-    );
+    return <SchoolSidebar {...props} />;
   },
 
   ProfileDropdown,

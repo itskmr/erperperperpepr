@@ -11,9 +11,6 @@ import jsPDF from 'jspdf';
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 // import autoTable from 'jspdf-autotable';
 
-// Update API URL to ensure it's correctly pointing to your backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 interface AddTeacherFormData extends Partial<Teacher> {
   fullName: string;
   email: string;
@@ -83,7 +80,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.schoolId) return payload.schoolId;
-          } catch (e) {
+          } catch {
             console.warn('Failed to decode token for school ID');
           }
         }
@@ -94,7 +91,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const user = JSON.parse(userData);
             return user.schoolId || user.id; // For school users, their ID is the school ID
-          } catch (e) {
+          } catch {
             console.warn('Failed to parse user data for school ID');
           }
         }
@@ -149,7 +146,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.schoolId) return payload.schoolId;
-          } catch (e) {
+          } catch {
             console.warn('Failed to decode token for school ID');
           }
         }
@@ -160,7 +157,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const user = JSON.parse(userData);
             return user.schoolId || user.id; // For school users, their ID is the school ID
-          } catch (e) {
+          } catch {
             console.warn('Failed to parse user data for school ID');
           }
         }
@@ -261,7 +258,7 @@ const TeacherDirectory: React.FC = () => {
       
       if (data) {
         // The apiGet function already extracts the data, so use it directly
-        const teacherData = data;
+        const teacherData = data as Teacher;
         
         // Format the data to ensure all fields are properly set
         const formattedTeacherData = {
@@ -274,11 +271,11 @@ const TeacherDirectory: React.FC = () => {
           dateOfBirth: teacherData.dateOfBirth || '',
           age: teacherData.age || 0,
           designation: teacherData.designation || 'Teacher',
-          qualification: teacherData.qualification || teacherData.education || '',
+          qualification: teacherData.qualification || '',
           address: teacherData.address || '',
           subjects: Array.isArray(teacherData.subjects) ? teacherData.subjects : [],
           sections: Array.isArray(teacherData.sections) ? teacherData.sections : [],
-          joining_year: teacherData.joining_year || teacherData.joinDate || '',
+          joining_year: teacherData.joining_year || '',
           experience: teacherData.experience || '',
           profileImage: teacherData.profileImage || '',
           isClassIncharge: teacherData.isClassIncharge || false,
@@ -333,7 +330,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.schoolId) return payload.schoolId;
-          } catch (e) {
+          } catch {
             console.warn('Failed to decode token for school ID');
           }
         }
@@ -344,7 +341,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const user = JSON.parse(userData);
             return user.schoolId || user.id; // For school users, their ID is the school ID
-          } catch (e) {
+          } catch {
             console.warn('Failed to parse user data for school ID');
           }
         }
@@ -386,7 +383,7 @@ const TeacherDirectory: React.FC = () => {
         address: formData.address || '',
         qualification: formData.qualification || '',
         experience: formData.experience || '0',
-        profileImage: formData.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
+        profileImage: formData.profileImage || '',
         isClassIncharge: formData.isClassIncharge || false,
         inchargeClass: formData.isClassIncharge ? formData.inchargeClass : null,
         inchargeSection: formData.isClassIncharge ? formData.inchargeSection : null,
@@ -445,7 +442,7 @@ const TeacherDirectory: React.FC = () => {
   const handleEditTeacher = async (teacher: Teacher) => {
     try {
       // Fetch the complete teacher data
-      const teacherData = await apiGet(`/teachers/${teacher.id}`);
+      const teacherData = await apiGet(`/teachers/${teacher.id}`) as Teacher;
       
       if (teacherData) {
         // Format the data to ensure all fields are properly set
@@ -508,9 +505,12 @@ const TeacherDirectory: React.FC = () => {
   };
 
   // Handle deleting a teacher
-  const handleDeleteTeacher = (teacher: Teacher) => {
-    setTeacherToDelete(teacher);
-    setIsDeleteModalOpen(true);
+  const handleDeleteTeacher = (teacherId: number) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    if (teacher) {
+      setTeacherToDelete(teacher);
+      setIsDeleteModalOpen(true);
+    }
   };
 
   const confirmDelete = async () => {
@@ -633,7 +633,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.schoolId) return payload.schoolId;
-          } catch (e) {
+          } catch {
             console.warn('Failed to decode token for school ID');
           }
         }
@@ -644,7 +644,7 @@ const TeacherDirectory: React.FC = () => {
           try {
             const user = JSON.parse(userData);
             return user.schoolId || user.id; // For school users, their ID is the school ID
-          } catch (e) {
+          } catch {
             console.warn('Failed to parse user data for school ID');
           }
         }
@@ -1000,7 +1000,7 @@ const TeacherDirectory: React.FC = () => {
       });
 
       // Add page numbers
-      const totalPages = (doc as any).internal.getNumberOfPages();
+      const totalPages = (doc.internal as any).getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);

@@ -280,11 +280,11 @@ export const createDriver = async (req, res) => {
     });
     
     // Validate required fields
-    if (!name || !contactNumber) {
-      console.error('Missing required fields:', { name: !!name, contactNumber: !!contactNumber });
+    if (!name || !contactNumber || !gender) {
+      console.error('Missing required fields:', { name: !!name, contactNumber: !!contactNumber, gender: !!gender });
       return res.status(400).json({
         success: false,
-        message: "Please provide name and contact number"
+        message: "Please provide name, contact number, and gender"
       });
     }
     

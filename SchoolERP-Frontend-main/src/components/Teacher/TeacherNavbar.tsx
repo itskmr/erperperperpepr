@@ -4,12 +4,11 @@ import {
   Book, 
   Settings, 
   LogOut, 
-  FileText, 
   User, 
   Home, 
   Users, 
-  MessageSquare,
-  BookOpen
+  BookOpen,
+  Calendar
 } from "lucide-react";
 
 interface TeacherNavbarProps {
@@ -129,6 +128,12 @@ const TeacherNavbar = {
             <NavLink 
               to="/classes/manage" 
               label="Manage Classes" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            />
+            <NavLink 
+              to="/teacher/timetable" 
+              icon={<Calendar className="h-4 w-4 text-emerald-600" />}
+              label="My Timetable" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             {/* <NavLink 

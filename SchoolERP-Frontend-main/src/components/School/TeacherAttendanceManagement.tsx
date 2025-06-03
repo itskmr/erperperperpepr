@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { 
-  FaCalendarAlt, 
-  FaSearch, 
-  FaDownload, 
-  FaFilter, 
-  FaExclamationTriangle, 
-  FaFileAlt,
-  FaClock,
-  FaUsers,
-  FaChartBar
-} from 'react-icons/fa';
+  Calendar, 
+  Search, 
+  Download, 
+  Filter, 
+  AlertTriangle, 
+  FileText,
+  Clock,
+  Users,
+  BarChart3
+} from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -56,7 +56,7 @@ class TeacherAttendanceErrorBoundary extends React.Component<
         <div className="bg-red-50 border border-red-200 rounded-md p-6 m-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <FaExclamationTriangle className="h-5 w-5 text-red-400" />
+              <AlertTriangle className="h-5 w-5 text-red-400" />
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-red-800">
@@ -391,7 +391,7 @@ const TeacherAttendanceManagement: React.FC = () => {
             <div className="p-4 bg-red-50 border-l-4 border-red-500">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <FaExclamationTriangle className="h-5 w-5 text-red-500" />
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
@@ -411,7 +411,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                     : 'text-gray-500 hover:text-green-600'
                 }`}
               >
-                <FaUsers className="inline mr-2" />
+                <Users className="inline mr-2" />
                 Daily Attendance
               </button>
               <button
@@ -422,7 +422,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                     : 'text-gray-500 hover:text-green-600'
                 }`}
               >
-                <FaFileAlt className="inline mr-2" />
+                <FileText className="inline mr-2" />
                 Reports
               </button>
               <button
@@ -433,7 +433,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                     : 'text-gray-500 hover:text-green-600'
                 }`}
               >
-                <FaChartBar className="inline mr-2" />
+                <BarChart3 className="inline mr-2" />
                 Dashboard
               </button>
             </div>
@@ -447,7 +447,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                   <div className="flex items-center space-x-4">
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FaCalendarAlt className="text-gray-400" />
+                        <Calendar className="text-gray-400" />
                       </div>
                       <DatePicker
                         selected={selectedDate}
@@ -461,13 +461,13 @@ const TeacherAttendanceManagement: React.FC = () => {
                       onClick={() => setShowFilters(!showFilters)}
                       className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                     >
-                      <FaFilter className="mr-2" /> Filters
+                      <Filter className="mr-2" /> Filters
                     </button>
                   </div>
                   
                   <div className="relative w-full md:w-64">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaSearch className="text-gray-400" />
+                      <Search className="text-gray-400" />
                     </div>
                     <input
                       type="text"
@@ -517,26 +517,69 @@ const TeacherAttendanceManagement: React.FC = () => {
 
               {/* Stats */}
               <div className="p-6 bg-white border-b border-gray-200">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <div className="text-lg font-medium text-blue-800">{stats.total}</div>
-                    <div className="text-sm text-blue-600">Total Teachers</div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-blue-100 text-sm font-medium">Total Teachers</p>
+                        <p className="text-2xl font-bold">{stats.total}</p>
+                      </div>
+                      <div className="bg-blue-400 p-3 rounded-full">
+                        <Users className="h-6 w-6" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                    <div className="text-lg font-medium text-green-800">{stats.present}</div>
-                    <div className="text-sm text-green-600">Present</div>
+                  
+                  <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-100 text-sm font-medium">Present</p>
+                        <p className="text-2xl font-bold">{stats.present}</p>
+                      </div>
+                      <div className="bg-green-400 p-3 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-red-50 p-4 rounded-lg border border-red-100">
-                    <div className="text-lg font-medium text-red-800">{stats.absent}</div>
-                    <div className="text-sm text-red-600">Absent</div>
+                  
+                  <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-red-100 text-sm font-medium">Absent</p>
+                        <p className="text-2xl font-bold">{stats.absent}</p>
+                      </div>
+                      <div className="bg-red-400 p-3 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
-                    <div className="text-lg font-medium text-yellow-800">{stats.late}</div>
-                    <div className="text-sm text-yellow-600">Late</div>
+                  
+                  <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-yellow-100 text-sm font-medium">Late</p>
+                        <p className="text-2xl font-bold">{stats.late}</p>
+                      </div>
+                      <div className="bg-yellow-400 p-3 rounded-full">
+                        <Clock className="h-6 w-6" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                    <div className="text-lg font-medium text-gray-800">{stats.attendanceRate}%</div>
-                    <div className="text-sm text-gray-600">Attendance Rate</div>
+                  
+                  <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-purple-100 text-sm font-medium">Attendance Rate</p>
+                        <p className="text-2xl font-bold">{stats.attendanceRate}%</p>
+                      </div>
+                      <div className="bg-purple-400 p-3 rounded-full">
+                        <BarChart3 className="h-6 w-6" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -656,13 +699,13 @@ const TeacherAttendanceManagement: React.FC = () => {
                               <div className="flex space-x-2 text-xs">
                                 {attendance?.checkInTime && (
                                   <div className="flex items-center">
-                                    <FaClock className="mr-1" />
+                                    <Clock className="mr-1" />
                                     In: {teacherAttendanceService.formatTimeForDisplay(attendance.checkInTime)}
                                   </div>
                                 )}
                                 {attendance?.checkOutTime && (
                                   <div className="flex items-center">
-                                    <FaClock className="mr-1" />
+                                    <Clock className="mr-1" />
                                     Out: {teacherAttendanceService.formatTimeForDisplay(attendance.checkOutTime)}
                                   </div>
                                 )}
@@ -793,7 +836,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <FaFileAlt className="mr-2" />
+                          <FileText className="mr-2" />
                           Generate Report
                         </>
                       )}
@@ -804,7 +847,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                       disabled={!reportStartDate || !reportEndDate}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
                     >
-                      <FaDownload className="mr-2" />
+                      <Download className="mr-2" />
                       Export CSV
                     </button>
                   </div>
@@ -815,7 +858,7 @@ const TeacherAttendanceManagement: React.FC = () => {
                   <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
                     <div className="flex">
                       <div className="flex-shrink-0">
-                        <FaExclamationTriangle className="h-5 w-5 text-red-500" />
+                        <AlertTriangle className="h-5 w-5 text-red-500" />
                       </div>
                       <div className="ml-3">
                         <p className="text-sm text-red-700">{reportError}</p>

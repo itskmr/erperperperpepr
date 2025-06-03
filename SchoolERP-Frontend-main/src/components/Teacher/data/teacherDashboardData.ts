@@ -106,7 +106,7 @@ export const MOCK_TEACHER_DATA: TeacherData = {
   id: "T-1001",
   role: "Senior Mathematics Teacher",
   isClassIncharge: true,
-  profileImage: "https://randomuser.me/api/portraits/men/67.jpg", // Added profile image
+  profileImage: "", // Removed profile image
   assignedClasses: [
     { id: 1, name: "Class 9A", subject: "Mathematics", students: 28, attendance: 92 },
     { id: 2, name: "Class 10B", subject: "Mathematics", students: 25, attendance: 88 },

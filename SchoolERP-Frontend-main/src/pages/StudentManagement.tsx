@@ -458,70 +458,7 @@ const StudentManagement: React.FC = () => {
               <FileText className="h-4 w-4 mr-2" />
               Export PDF
             </button>
-            {/* Debug buttons for authentication troubleshooting */}
-            <button
-              onClick={() => {
-                debugAuth();
-              }}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm"
-              title="Debug Authentication Status"
-            >
-              Debug Auth
-            </button>
-            <button
-              onClick={async () => {
-                const isWorking = await testAuthentication();
-                showToast(isWorking ? 'success' : 'error', 
-                         isWorking ? 'Authentication is working' : 'Authentication failed - check console');
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm"
-              title="Test Current Authentication"
-            >
-              Test Auth
-            </button>
-            <button
-              onClick={() => {
-                clearAuthData();
-                showToast('success', 'Authentication data cleared');
-              }}
-              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-md text-sm"
-              title="Clear Auth Data"
-            >
-              Clear Auth
-            </button>
-            <button
-              onClick={async () => {
-                const token = await attemptSchoolLogin();
-                if (token) {
-                  showToast('success', 'School login successful - try API calls now');
-                  window.location.reload();
-                } else {
-                  showToast('error', 'School login failed - check console');
-                }
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-md text-sm"
-              title="Attempt School Login"
-            >
-              School Login
-            </button>
-            <button
-              onClick={() => {
-                simulateLogin();
-                showToast('success', 'Mock login completed - try API calls now');
-                window.location.reload();
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm"
-              title="Simulate Login for Testing"
-            >
-              Mock Login
-            </button>
-            <button
-              onClick={() => fetchStudents(1)}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md text-sm"
-              title="Retry Fetching Students"
-            >
-              Retry Fetch
-            </button>
+            
           </div>
           <button
             onClick={() => navigate('/students/StudentRegistrationForm')}

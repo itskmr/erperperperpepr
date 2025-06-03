@@ -420,12 +420,16 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
               { value: 'Class 8', label: 'Class 8' },
               { value: 'Class 9', label: 'Class 9' },
               { value: 'Class 10', label: 'Class 10' },
-              { value: 'Class 11', label: 'Class 11' },
-              { value: 'Class 12', label: 'Class 12' }
+              { value: 'Class 11 (Science)', label: 'Class 11 (Science)' },
+              { value: 'Class 11 (Commerce)', label: 'Class 11 (Commerce)' },
+              { value: 'Class 11 (Arts)', label: 'Class 11 (Arts)' },
+              { value: 'Class 12 (Science)', label: 'Class 12 (Science)' },
+              { value: 'Class 12 (Commerce)', label: 'Class 12 (Commerce)' },
+              { value: 'Class 12 (Arts)', label: 'Class 12 (Arts)' }
             ], true)}
             {renderSelect('Section', 'admitSession.section', [
               { value: '', label: 'Select Section' },
-              ...['A', 'B', 'C', 'D'].map(section => ({ 
+              ...['A', 'B', 'C', 'D', 'E'].map(section => ({ 
                 value: section, label: section 
               }))
             ])}

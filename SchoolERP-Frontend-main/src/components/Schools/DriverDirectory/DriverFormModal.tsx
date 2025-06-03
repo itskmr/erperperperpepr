@@ -47,41 +47,10 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
-    // Required fields
+    // Required fields - only name, gender, and contact number
     if (!(driverData as any).name?.trim()) errors.name = 'Name is required';
     if (!(driverData as any).contactNumber?.trim()) errors.contactNumber = 'Contact number is required';
-    if (!(driverData as any).dateOfBirth) errors.dateOfBirth = 'Date of birth is required';
     if (!(driverData as any).gender) errors.gender = 'Gender is required';
-
-    // Validate contact number format
-    const phoneRegex = /^[0-9]{10}$/;
-    if ((driverData as any).contactNumber && !phoneRegex.test((driverData as any).contactNumber.replace(/\D/g, ''))) {
-      errors.contactNumber = 'Contact number must be 10 digits';
-    }
-
-    // Validate age if DOB is provided
-    if ((driverData as any).dateOfBirth) {
-      const birthDate = new Date((driverData as any).dateOfBirth);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      
-      if (age < 18) {
-        errors.dateOfBirth = 'Driver must be at least 18 years old';
-      }
-      if (age > 80) {
-        errors.dateOfBirth = 'Please verify the date of birth';
-      }
-    }
-
-    // Validate experience
-    if ((driverData as any).experience && (driverData as any).experience < 0) {
-      errors.experience = 'Experience cannot be negative';
-    }
-
-    // Validate salary
-    if ((driverData as any).salary && (driverData as any).salary < 0) {
-      errors.salary = 'Salary cannot be negative';
-    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -118,10 +87,10 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
         type: file.type
       });
       
-      // Check file size (limit to 5MB)
-      if (file.size > 5 * 1024 * 1024) {
+      // Check file size (limit to 2MB for better compression)
+      if (file.size > 2 * 1024 * 1024) {
         console.error('File too large:', file.size);
-        alert('File size should be less than 5MB');
+        alert('File size should be less than 2MB for better compression');
         return;
       }
 
@@ -150,8 +119,8 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
               throw new Error('Could not get canvas context');
             }
             
-            // Set canvas size (max width/height 400px to reduce file size)
-            const maxSize = 400;
+            // Set canvas size (max width/height 300px to reduce file size significantly)
+            const maxSize = 300;
             let { width, height } = img;
             
             if (width > height) {
@@ -171,16 +140,16 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
             
             console.log('Resized image dimensions:', width, 'x', height);
             
-            // Draw and compress
+            // Draw and compress with higher compression
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70% quality
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5); // 50% quality for smaller size
             
             console.log('Compressed image size:', Math.round(compressedDataUrl.length / 1024), 'KB');
             
-            // Validate the compressed image size (should be much smaller now)
-            if (compressedDataUrl.length > 800000) { // ~800KB after base64 encoding
+            // Validate the compressed image size (strict limit)
+            if (compressedDataUrl.length > 400000) { // ~400KB after base64 encoding
               console.error('Compressed image still too large:', compressedDataUrl.length);
-              alert('Image is still too large after compression. Please choose a smaller image or reduce the quality.');
+              alert('Image is still too large after compression. Please choose a smaller image.');
               return;
             }
             
@@ -285,14 +254,13 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
                   {/* Date of Birth */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      Date of Birth *
+                      Date of Birth
                     </label>
                     <input
                       type="date"
                       name="dateOfBirth"
                       value={(driverData as any).dateOfBirth || ''}
                       onChange={handleFieldChange}
-                      required
                       className={`mt-1 block w-full border ${formErrors.dateOfBirth ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                       aria-invalid={!!formErrors.dateOfBirth}
                     />
@@ -335,7 +303,6 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
                       <option value="">Select Gender</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
-                      <option value="Other">Other</option>
                     </select>
                     {formErrors.gender && (
                       <p className="mt-1 text-sm text-red-600">{formErrors.gender}</p>
@@ -592,7 +559,7 @@ const DriverFormModal: React.FC<DriverFormModalProps> = ({
                               <p className="mb-2 text-sm text-gray-500">
                                 <span className="font-semibold">Click to upload</span> driver photo
                               </p>
-                              <p className="text-xs text-gray-500">PNG, JPG, JPEG or WebP (MAX. 5MB)</p>
+                              <p className="text-xs text-gray-500">PNG, JPG, JPEG or WebP (MAX. 2MB)</p>
                             </div>
                             <input
                               type="file"

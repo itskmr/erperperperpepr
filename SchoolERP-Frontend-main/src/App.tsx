@@ -70,6 +70,8 @@ import TeacherDiary from './components/Teacher/TeacherDiary';
 import DiaryViewer from './components/common/DiaryViewer';
 import SchoolDiaryView from './components/Schools/SchoolDiaryView';
 import TeacherAttendanceManagement from "./components/School/TeacherAttendanceManagement";
+import TeacherTimetable from './components/Teacher/TeacherTimetable';
+import StudentTimetable from './components/Student/StudentTimetable';
 
 // Parent components
 import { ParentDashboard, ParentAttendance } from './components/parent';
@@ -575,11 +577,11 @@ function AppContent({
         />
 
         <Route
-          path="/students/StudentRegistrationForm"
+          path="/teacher/timetable"
           element={
-            <ProtectedRoute allowedRoles={['admin', 'school']}>
+            <ProtectedRoute allowedRoles={['teacher']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <StudentRegistrationForm />
+                <TeacherTimetable />
               </Layout>
             </ProtectedRoute>
           }
@@ -1456,7 +1458,39 @@ function AppContent({
           }
         />
 
-        
+        <Route
+          path="/student/timetable"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentTimetable />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parent/student/:studentId/timetable"
+          element={
+            <ProtectedRoute allowedRoles={['parent']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentTimetable userRole="parent" />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/students/StudentRegistrationForm"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentRegistrationForm />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
       </Routes>
     </>
   );
