@@ -1,23 +1,22 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { FiMail, FiLock, FiEye, FiEyeOff, FiAlertCircle, FiArrowLeft } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiEye, FiEyeOff, FiAlertCircle, FiArrowLeft } from 'react-icons/fi';
 import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const ParentLogin: React.FC = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    parentType: 'father'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [useDemo, setUseDemo] = useState(false);
 
-  // Demo account for parent
-  const demoAccount = { email: 'parent@gmail.com', password: 'Parent@1234' };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -38,52 +37,21 @@ const ParentLogin: React.FC = () => {
     }
 
     setIsLoading(true);
+    setError('');
     
     try {
-      // Check if using demo credentials
-      if (useDemo || (formData.email === demoAccount.email && formData.password === demoAccount.password)) {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        // Store auth token
-        const mockToken = `parent-token-${Date.now()}`;
-        const mockUserData = {
-          id: 1,
-          name: 'Demo Parent',
-          email: demoAccount.email,
-          children: [
-            { id: 101, name: 'Sam Smith', class: '8th Grade', section: 'B' },
-            { id: 102, name: 'Emma Smith', class: '5th Grade', section: 'A' }
-          ]
-        };
-        
-        // Add authToken as well for consistent auth state
-        localStorage.setItem('token', mockToken);
-        localStorage.setItem('authToken', mockToken);
-        localStorage.setItem('role', 'parent');
-        localStorage.setItem('userRole', 'parent');
-        localStorage.setItem('userData', JSON.stringify(mockUserData));
-        
-        console.log('Demo login successful, redirecting to /parent/dashboard');
-        console.log('Auth data:', {
-          token: mockToken,
-          role: 'parent',
-          userData: mockUserData
-        });
-        
-        // Use window.location.href for a full page reload to ensure auth state is recognized
-        window.location.href = '/parent/dashboard';
-        return;
-      }
-      
-      // Actual authentication logic with API call
-      const response = await fetch('http://localhost:5000/api/parentLogin', {
+      const endpoint = `${API_URL}/schools/parent/email-login`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        credentials: "include",
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          parentType: formData.parentType
+        })
       });
       
       const data = await response.json();
@@ -91,54 +59,47 @@ const ParentLogin: React.FC = () => {
       if (!response.ok) {
         // Provide more specific error messages based on status codes
         if (response.status === 403) {
-          setError('This account is inactive. Please contact administrator.');
+          setError('Parent account is inactive. Please contact administration.');
         } else if (response.status === 401) {
-          setError('Invalid email or password.');
+          setError('Invalid email or password for the selected parent type.');
         } else if (response.status === 404) {
-          setError('Login endpoint not found.');
+          setError('Parent not found with provided email.');
         } else {
-          setError(data.error || data.message || 'Login failed. Please check your credentials.');
+          setError(data.message || 'Login failed. Please check your credentials.');
         }
         return;
       }
       
       if (data.success && data.data && data.data.token) {
+        // Store authentication data
         localStorage.setItem('token', data.data.token);
-        localStorage.setItem('authToken', data.data.token); // Add authToken for consistency
+        localStorage.setItem('authToken', data.data.token);
         localStorage.setItem('role', 'parent');
-        localStorage.setItem('userRole', 'parent'); // Add userRole for consistency
-        localStorage.setItem('userData', JSON.stringify(data.data.user));
+        localStorage.setItem('userRole', 'parent');
+        localStorage.setItem('userData', JSON.stringify(data.data.parent));
         
-        console.log('API login successful, redirecting to /parent/dashboard');
+        toast.success('Login successful!');
+        
+        console.log('Parent login successful, redirecting to /parent/dashboard');
         console.log('Auth data:', {
           token: data.data.token,
           role: 'parent',
-          userData: data.data.user
+          userData: data.data.parent
         });
         
-        // Use window.location.href for a full page reload to ensure auth state is recognized
+        // Navigate to parent dashboard
         window.location.href = '/parent/dashboard';
       } else {
-        setError('Invalid response from server. Missing token or user data.');
+        setError('Invalid response from server. Missing token or parent data.');
       }
       
     } catch (err) {
-      setError('Cannot connect to the server. Try using demo credentials or check network.');
+      setError('Cannot connect to the server. Please check your network connection.');
       console.error('Login error:', err);
     } finally {
       setIsLoading(false);
     }
   };
-  
-  // Set up demo account data when demo mode is toggled
-  React.useEffect(() => {
-    if (useDemo) {
-      setFormData({
-        email: demoAccount.email,
-        password: demoAccount.password,
-      });
-    }
-  }, [useDemo]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
@@ -149,7 +110,17 @@ const ParentLogin: React.FC = () => {
           transition={{ duration: 0.3 }}
           className="bg-white rounded-2xl shadow-xl overflow-hidden p-6"
         >
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Parent Login</h2>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <Link
+              to="/auth"
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <FiArrowLeft className="text-gray-600" />
+            </Link>
+            <h2 className="text-2xl font-bold text-gray-800">Parent Login</h2>
+            <div className="w-8"></div>
+          </div>
           
           {error && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded flex items-center">
@@ -159,113 +130,100 @@ const ParentLogin: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit}>
+            {/* Parent Type Selection */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
-                Email
+              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="parentType">
+                Parent Type
               </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                  <FiMail />
-                </span>
+                <select
+                  id="parentType"
+                  name="parentType"
+                  value={formData.parentType}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  required
+                >
+                  <option value="father">Father</option>
+                  <option value="mother">Mother</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Email Input */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
+                Email Address
+              </label>
+              <div className="relative">
                 <input
                   id="email"
                   name="email"
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="parent@example.com"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder={`${formData.parentType}@example.com`}
+                  required
                 />
               </div>
             </div>
 
+            {/* Password Input */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
                 Password
               </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                  <FiLock />
-                </span>
                 <input
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-10 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 pr-10 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="••••••••"
+                  required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
                 >
                   {showPassword ? <FiEyeOff /> : <FiEye />}
                 </button>
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={useDemo}
-                  onChange={() => setUseDemo(!useDemo)}
-                  className="form-checkbox h-5 w-5 text-orange-600"
-                />
-                <span className="ml-2 text-sm text-gray-700">
-                  Use demo credentials
-                </span>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between mb-4">
-              <Link to="/auth/parent-signup" className="text-sm text-orange-600 hover:text-orange-800 transition-colors duration-300">
-                Don't have an account? Sign up
-              </Link>
-              <Link to="/auth/parent/reset-password" className="text-sm text-orange-600 hover:text-orange-800 transition-colors duration-300">
-                Forgot password?
-              </Link>
-            </div>
-
-            <div className="flex gap-3">
-              <Link
-                to="/auth"
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors duration-300 flex items-center justify-center"
-              >
-                <FiArrowLeft className="mr-2" />
-                Back
-              </Link>
-
-              <motion.button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors duration-300"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Signing in...
-                  </span>
-                ) : (
-                  'Sign In'
-                )}
-              </motion.button>
-            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-orange-600 text-white py-2 rounded-lg font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Signing in...
+                </div>
+              ) : (
+                'Sign In'
+              )}
+            </button>
           </form>
 
-          <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
-            <p className="text-xs text-orange-800 font-semibold">Demo Parent Credentials</p>
-            <p className="text-xs text-orange-700 mt-1">
-              Email: {demoAccount.email}
-              <br />
-              Password: {demoAccount.password}
+          {/* Footer Links */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Need help with your account?{' '}
+              <Link to="/contact" className="text-orange-600 hover:text-orange-700 font-medium">
+                Contact Support
+              </Link>
+            </p>
+            <p className="text-sm text-gray-600 mt-2">
+              Are you a student?{' '}
+              <Link to="/auth/student-login" className="text-orange-600 hover:text-orange-700 font-medium">
+                Student Login
+              </Link>
             </p>
           </div>
         </motion.div>

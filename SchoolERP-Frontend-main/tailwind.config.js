@@ -47,13 +47,18 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1', transform: 'scale(1)' }
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' }
         },
+        'pulse': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.05)' }
+        }
       },
       animation: {
-        fadeIn: 'fadeIn 0.3s ease-out',
+        'fade-in': 'fade-in 0.3s ease-out',
+        'pulse': 'pulse 2s ease-in-out infinite',
       },
     },
   },

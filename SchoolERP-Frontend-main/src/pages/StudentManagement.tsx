@@ -1,421 +1,486 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Plus, Search,  Download, Edit, Trash2, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, Download, Edit, Trash2, X, Eye, FileText, Users, GraduationCap } from 'lucide-react';
+import jsPDF from 'jspdf';
+import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { apiGet, apiDelete, ApiError, apiGetWithMeta } from '../utils/authApi';
+import { debugAuth, clearAuthData, simulateLogin, testAuthentication, attemptSchoolLogin } from '../utils/authDebug';
 
 // Define Student type
 interface Student {
-  id: number;
-  name: string;
-  admissionNo: string;
-  class: string;
-  feeStatus: 'Paid' | 'Partially Paid' | 'Unpaid';
-  totalFees: number;
-  paidAmount: number;
-  dueAmount: number;
-  lastPaymentDate?: string;
+  id: string;
   fullName: string;
+  admissionNo: string;
+  gender: string;
+  className?: string;
+  section?: string;
+  fatherName?: string;
+  motherName?: string;
+  dateOfBirth?: string;
+  contactNumber?: string;
+  email?: string;
+  address?: string;
+  bloodGroup?: string;
+  category?: string;
+  religion?: string;
+  guardianName?: string;
+  guardianContact?: string;
+  emergencyContact?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  sessionInfo?: {
+    currentClass?: string;
+    currentSection?: string;
+    currentRollNo?: string;
+    currentStream?: string;
+    currentHouse?: string;
+    currentFeeGroup?: string;
+  };
+  mobileNumber?: string;
+  aadhaarNumber?: string;
+  apaarId?: string;
+  houseNo?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  pinCode?: string;
+  permanentHouseNo?: string;
+  permanentStreet?: string;
+  permanentCity?: string;
+  permanentState?: string;
+  permanentPinCode?: string;
 }
 
-// StudentManagement Component
-const StudentManagement = () => {
-  // State management
-  const [students, setStudents] = useState<Student[]>([
-    {
-      id: 1,
-      name: 'John Doe',
-      admissionNo: 'ST2024001',
-      class: 'Grade 10',
-      feeStatus: 'Paid',
-      totalFees: 50000,
-      paidAmount: 50000,
-      dueAmount: 0,
-      lastPaymentDate: '2024-02-15',
-      fullName: 'John Doe',
-    },
-    {
-      id: 2,
-      name: 'Jane Smith',
-      admissionNo: 'ST2024002',
-      class: 'Grade 9',
-      feeStatus: 'Partially Paid',
-      totalFees: 45000,
-      paidAmount: 30000,
-      dueAmount: 15000,
-      lastPaymentDate: '2024-01-20',
-      fullName: 'Jane Smith',
-    },
-    {
-      id: 3,
-      name: 'Mike Johnson',
-      admissionNo: 'ST2024003',
-      class: 'Grade 11',
-      feeStatus: 'Unpaid',
-      totalFees: 55000,
-      paidAmount: 0,
-      dueAmount: 55000,
-      fullName: 'Mike Johnson',
-    },
-  ]);
+// Predefined classes and sections
+const CLASSES = [
+  'Nursery',
+  'LKG',
+  'UKG',
+  'Class 1',
+  'Class 2',
+  'Class 3',
+  'Class 4',
+  'Class 5',
+  'Class 6',
+  'Class 7',
+  'Class 8',
+  'Class 9',
+  'Class 10',
+  'Class 11 (Science)',
+  'Class 11 (Commerce)',
+  'Class 11 (Arts)',
+  'Class 12 (Science)',
+  'Class 12 (Commerce)',
+  'Class 12 (Arts)'
+];
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+// StudentManagement Component
+const StudentManagement: React.FC = () => {
+  const navigate = useNavigate();
+  
+  // State management
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Student; direction: 'ascending' | 'descending' } | null>(null);
-  const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
-  const [viewDetails, setViewDetails] = useState<number | null>(null);
+  const [filterSection, setFilterSection] = useState('');
+  const [filterGender, setFilterGender] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalStudents, setTotalStudents] = useState(0);
+  // const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
+  // const [drivers, setDrivers] = useState<Driver[]>([]);
 
-  // Form state for adding/editing student
-  const [formData, setFormData] = useState<Omit<Student, 'id' | 'dueAmount'>>({
-    name: '',
-    admissionNo: '',
-    class: '',
-    feeStatus: 'Unpaid',
-    totalFees: 0,
-    paidAmount: 0,
-    lastPaymentDate: '',
-    fullName: '',
+  // Show toast notification
+  const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+    if (type === 'info') {
+      toast(message, {
+        duration: 3000,
+        style: {
+          background: '#6B7280',
+          color: '#ffffff',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+        iconTheme: {
+          primary: '#ffffff',
+          secondary: '#6B7280',
+        },
+      });
+    } else {
+      toast[type](message, {
+        duration: 3000,
+        style: {
+          background: type === 'success' ? '#2563EB' : '#EF4444',
+          color: '#ffffff',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+        iconTheme: {
+          primary: '#ffffff',
+          secondary: type === 'success' ? '#2563EB' : '#EF4444',
+        },
+      });
+    }
+  };
+
+  // Fetch transport routes and drivers
+  // const fetchTransportData = useCallback(async () => {
+  //   try {
+  //     const [routesResponse, driversResponse] = await Promise.all([
+  //       axios.get(`${API_URL}/transport/routes`),
+  //       axios.get(`${API_URL}/transport/drivers`)
+  //     ]);
+
+  //     if (routesResponse.data?.success) {
+  //       // setTransportRoutes(routesResponse.data.data || []);
+  //     }
+
+  //     if (driversResponse.data?.success) {
+  //       // setDrivers(driversResponse.data.data || []);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching transport data:', error);
+  //   }
+  // }, []);
+
+  // Fetch students from API
+  const fetchStudents = useCallback(async (page = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10'
+        // Remove schoolId as it will be handled by backend auth middleware
+      });
+      
+      if (filterClass) params.append('class', filterClass);
+      if (filterSection) params.append('section', filterSection);
+      if (searchTerm) params.append('search', searchTerm);
+      
+      console.log('Fetching students with params:', params.toString());
+      console.log('Current auth token:', localStorage.getItem('token') ? 'Present' : 'Missing');
+      
+      const response = await apiGetWithMeta<Student[]>(`/students?${params.toString()}`);
+      
+      console.log('API Response received:', response);
+      
+      // The response should have the structure: { success: true, data: Student[], pagination: {...} }
+      if (response && response.success && response.data) {
+        console.log(`Successfully fetched ${response.data.length} students`);
+        setStudents(response.data);
+        setTotalStudents(response.pagination?.total || 0);
+        setTotalPages(response.pagination?.totalPages || 0);
+        setCurrentPage(response.pagination?.page || 1);
+      } else {
+        console.warn('Unexpected response structure:', response);
+        setError('Unexpected response format from server');
+      }
+    } catch (err: unknown) {
+      console.error('Error fetching students:', err);
+      const apiErr = err as ApiError;
+      
+      if (apiErr.status === 401) {
+        setError('Authentication failed. Please log in again.');
+        console.log('🔒 Authentication failed - token may be expired or invalid');
+      } else if (apiErr.status === 403) {
+        setError('Access denied. You do not have permission to view students.');
+        console.log('🚫 Access denied - insufficient permissions');
+      } else if (apiErr.status === 404) {
+        setError('No students found.');
+        console.log('📭 No students found');
+      } else {
+        setError(`Failed to fetch students: ${apiErr.message || 'Unknown error'}`);
+        console.log('❌ API Error:', apiErr);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [filterClass, filterSection, searchTerm]);
+
+  // Initial fetch
+  useEffect(() => {
+    // Debug authentication on component mount
+    console.log('StudentManagement mounted - checking auth status');
+    debugAuth();
+    
+    fetchStudents(1);
+    // fetchTransportData();
+  }, [fetchStudents]);
+
+  // Handle view student
+  const handleViewStudent = async (student: Student) => {
+    try {
+      const data = await apiGet<Student>(`/students/${student.id}`);
+      if (data) {
+        setSelectedStudent(data);
+        setIsViewModalOpen(true);
+      } else {
+        showToast('error', 'Failed to fetch student details');
+      }
+    } catch (err: unknown) {
+      console.error('Error fetching student details:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to fetch student details: ' + (apiErr.message || 'Unknown error'));
+    }
+  };
+
+  // Handle edit student - route to edit form instead of modal
+  const handleEditStudent = (student: Student) => {
+    navigate(`/student-edit/${student.id}`);
+  };
+
+  // Handle delete student
+  const handleDeleteStudent = (student: Student) => {
+    setStudentToDelete(student);
+    setIsDeleteModalOpen(true);
+  };
+
+  // Confirm delete student
+  const confirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+
+    try {
+      await apiDelete(`/students/${studentToDelete.id}`);
+      
+      setStudents(students.filter(s => s.id !== studentToDelete.id));
+      showToast('success', 'Student deleted successfully');
+      fetchStudents(currentPage); // Refresh the list
+    } catch (err: unknown) {
+      console.error('Error deleting student:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to delete student: ' + (apiErr.message || 'Unknown error'));
+    } finally {
+      setIsDeleteModalOpen(false);
+      setStudentToDelete(null);
+    }
+  };
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const csvContent = [
+      ['Full Name', 'Admission No', 'Class', 'Section', 'Gender', 'Father Name', 'Contact', 'Email'].join(','),
+      ...students.map(student => [
+        student.fullName,
+        student.admissionNo,
+        student.sessionInfo?.currentClass || student.className || '',
+        student.sessionInfo?.currentSection || student.section || '',
+        student.gender,
+        student.fatherName || '',
+        student.contactNumber || '',
+        student.email || ''
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'students.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    showToast('success', 'CSV export completed!');
+  };
+
+  // Export to PDF
+  const exportToPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setTextColor(37, 99, 235);
+      doc.text('Student Management Report', 20, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(75, 85, 99);
+      doc.text('Generated on: ' + new Date().toLocaleDateString(), 20, 30);
+      
+      // Add line separator
+      doc.setDrawColor(229, 231, 235);
+      doc.line(20, 35, 190, 35);
+      
+      // Table headers
+      let yPosition = 45;
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Name', 20, yPosition);
+      doc.text('Admission No', 70, yPosition);
+      doc.text('Class', 120, yPosition);
+      doc.text('Gender', 150, yPosition);
+      
+      yPosition += 5;
+      doc.line(20, yPosition, 190, yPosition);
+      yPosition += 10;
+      
+      // Student data
+      students.forEach((student) => {
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(10);
+        doc.text(student.fullName || 'N/A', 20, yPosition);
+        doc.text(student.admissionNo || 'N/A', 70, yPosition);
+        doc.text(student.sessionInfo?.currentClass || student.className || 'N/A', 120, yPosition);
+        doc.text(student.gender || 'N/A', 150, yPosition);
+        yPosition += 8;
+      });
+      
+      // Footer
+      doc.setFontSize(8);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Total Students: ${students.length}`, 20, 280);
+      
+      // Open in new tab
+      const pdfBlob = doc.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      window.open(url, '_blank');
+      
+      showToast('success', 'PDF export completed!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      showToast('error', 'Failed to generate PDF');
+    }
+  };
+
+  // Filter students
+  const filteredStudents = students.filter(student => {
+    const matchesSearch = 
+      student.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.admissionNo?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesClass = filterClass 
+      ? (student.sessionInfo?.currentClass || student.className) === filterClass 
+      : true;
+    
+    const matchesSection = filterSection 
+      ? (student.sessionInfo?.currentSection || student.section) === filterSection 
+      : true;
+    
+    const matchesGender = filterGender ? student.gender === filterGender : true;
+    
+    return matchesSearch && matchesClass && matchesSection && matchesGender;
   });
 
-  // Available classes for dropdown
-  const availableClasses = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-  const feeStatusOptions = ['Paid', 'Partially Paid', 'Unpaid'];
+  // Get unique classes for filter
+  const uniqueClasses = Array.from(new Set(students.map(s => s.sessionInfo?.currentClass || s.className).filter(Boolean)));
 
-  // Helper Functions
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Paid':
-        return 'bg-green-100 text-green-800';
-      case 'Partially Paid':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Unpaid':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Reset form data
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      admissionNo: '',
-      class: '',
-      feeStatus: 'Unpaid',
-      totalFees: 0,
-      paidAmount: 0,
-      lastPaymentDate: '',
-      fullName: '',
-    });
-  };
-
-  // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    
-    if (name === 'totalFees' || name === 'paidAmount') {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: parseInt(value) || 0,
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-    }
-  };
-
-  // Handle student addition
-  const handleAddStudent = () => {
-    const newId = students.length > 0 ? Math.max(...students.map(s => s.id)) + 1 : 1;
-    const dueAmount = formData.totalFees - formData.paidAmount;
-    
-    // Determine fee status based on payment
-    let calculatedFeeStatus: 'Paid' | 'Partially Paid' | 'Unpaid';
-    if (formData.paidAmount === 0) {
-      calculatedFeeStatus = 'Unpaid';
-    } else if (formData.paidAmount >= formData.totalFees) {
-      calculatedFeeStatus = 'Paid';
-    } else {
-      calculatedFeeStatus = 'Partially Paid';
-    }
-    
-    const newStudent: Student = {
-      id: newId,
-      ...formData,
-      feeStatus: calculatedFeeStatus,
-      dueAmount: Math.max(0, dueAmount),
-      paidAmount: Math.min(formData.paidAmount, formData.totalFees),
-      fullName: formData.name,
-    };
-    
-    setStudents([...students, newStudent]);
-    resetForm();
-    setShowAddForm(false);
-  };
-
-  // Handle student update
-  const handleUpdateStudent = () => {
-    if (!editingStudent) return;
-    
-    const dueAmount = formData.totalFees - formData.paidAmount;
-    
-    // Determine fee status based on payment
-    let calculatedFeeStatus: 'Paid' | 'Partially Paid' | 'Unpaid';
-    if (formData.paidAmount === 0) {
-      calculatedFeeStatus = 'Unpaid';
-    } else if (formData.paidAmount >= formData.totalFees) {
-      calculatedFeeStatus = 'Paid';
-    } else {
-      calculatedFeeStatus = 'Partially Paid';
-    }
-    
-    const updatedStudents = students.map(student => {
-      if (student.id === editingStudent.id) {
-        return {
-          ...student,
-          ...formData,
-          feeStatus: calculatedFeeStatus,
-          dueAmount: Math.max(0, dueAmount),
-          paidAmount: Math.min(formData.paidAmount, formData.totalFees),
-          fullName: formData.name,
-        };
-      }
-      return student;
-    });
-    
-    setStudents(updatedStudents);
-    setEditingStudent(null);
-    resetForm();
-  };
-
-  // Handle student deletion
-  const handleDeleteStudent = (id: number) => {
-    setStudents(students.filter(student => student.id !== id));
-    // If the deleted student was being viewed, close the details view
-    if (viewDetails === id) {
-      setViewDetails(null);
-    }
-  };
-
-  // Handle student edit
-  const handleEditStudent = (student: Student) => {
-    setEditingStudent(student);
-    setFormData({
-      name: student.name,
-      admissionNo: student.admissionNo,
-      class: student.class,
-      feeStatus: student.feeStatus,
-      totalFees: student.totalFees,
-      paidAmount: student.paidAmount,
-      lastPaymentDate: student.lastPaymentDate || '',
-      fullName: student.fullName,
-    });
-  };
-
-  // Handle sorting
-  const handleSort = (key: keyof Student) => {
-    let direction: 'ascending' | 'descending' = 'ascending';
-    
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    
-    setSortConfig({ key, direction });
-  };
-
-  // Handle bulk selection
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedStudents(filteredStudents.map(student => student.id));
-    } else {
-      setSelectedStudents([]);
-    }
-  };
-
-  const handleSelectStudent = (e: React.ChangeEvent<HTMLInputElement>, id: number) => {
-    if (e.target.checked) {
-      setSelectedStudents([...selectedStudents, id]);
-    } else {
-      setSelectedStudents(selectedStudents.filter(studentId => studentId !== id));
-    }
-  };
-
-  // Export functions
-  const exportToCSV = () => {
-    let dataToExport = students;
-    
-    // If there are selected students, export only those
-    if (selectedStudents.length > 0) {
-      dataToExport = students.filter(student => selectedStudents.includes(student.id));
-    }
-    
-    // Create CSV header and rows
-    const headers = ['Name', 'Admission No', 'Class', 'Fee Status', 'Total Fees', 'Paid Amount', 'Due Amount', 'Last Payment Date'];
-    const rows = dataToExport.map(student => [
-      student.name,
-      student.admissionNo,
-      student.class,
-      student.feeStatus,
-      student.totalFees,
-      student.paidAmount,
-      student.dueAmount,
-      student.lastPaymentDate || 'Not available'
-    ]);
-    
-    // Combine headers and rows
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    
-    // Create a blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'student_fee_data.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Filter and sort students
-  let filteredStudents = [...students];
-  
-  // Apply search filter
-  if (searchTerm) {
-    filteredStudents = filteredStudents.filter(
-      student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.admissionNo.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }
-  
-  // Apply class filter
-  if (filterClass) {
-    filteredStudents = filteredStudents.filter(student => student.class === filterClass);
-  }
-  
-  // Apply status filter
-  if (filterStatus) {
-    filteredStudents = filteredStudents.filter(student => student.feeStatus === filterStatus);
-  }
-  
-  // Apply sorting
-  if (sortConfig) {
-    filteredStudents.sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
-      
-      if (aValue !== undefined && bValue !== undefined) {
-        if (aValue < bValue) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
-      }
-      return 0;
-    });
-  }
-
-  // Get totals for dashboard
-  const totalStudents = students.length;
-  const totalFees = students.reduce((sum, student) => sum + student.totalFees, 0);
-  const totalCollected = students.reduce((sum, student) => sum + student.paidAmount, 0);
-  const totalDue = students.reduce((sum, student) => sum + student.dueAmount, 0);
-  const paidStudents = students.filter(student => student.feeStatus === 'Paid').length;
-  const partiallyPaidStudents = students.filter(student => student.feeStatus === 'Partially Paid').length;
-  const unpaidStudents = students.filter(student => student.feeStatus === 'Unpaid').length;
+  // Calculate statistics
+  const totalMaleStudents = students.filter(s => s.gender?.toLowerCase() === 'male').length;
+  const totalFemaleStudents = students.filter(s => s.gender?.toLowerCase() === 'female').length;
+  const totalClasses = uniqueClasses.length;
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="sm:flex sm:items-center">
-        <div className="sm:flex-auto">
-          <h1 className="text-2xl font-semibold text-gray-900">Student Fee Management</h1>
-          <p className="mt-2 text-sm text-gray-700">
-            Manage student records, view fee status, and handle registrations.
-          </p>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Management</h1>
+        <p className="text-gray-600">Manage and organize student records</p>
+      </div>
+
+      {/* Statistics Section */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Students</p>
+              <p className="text-2xl font-bold">{totalStudents}</p>
+          </div>
+            <div className="bg-blue-400 p-3 rounded-full">
+              <Users className="h-6 w-6" />
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <Button onClick={() => { resetForm(); setShowAddForm(true); }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Student
-          </Button>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Male Students</p>
+              <p className="text-2xl font-bold">{totalMaleStudents}</p>
+          </div>
+            <div className="bg-green-400 p-3 rounded-full">
+              <Users className="h-6 w-6" />
+        </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-pink-500 to-pink-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-pink-100 text-sm font-medium">Female Students</p>
+              <p className="text-2xl font-bold">{totalFemaleStudents}</p>
+      </div>
+            <div className="bg-pink-400 p-3 rounded-full">
+              <Users className="h-6 w-6" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Total Classes</p>
+              <p className="text-2xl font-bold">{totalClasses}</p>
+            </div>
+            <div className="bg-purple-400 p-3 rounded-full">
+              <GraduationCap className="h-6 w-6" />
+          </div>
+        </div>
+            </div>
+          </div>
+
+      {/* Action Buttons */}
+      <div className="mb-6 bg-white rounded-lg shadow-md p-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex gap-2">
+            <button
+              onClick={exportToCSV}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
+              title="Export to CSV"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </button>
+            <button
+              onClick={exportToPDF}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
+              title="Export to PDF"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Export PDF
+            </button>
+            
+          </div>
+          <button
+            onClick={() => navigate('/students/StudentRegistrationForm')}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center shadow-lg"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add New Student
+          </button>
         </div>
       </div>
 
-      {/* Dashboard Summary */}
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Students</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">{totalStudents}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Fees</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">₹{totalFees.toLocaleString()}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Collected Amount</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">₹{totalCollected.toLocaleString()}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Due Amount</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">₹{totalDue.toLocaleString()}</dd>
-          </div>
-        </div>
-      </div>
-
-      {/* Fee Status Summary */}
-      <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              <dt className="text-sm font-medium text-gray-500 truncate">Fully Paid</dt>
-            </div>
-            <dd className="mt-1 text-3xl font-semibold text-green-600">{paidStudents}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
-              <dt className="text-sm font-medium text-gray-500 truncate">Partially Paid</dt>
-            </div>
-            <dd className="mt-1 text-3xl font-semibold text-yellow-600">{partiallyPaidStudents}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-              <dt className="text-sm font-medium text-gray-500 truncate">Unpaid</dt>
-            </div>
-            <dd className="mt-1 text-3xl font-semibold text-red-600">{unpaidStudents}</dd>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and filter section */}
-      <div className="mt-8 flex flex-col md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col md:flex-row md:space-x-3 space-y-3 md:space-y-0 mb-4 md:mb-0">
+      {/* Search and Filters */}
+      <div className="mb-6 bg-white rounded-lg shadow-md p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:space-x-3 space-y-3 md:space-y-0">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
               <Search className="h-4 w-4 text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Search by name or admission no"
+                placeholder="Search by name or admission no..."
               className="pl-10 pr-4 py-2 border rounded-md w-full md:w-64"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -428,441 +493,416 @@ const StudentManagement = () => {
               onChange={(e) => setFilterClass(e.target.value)}
             >
               <option value="">All Classes</option>
-              {availableClasses.map((cls) => (
+                {CLASSES.map((cls) => (
                 <option key={cls} value={cls}>{cls}</option>
               ))}
             </select>
             <select
               className="px-4 py-2 border rounded-md"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="">All Statuses</option>
-              {feeStatusOptions.map((status) => (
-                <option key={status} value={status}>{status}</option>
+                value={filterSection}
+                onChange={(e) => setFilterSection(e.target.value)}
+              >
+                <option value="">All Sections</option>
+                {SECTIONS.map((section) => (
+                  <option key={section} value={section}>{section}</option>
               ))}
             </select>
+              <select
+                className="px-4 py-2 border rounded-md"
+                value={filterGender}
+                onChange={(e) => setFilterGender(e.target.value)}
+              >
+                <option value="">All Genders</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
           </div>
         </div>
         <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            onClick={exportToCSV}
-            disabled={filteredStudents.length === 0}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button 
-            variant="outline" 
+            <button
             onClick={() => {
               setSearchTerm('');
               setFilterClass('');
-              setFilterStatus('');
-              setSortConfig(null);
-              setSelectedStudents([]);
+                setFilterSection('');
+                setFilterGender('');
             }}
+              className="px-4 py-2 border border-gray-300 rounded-md flex items-center hover:bg-gray-50 transition-colors duration-300"
           >
             <X className="mr-2 h-4 w-4" />
             Clear Filters
-          </Button>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Student Table */}
-      <div className="mt-4 flex flex-col">
-        <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-300">
+      {/* Loading/Error States */}
+      {loading ? (
+        <div className="flex justify-center items-center py-10">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        </div>
+      ) : error ? (
+        <div className="text-center py-10 text-red-500">{error}</div>
+      ) : (
+        <>
+          {/* Students Table */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 text-indigo-600"
-                        checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
-                        onChange={handleSelectAll}
-                      />
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Student Details
                     </th>
-                    <th 
-                      scope="col" 
-                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 cursor-pointer"
-                      onClick={() => handleSort('name')}
-                    >
-                      Name
-                      {sortConfig?.key === 'name' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Class & Section
                     </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('admissionNo')}
-                    >
-                      Admission No
-                      {sortConfig?.key === 'admissionNo' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Father Name
                     </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('class')}
-                    >
-                      Class
-                      {sortConfig?.key === 'class' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Gender
                     </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('feeStatus')}
-                    >
-                      Fee Status
-                      {sortConfig?.key === 'feeStatus' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
                     </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('totalFees')}
-                    >
-                      Total Fees
-                      {sortConfig?.key === 'totalFees' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('paidAmount')}
-                    >
-                      Paid Amount
-                      {sortConfig?.key === 'paidAmount' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('dueAmount')}
-                    >
-                      Due Amount
-                      {sortConfig?.key === 'dueAmount' && (
-                        <span>{sortConfig.direction === 'ascending' ? ' ↑' : ' ↓'}</span>
-                      )}
-                    </th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Actions</span>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {filteredStudents.length > 0 ? (
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                        No students found
+                      </td>
+                    </tr>
+                  ) : (
                     filteredStudents.map((student) => (
-                      <tr key={student.id} className={selectedStudents.includes(student.id) ? 'bg-indigo-50' : ''}>
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300 text-indigo-600"
-                            checked={selectedStudents.includes(student.id)}
-                            onChange={(e) => handleSelectStudent(e, student.id)}
-                          />
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {student.fullName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {student.admissionNo}
+                            </div>
+                          </div>
                         </td>
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                          {student.name}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {student.sessionInfo?.currentClass || student.className || 'N/A'} - {student.sessionInfo?.currentSection || student.section || 'N/A'}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{student.admissionNo}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{student.class}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          <span
-                            className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusColor(
-                              student.feeStatus
-                            )}`}
-                          >
-                            {student.feeStatus}
-                          </span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {student.fatherName || 'N/A'}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                          ₹{student.totalFees.toLocaleString()}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {student.gender}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                          ₹{student.paidAmount.toLocaleString()}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {student.contactNumber || 'N/A'}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                          ₹{student.dueAmount.toLocaleString()}
-                        </td>
-                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-indigo-600"
-                            onClick={() => setViewDetails(student.id === viewDetails ? null : student.id)}
-                          >
-                            {student.id === viewDetails ? 'Hide Details' : 'View Details'}
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-indigo-600"
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                          <div className="flex justify-center space-x-2">
+                            <button
+                              onClick={() => handleViewStudent(student)}
+                              className="text-blue-600 hover:text-blue-800 p-1"
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
                             onClick={() => handleEditStudent(student)}
+                              className="text-yellow-600 hover:text-yellow-800 p-1"
+                              title="Edit Student"
                           >
                             <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-red-600"
-                            onClick={() => handleDeleteStudent(student.id)}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStudent(student)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Delete Student"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </Button>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
-                  ) : (
-                    <tr>
-                      <td colSpan={9} className="py-4 text-center text-gray-500">
-                        No students match your search criteria
-                      </td>
-                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex justify-center">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => fetchStudents(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  className="px-3 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="px-3 py-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => fetchStudents(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  className="px-3 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
         </div>
       </div>
+          )}
+        </>
+      )}
 
-      {/* Student Details View */}
-      {viewDetails !== null && (
-        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
-          {students.filter(s => s.id === viewDetails).map((student) => (
-            <div key={student.id}>
-              <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+      {/* View Student Modal */}
+      {isViewModalOpen && selectedStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Student Profile</h2>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100"
+              >
+                <X className="h-6 w-6" />
+              </button>
+              </div>
+            
+            {/* Student Header Card */}
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg mb-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-blue-600 text-2xl font-bold">
+                  {selectedStudent.fullName?.charAt(0) || 'S'}
+                  </div>
                 <div>
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">Student Information</h3>
-                  <p className="mt-1 max-w-2xl text-sm text-gray-500">Personal details and fee information.</p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setViewDetails(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="border-t border-gray-200 px-4 py-5 sm:p-0">
-                <dl className="sm:divide-y sm:divide-gray-200">
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Full name</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{student.fullName}</dd>
+                  <h3 className="text-2xl font-bold">{selectedStudent.fullName}</h3>
+                  <p className="text-blue-100">Admission No: {selectedStudent.admissionNo}</p>
+                  <p className="text-blue-100">
+                    Class: {selectedStudent.sessionInfo?.currentClass || selectedStudent.className || 'N/A'} - 
+                    Section: {selectedStudent.sessionInfo?.currentSection || selectedStudent.section || 'N/A'}
+                  </p>
                   </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Admission No</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{student.admissionNo}</dd>
                   </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Class</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{student.class}</dd>
-                  </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Fee Status</dt>
-                    <dd className="mt-1 text-sm sm:mt-0 sm:col-span-2">
-                      <span
-                        className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusColor(
-                          student.feeStatus
-                        )}`}
-                      >
-                        {student.feeStatus}
-
-                        </span>
-                    </dd>
-                  </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Total Fees</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      ₹{student.totalFees.toLocaleString()}
-                    </dd>
-                  </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Paid Amount</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      ₹{student.paidAmount.toLocaleString()}
-                    </dd>
-                  </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Due Amount</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      ₹{student.dueAmount.toLocaleString()}
-                    </dd>
-                  </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Last Payment Date</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {student.lastPaymentDate || 'No payment recorded'}
-                    </dd>
-                  </div>
-                  <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500">Payment Status</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {student.paidAmount === 0 ? (
-                        <span className="text-red-600">No payment made yet</span>
-                      ) : student.paidAmount >= student.totalFees ? (
-                        <span className="text-green-600">Fully paid</span>
-                      ) : (
-                        <span className="text-yellow-600">
-                          {Math.round((student.paidAmount / student.totalFees) * 100)}% paid
-                        </span>
-                      )}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
             </div>
-          ))}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Basic Information */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 text-blue-600 border-b pb-2">
+                  <Users className="inline h-5 w-5 mr-2" />
+                  Basic Information
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Full Name:</span>
+                    <span className="text-gray-900">{selectedStudent.fullName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Admission No:</span>
+                    <span className="text-gray-900">{selectedStudent.admissionNo || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Gender:</span>
+                    <span className="text-gray-900">{selectedStudent.gender || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Date of Birth:</span>
+                    <span className="text-gray-900">
+                      {selectedStudent.dateOfBirth ? new Date(selectedStudent.dateOfBirth).toLocaleDateString() : 'N/A'}
+                        </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Blood Group:</span>
+                    <span className="text-gray-900">{selectedStudent.bloodGroup || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Religion:</span>
+                    <span className="text-gray-900">{selectedStudent.religion || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Category:</span>
+                    <span className="text-gray-900">{selectedStudent.category || 'N/A'}</span>
+                  </div>
+                  </div>
+              </div>
+
+              {/* Academic Information */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 text-green-600 border-b pb-2">
+                  <GraduationCap className="inline h-5 w-5 mr-2" />
+                  Academic Information
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Current Class:</span>
+                    <span className="text-gray-900">
+                      {selectedStudent.sessionInfo?.currentClass || selectedStudent.className || 'N/A'}
+                        </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Current Section:</span>
+                    <span className="text-gray-900">
+                      {selectedStudent.sessionInfo?.currentSection || selectedStudent.section || 'N/A'}
+                    </span>
+              </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Roll Number:</span>
+                    <span className="text-gray-900">{selectedStudent.sessionInfo?.currentRollNo || 'N/A'}</span>
+            </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Stream:</span>
+                    <span className="text-gray-900">{selectedStudent.sessionInfo?.currentStream || 'N/A'}</span>
+        </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">House:</span>
+                    <span className="text-gray-900">{selectedStudent.sessionInfo?.currentHouse || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Fee Group:</span>
+                    <span className="text-gray-900">{selectedStudent.sessionInfo?.currentFeeGroup || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Admission Date:</span>
+                    <span className="text-gray-900">
+                      {selectedStudent.createdAt ? new Date(selectedStudent.createdAt).toLocaleDateString() : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 text-purple-600 border-b pb-2">
+                  <FileText className="inline h-5 w-5 mr-2" />
+                  Contact Information
+              </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Mobile Number:</span>
+                    <span className="text-gray-900">{selectedStudent.mobileNumber || 'N/A'}</span>
+            </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Email:</span>
+                    <span className="text-gray-900">{selectedStudent.email || 'N/A'}</span>
+              </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Emergency Contact:</span>
+                    <span className="text-gray-900">{selectedStudent.emergencyContact || 'N/A'}</span>
+              </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Aadhaar Number:</span>
+                    <span className="text-gray-900">{selectedStudent.aadhaarNumber || 'N/A'}</span>
+              </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">APAAR ID:</span>
+                    <span className="text-gray-900">{selectedStudent.apaarId || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Address Information */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 text-indigo-600 border-b pb-2">
+                  <FileText className="inline h-5 w-5 mr-2" />
+                  Address Information
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Present Address:</span>
+                    <span className="text-gray-900 text-right max-w-xs">
+                      {[selectedStudent.houseNo, selectedStudent.street, selectedStudent.city, selectedStudent.state, selectedStudent.pinCode]
+                        .filter(Boolean).join(', ') || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Permanent Address:</span>
+                    <span className="text-gray-900 text-right max-w-xs">
+                      {[selectedStudent.permanentHouseNo, selectedStudent.permanentStreet, selectedStudent.permanentCity, selectedStudent.permanentState, selectedStudent.permanentPinCode]
+                        .filter(Boolean).join(', ') || 'Same as Present Address'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Family Information */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 text-orange-600 border-b pb-2">
+                  <Users className="inline h-5 w-5 mr-2" />
+                  Family Information
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Father's Name:</span>
+                    <span className="text-gray-900">{selectedStudent.fatherName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Mother's Name:</span>
+                    <span className="text-gray-900">{selectedStudent.motherName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Guardian Name:</span>
+                    <span className="text-gray-900">{selectedStudent.guardianName || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-600">Guardian Contact:</span>
+                    <span className="text-gray-900">{selectedStudent.guardianContact || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+              </div>
+              
+            {/* Action Buttons */}
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                  onClick={() => {
+                  setIsViewModalOpen(false);
+                  handleEditStudent(selectedStudent);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Student
+              </button>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              </div>
+          </div>
         </div>
       )}
 
-      {/* Add/Edit Student Form */}
-      {(showAddForm || editingStudent) && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-10">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                {editingStudent ? 'Edit Student' : 'Add New Student'}
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowAddForm(false);
-                  setEditingStudent(null);
-                  resetForm();
-                }}
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && studentToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Student</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete {studentToDelete.fullName}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  id="name"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="admissionNo" className="block text-sm font-medium text-gray-700">
-                  Admission No
-                </label>
-                <input
-                  type="text"
-                  name="admissionNo"
-                  id="admissionNo"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  value={formData.admissionNo}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="class" className="block text-sm font-medium text-gray-700">
-                  Class
-                </label>
-                <select
-                  name="class"
-                  id="class"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  value={formData.class}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Select Class</option>
-                  {availableClasses.map(cls => (
-                    <option key={cls} value={cls}>{cls}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label htmlFor="totalFees" className="block text-sm font-medium text-gray-700">
-                  Total Fees
-                </label>
-                <input
-                  type="number"
-                  name="totalFees"
-                  id="totalFees"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  value={formData.totalFees}
-                  onChange={handleInputChange}
-                  min="0"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="paidAmount" className="block text-sm font-medium text-gray-700">
-                  Paid Amount
-                </label>
-                <input
-                  type="number"
-                  name="paidAmount"
-                  id="paidAmount"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  value={formData.paidAmount}
-                  onChange={handleInputChange}
-                  min="0"
-                  max={formData.totalFees}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="lastPaymentDate" className="block text-sm font-medium text-gray-700">
-                  Last Payment Date
-                </label>
-                <input
-                  type="date"
-                  name="lastPaymentDate"
-                  id="lastPaymentDate"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                  value={formData.lastPaymentDate}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="pt-4 flex justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setEditingStudent(null);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={editingStudent ? handleUpdateStudent : handleAddStudent}
-                  disabled={!formData.name || !formData.admissionNo || !formData.class}
-                >
-                  {editingStudent ? 'Update' : 'Add'} Student
-                </Button>
-              </div>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteStudent}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>

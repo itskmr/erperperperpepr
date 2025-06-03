@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserPlus, Download, FileText } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import axios from 'axios';
 import jsPDF from 'jspdf';
 import { Driver, AddDriverFormData } from './types';
 import DriverTable from './DriverTable';
@@ -9,6 +8,7 @@ import SearchFilter from './SearchFilter';
 import Pagination from './Pagination';
 import DriverFormModal from './DriverFormModal';
 import DriverProfileModal from './DriverProfileModal';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -51,17 +51,20 @@ const DriverDirectory: React.FC = () => {
   const fetchDrivers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/transport/drivers`);
+      const data = await apiGet('/transport/drivers');
       
-      if (response.data && response.data.success) {
-        setDrivers(response.data.data || []);
-        setError(null);
+      if (Array.isArray(data)) {
+        setDrivers(data);
+      } else if (data && data.length !== undefined) {
+        setDrivers(data);
       } else {
-        setError('Failed to fetch drivers');
+        setDrivers([]);
       }
-    } catch (error: unknown) {
-      console.error('Error fetching drivers:', error);
-      setError(`Failed to fetch drivers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(null);
+    } catch (err: unknown) {
+      console.error('Error fetching drivers:', err);
+      const apiErr = err as ApiError;
+      setError(`Failed to fetch drivers: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -113,48 +116,47 @@ const DriverDirectory: React.FC = () => {
   // Handle viewing a driver's profile
   const handleViewProfile = async (driver: Driver) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/drivers/${driver.id}`);
+      const data = await apiGet(`/transport/drivers/${driver.id}`);
       
-      if (response.data.success) {
-        setSelectedDriver(response.data.data);
+      if (data) {
+        setSelectedDriver(data);
         setIsProfileOpen(true);
       } else {
         showToast('error', 'Failed to fetch driver details');
       }
-    } catch (error) {
-      console.error('Error fetching driver details:', error);
-      showToast('error', 'Failed to fetch driver details');
+    } catch (err: unknown) {
+      console.error('Error fetching driver details:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to fetch driver details: ' + (apiErr.message || 'Unknown error'));
     }
   };
 
   // Handle editing a driver
   const handleEditDriver = async (driver: Driver) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/drivers/${driver.id}`);
+      const data = await apiGet(`/transport/drivers/${driver.id}`);
       
-      if (response.data.success) {
-        const driverData = response.data.data;
-        
+      if (data) {
         // Format dates for form inputs
         const formattedDriver = {
-          ...driverData,
-          joiningDate: driverData.joiningDate ? new Date(driverData.joiningDate).toISOString().split('T')[0] : '',
-          dateOfBirth: driverData.dateOfBirth ? new Date(driverData.dateOfBirth).toISOString().split('T')[0] : '',
+          ...data,
+          joiningDate: data.joiningDate ? new Date(data.joiningDate).toISOString().split('T')[0] : '',
+          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth).toISOString().split('T')[0] : '',
           // Ensure all fields are properly set
-          name: driverData.name || '',
-          licenseNumber: driverData.licenseNumber || '',
-          contactNumber: driverData.contactNumber || '',
-          address: driverData.address || '',
-          experience: driverData.experience || 0,
-          age: driverData.age || 0,
-          gender: driverData.gender || '',
-          maritalStatus: driverData.maritalStatus || '',
-          emergencyContact: driverData.emergencyContact || '',
-          bloodGroup: driverData.bloodGroup || '',
-          qualification: driverData.qualification || '',
-          salary: driverData.salary || 0,
-          isActive: driverData.isActive !== undefined ? driverData.isActive : true,
-          photo: driverData.photo || ''
+          name: data.name || '',
+          licenseNumber: data.licenseNumber || '',
+          contactNumber: data.contactNumber || '',
+          address: data.address || '',
+          experience: data.experience || 0,
+          age: data.age || 0,
+          gender: data.gender || '',
+          maritalStatus: data.maritalStatus || '',
+          emergencyContact: data.emergencyContact || '',
+          bloodGroup: data.bloodGroup || '',
+          qualification: data.qualification || '',
+          salary: data.salary || 0,
+          isActive: data.isActive !== undefined ? data.isActive : true,
+          photo: data.photo || ''
         };
         
         setEditDriver(formattedDriver);
@@ -162,9 +164,10 @@ const DriverDirectory: React.FC = () => {
       } else {
         showToast('error', 'Failed to fetch driver details');
       }
-    } catch (error) {
-      console.error('Error fetching driver details:', error);
-      showToast('error', 'Failed to fetch driver details');
+    } catch (err: unknown) {
+      console.error('Error fetching driver details:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to fetch driver details: ' + (apiErr.message || 'Unknown error'));
     }
   };
 
@@ -179,17 +182,14 @@ const DriverDirectory: React.FC = () => {
     if (!driverToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/transport/drivers/${driverToDelete.id}`);
+      await apiDelete(`/transport/drivers/${driverToDelete.id}`);
       
-      if (response.data.success) {
-        setDrivers(drivers.filter(d => d.id !== driverToDelete.id));
-        showToast('success', 'Driver deleted successfully');
-      } else {
-        showToast('error', 'Failed to delete driver');
-      }
-    } catch (error) {
-      console.error('Error deleting driver:', error);
-      showToast('error', 'Failed to delete driver');
+      setDrivers(drivers.filter(d => d.id !== driverToDelete.id));
+      showToast('success', 'Driver deleted successfully');
+    } catch (err: unknown) {
+      console.error('Error deleting driver:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to delete driver: ' + (apiErr.message || 'Unknown error'));
     } finally {
       setIsDeleteModalOpen(false);
       setDriverToDelete(null);
@@ -199,24 +199,45 @@ const DriverDirectory: React.FC = () => {
   // Handle adding a new driver
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
-      console.log('Attempting to add new driver with data:', newDriver);
-      
+      // Validate required fields
+      if (!newDriver.name || !newDriver.licenseNumber || !newDriver.contactNumber) {
+        showToast('error', 'Please fill in all required fields (Name, License Number, Contact Number)');
+        return;
+      }
+
+      // Prepare driver data with proper formatting
       const driverData = {
-        ...newDriver,
-        joiningDate: new Date(newDriver.joiningDate).toISOString()
+        name: newDriver.name.trim(),
+        licenseNumber: newDriver.licenseNumber.trim(),
+        contactNumber: newDriver.contactNumber.trim(),
+        address: newDriver.address.trim(),
+        experience: Number(newDriver.experience) || 0,
+        joiningDate: newDriver.joiningDate,
+        dateOfBirth: newDriver.dateOfBirth,
+        age: Number(newDriver.age) || 0,
+        gender: newDriver.gender,
+        maritalStatus: newDriver.maritalStatus,
+        emergencyContact: newDriver.emergencyContact.trim(),
+        bloodGroup: newDriver.bloodGroup,
+        qualification: newDriver.qualification.trim(),
+        salary: Number(newDriver.salary) || 0,
+        isActive: newDriver.isActive,
+        photo: newDriver.photo
       };
-      
-      // Log the data being sent to backend
+
       console.log('Sending driver data to backend:', driverData);
       
-      const response = await axios.post(`${API_URL}/transport/drivers`, driverData);
+      const data = await apiPost('/transport/drivers', driverData);
       
-      console.log('Backend response:', response.data);
+      console.log('Backend response:', data);
       
-      if (response.data.success) {
-        setDrivers([response.data.data, ...drivers]);
+      if (data && data.id) {
+        setDrivers(prevDrivers => [data, ...prevDrivers]);
+        showToast('success', 'Driver added successfully');
+        setIsAddFormOpen(false);
+        // Reset form
         setNewDriver({
           name: '',
           licenseNumber: '',
@@ -235,127 +256,67 @@ const DriverDirectory: React.FC = () => {
           isActive: true,
           photo: ''
         });
-        setIsAddFormOpen(false);
-        showToast('success', 'Driver added successfully');
       } else {
-        console.error('Backend returned error:', response.data);
-        showToast('error', response.data.message || 'Failed to add driver');
+        showToast('error', 'Failed to add driver: Invalid response from server');
       }
-    } catch (error) {
-      console.error('Error adding driver (detailed):', error);
-      
-      // Log detailed error information
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message
-        });
-        
-        // Show specific error message from backend if available
-        const errorMessage = error.response?.data?.message || error.message || 'Failed to add driver';
-        showToast('error', errorMessage);
-      } else {
-        console.error('Non-axios error:', error);
-        showToast('error', 'Failed to add driver: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      }
+    } catch (err: unknown) {
+      console.error('Error adding driver:', err);
+      const apiErr = err as ApiError;
+      const errorMessage = apiErr.message || 'Unknown error';
+      showToast('error', 'Failed to add driver: ' + errorMessage);
     }
   };
 
   // Handle updating a driver
   const handleUpdateDriver = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
-      console.log('Attempting to update driver with data:', editDriver);
-      
-      // Prepare the driver data with proper date handling
+      if (!editDriver.name || !editDriver.licenseNumber || !editDriver.contactNumber) {
+        showToast('error', 'Please fill in all required fields');
+        return;
+      }
+
       const driverData = {
-        ...editDriver
+        name: editDriver.name.trim(),
+        licenseNumber: editDriver.licenseNumber.trim(),
+        contactNumber: editDriver.contactNumber.trim(),
+        address: editDriver.address?.trim() || '',
+        experience: Number(editDriver.experience) || 0,
+        joiningDate: editDriver.joiningDate,
+        dateOfBirth: editDriver.dateOfBirth,
+        age: Number(editDriver.age) || 0,
+        gender: editDriver.gender,
+        maritalStatus: editDriver.maritalStatus,
+        emergencyContact: editDriver.emergencyContact?.trim() || '',
+        bloodGroup: editDriver.bloodGroup,
+        qualification: editDriver.qualification?.trim() || '',
+        salary: Number(editDriver.salary) || 0,
+        isActive: editDriver.isActive,
+        photo: editDriver.photo
       };
       
-      // Handle dates properly - avoid double conversion
-      if (editDriver.joiningDate) {
-        try {
-          // If it's already an ISO string, use it; if it's a date input format, convert it
-          const joiningDate = editDriver.joiningDate.includes('T') 
-            ? editDriver.joiningDate 
-            : new Date(editDriver.joiningDate).toISOString();
-          driverData.joiningDate = joiningDate;
-        } catch (dateError) {
-          console.error('Error processing joining date:', dateError);
-          delete driverData.joiningDate;
-        }
-      } else {
-        delete driverData.joiningDate;
-      }
+      const data = await apiPut(`/transport/drivers/${editDriver.id}`, driverData);
       
-      if (editDriver.dateOfBirth) {
-        try {
-          // If it's already an ISO string, use it; if it's a date input format, convert it
-          const dateOfBirth = editDriver.dateOfBirth.includes('T') 
-            ? editDriver.dateOfBirth 
-            : new Date(editDriver.dateOfBirth).toISOString();
-          driverData.dateOfBirth = dateOfBirth;
-        } catch (dateError) {
-          console.error('Error processing date of birth:', dateError);
-          delete driverData.dateOfBirth;
-        }
-      } else {
-        delete driverData.dateOfBirth;
-      }
+      console.log('Backend response for driver update:', data);
       
-      console.log('Sending driver update data to backend:', {
-        id: driverData.id,
-        name: driverData.name,
-        hasPhoto: !!driverData.photo,
-        photoLength: driverData.photo ? driverData.photo.length : 0,
-        joiningDate: driverData.joiningDate,
-        dateOfBirth: driverData.dateOfBirth
-      });
-      
-      const response = await axios.put(`${API_URL}/transport/drivers/${editDriver.id}`, driverData);
-      
-      console.log('Backend response for driver update:', response.data);
-      
-      if (response.data.success) {
-        // Update the drivers list with the new data
-        setDrivers(drivers.map(d => d.id === editDriver.id ? {
-          ...response.data.data,
-          // Ensure dates are properly formatted for display
-          joiningDate: response.data.data.joiningDate,
-          dateOfBirth: response.data.data.dateOfBirth,
-          // Ensure status is properly set
-          isActive: response.data.data.isActive
-        } : d));
-        setEditDriver({});
-        setIsEditModalOpen(false);
+      if (data && data.id) {
+        setDrivers(prevDrivers => 
+          prevDrivers.map(driver => 
+            driver.id === editDriver.id ? data : driver
+          )
+        );
         showToast('success', 'Driver updated successfully');
-        fetchDrivers(); // Refresh the drivers list
+        setIsEditModalOpen(false);
+        setEditDriver({});
       } else {
-        console.error('Backend returned error:', response.data);
-        showToast('error', response.data.message || 'Failed to update driver');
+        showToast('error', 'Failed to update driver: Invalid response from server');
       }
-    } catch (error) {
-      console.error('Error updating driver (detailed):', error);
-      
-      // Log detailed error information
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message
-        });
-        
-        // Show specific error message from backend if available
-        const errorMessage = error.response?.data?.message || error.message || 'Failed to update driver';
-        showToast('error', errorMessage);
-      } else {
-        console.error('Non-axios error:', error);
-        showToast('error', 'Failed to update driver: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      }
+    } catch (err: unknown) {
+      console.error('Error updating driver:', err);
+      const apiErr = err as ApiError;
+      const errorMessage = apiErr.message || 'Unknown error';
+      showToast('error', 'Failed to update driver: ' + errorMessage);
     }
   };
 
@@ -402,7 +363,7 @@ const DriverDirectory: React.FC = () => {
       // Fetch school information from API
       let schoolInfo;
       try {
-        const response = await axios.get(`${API_URL}/transport/school-info`);
+        const response = await apiGet('/transport/school-info');
         schoolInfo = response.data.success ? response.data.data : {
           schoolName: 'Excellence School System',
           address: '123 Education Street, Learning City, State 12345',
@@ -493,27 +454,63 @@ const DriverDirectory: React.FC = () => {
 
       {/* Statistics Section */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Total Drivers</h3>
-          <p className="text-2xl font-semibold text-blue-600">{drivers.length}</p>
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Drivers</p>
+              <p className="text-2xl font-bold">{drivers.length}</p>
+            </div>
+            <div className="bg-blue-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Active Drivers</h3>
-          <p className="text-2xl font-semibold text-green-600">
-            {drivers.filter(driver => driver.isActive).length}
-          </p>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Active Drivers</p>
+              <p className="text-2xl font-bold">
+                {drivers.filter(driver => driver.isActive).length}
+              </p>
+            </div>
+            <div className="bg-green-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Inactive Drivers</h3>
-          <p className="text-2xl font-semibold text-red-600">
-            {drivers.filter(driver => !driver.isActive).length}
-          </p>
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">Inactive Drivers</p>
+              <p className="text-2xl font-bold">
+                {drivers.filter(driver => !driver.isActive).length}
+              </p>
+            </div>
+            <div className="bg-yellow-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Avg Experience</h3>
-          <p className="text-2xl font-semibold text-purple-600">
-            {drivers.length > 0 ? Math.round(drivers.reduce((sum, driver) => sum + driver.experience, 0) / drivers.length) : 0} years
-          </p>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Avg Experience</p>
+              <p className="text-2xl font-bold">
+                {drivers.length > 0 ? Math.round(drivers.reduce((sum, driver) => sum + driver.experience, 0) / drivers.length) : 0} years
+              </p>
+            </div>
+            <div className="bg-purple-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

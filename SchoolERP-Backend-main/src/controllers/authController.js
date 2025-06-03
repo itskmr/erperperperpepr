@@ -360,9 +360,14 @@ export const loginStudent = async (req, res) => {
       });
     }
 
-    // Find student by email
+    // Find student by email with school context
     const student = await prisma.student.findFirst({
-      where: { email }
+      where: { email },
+      include: {
+        school: {
+          select: { id: true, schoolName: true, status: true }
+        }
+      }
     });
 
     if (!student) {
@@ -388,6 +393,14 @@ export const loginStudent = async (req, res) => {
       });
     }
 
+    // Check if associated school is active
+    if (student.school?.status === 'inactive') {
+      return res.status(403).json({
+        success: false,
+        message: 'Associated school is inactive'
+      });
+    }
+
     // Check password
     const isPasswordValid = await bcrypt.compare(password, student.password);
     if (!isPasswordValid) {
@@ -397,14 +410,15 @@ export const loginStudent = async (req, res) => {
       });
     }
 
-    // Create JWT token
+    // Create JWT token with school context for multi-school isolation
     const token = jwt.sign(
       {
         id: student.id,
         email: student.email,
-        role: 'student'
+        role: 'student',
+        schoolId: student.schoolId // Include school ID for data isolation
       },
-      process.env.JWT_SECRET || 'fallback_secret_key',
+      process.env.JWT_SECRET || 'school_management_secret_key',
       { expiresIn: '7d' }
     );
 
@@ -425,6 +439,8 @@ export const loginStudent = async (req, res) => {
           email: student.email,
           role: 'student',
           admissionNo: student.admissionNo,
+          schoolId: student.schoolId,
+          schoolName: student.school?.schoolName,
           class: student.className,
           section: student.section || ''
         }
@@ -736,7 +752,7 @@ export const loginParent = async (req, res) => {
       });
     }
 
-    // Find parent by email (checking both father and mother email fields)
+    // Find parent by email (checking both father and mother email fields) with school context
     const parentInfo = await prisma.parentInfo.findFirst({
       where: {
         OR: [
@@ -744,7 +760,15 @@ export const loginParent = async (req, res) => {
           { motherEmail: email }
         ]
       },
-      include: { student: true }
+      include: { 
+        student: {
+          include: {
+            school: {
+              select: { id: true, schoolName: true, status: true }
+            }
+          }
+        }
+      }
     });
 
     if (!parentInfo || !parentInfo.password) {
@@ -771,15 +795,24 @@ export const loginParent = async (req, res) => {
       });
     }
 
-    // Create JWT token
+    // Check if associated school is active
+    if (parentInfo.student.school?.status === 'inactive') {
+      return res.status(403).json({
+        success: false,
+        message: 'Associated school is inactive'
+      });
+    }
+
+    // Create JWT token with school context for multi-school isolation
     const token = jwt.sign(
       {
         id: parentInfo.id,
         studentId: parentInfo.student.id,
         email,
-        role: 'parent'
+        role: 'parent',
+        schoolId: parentInfo.student.schoolId // Include school ID for data isolation
       },
-      process.env.JWT_SECRET || 'fallback_secret_key',
+      process.env.JWT_SECRET || 'school_management_secret_key',
       { expiresIn: '7d' }
     );
 
@@ -805,7 +838,9 @@ export const loginParent = async (req, res) => {
           name: parentName,
           email,
           role: 'parent',
-          studentName: `${parentInfo.student.firstName} ${parentInfo.student.lastName}`,
+          schoolId: parentInfo.student.schoolId,
+          schoolName: parentInfo.student.school?.schoolName,
+          studentName: parentInfo.student.fullName,
           admissionNo: parentInfo.student.admissionNo
         }
       }

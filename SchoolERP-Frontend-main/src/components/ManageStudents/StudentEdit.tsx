@@ -1,190 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import { FaTimes } from 'react-icons/fa';
-import { STUDENT_API } from '../../config/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Save, X, Printer } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'react-hot-toast';
+import { generateAdmissionFormPrint } from '../../utils/printUtils';
+import { ApiError } from '../../utils/authApi';
 
+// Student interface
 interface Student {
   id: string;
-  // Basic Information
-  branchName: string;
-  admissionNo: string;
-  penNo: string;
-  apaarId: string;
   fullName: string;
-  srNo: string;
-  dateOfBirth: string | null;
-  tcDate: string | null;
-  admissionDate: string | null;
-  age: number;
-  height: number;
-  weight: number;
+  admissionNo: string;
+  penNo?: string;
+  apaarId?: string; // Optional field
+  dateOfBirth?: string;
+  age?: number;
   gender: string;
-  bloodGroup: string;
-  religion: string;
-  category: string;
-  caste: string;
-  belongToBPL: string;
-  typeOfDisability: string;
-  nationality: string;
-  aadhaarNumber: string;
-
-  // Contact Information
-  mobileNumber: string;
-  email: string;
-  studentEmailPassword: string;
-  emailPassword: string;
-  emergencyContact: string;
-  fatherMobile: string;
-  motherMobile: string;
-  fatherEmail: string;
-  fatherEmailPassword: string;
-  motherEmail: string;
-  motherEmailPassword: string;
-
-  // Address Information
-  presentAddress: {
-    houseNo: string;
-    street: string;
-    city: string;
-    state: string;
-    pinCode: string;
+  bloodGroup?: string;
+  religion?: string;
+  category?: string;
+  caste?: string;
+  nationality?: string;
+  aadhaarNumber?: string;
+  mobileNumber?: string;
+  email?: string;
+  emailPassword?: string; // Added email password
+  emergencyContact?: string;
+  
+  // Added image fields
+  studentImagePath?: string;
+  fatherImagePath?: string;
+  motherImagePath?: string;
+  guardianImagePath?: string;
+  signaturePath?: string;
+  parentSignaturePath?: string;
+  fatherAadharPath?: string;
+  motherAadharPath?: string;
+  birthCertificatePath?: string;
+  migrationCertificatePath?: string;
+  aadhaarCardPath?: string;
+  familyIdPath?: string;
+  affidavitCertificatePath?: string;
+  incomeCertificatePath?: string;
+  addressProof1Path?: string;
+  addressProof2Path?: string;
+  transferCertificatePath?: string;
+  markSheetPath?: string;
+  fatherSignaturePath?: string;
+  motherSignaturePath?: string;
+  guardianSignaturePath?: string;
+  
+  address?: {
+    houseNo?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    pinCode?: string;
+    permanentHouseNo?: string;
+    permanentStreet?: string;
+    permanentCity?: string;
+    permanentState?: string;
+    permanentPinCode?: string;
+    sameAsPresentAddress: boolean;
   };
-  permanentAddress: {
-    houseNo: string;
-    street: string;
-    city: string;
-    state: string;
-    pinCode: string;
+  admitSession?: {
+    group?: string;
+    stream?: string;
+    class?: string;
+    section?: string;
+    rollNo?: string;
+    semester?: string;
+    feeGroup?: string;
+    house?: string;
   };
-  sameAsPresentAddress: boolean;
-
-  // Transport Information
-  transportMode: string;
-  transportArea: string;
-  transportStand: string;
-  transportRoute: string;
-  transportDriver: string;
-  driverPhone: string;
-  pickupLocation: string;
-  dropLocation: string;
-
-  // Parent Information
-  fatherDetails: {
-    name: string;
-    qualification: string;
-    occupation: string;
-    organization: string;
-    designation: string;
-    mobileNumber: string;
-    officeContact: string;
-    email: string;
-    aadhaarNumber: string;
-    annualIncome: string;
+  currentSession?: {
+    group?: string;
+    stream?: string;
+    class?: string;
+    section?: string;
+    rollNo?: string;
+    semester?: string;
+    feeGroup?: string;
+    house?: string;
   };
-  motherDetails: {
-    name: string;
-    qualification: string;
-    occupation: string;
-    email: string;
-    aadhaarNumber: string;
-    annualIncome: string;
+  transport?: {
+    mode?: string;
+    area?: string;
+    stand?: string;
+    route?: string;
+    driver?: string;
+    pickupLocation?: string;
+    dropLocation?: string;
   };
-  guardianDetails: {
-    name: string;
-    address: string;
-    mobile: string;
-    email: string;
-    aadhaarNumber: string;
-    occupation: string;
-    annualIncome: string;
+  father?: {
+    name?: string;
+    email?: string;
+    emailPassword?: string;
+    qualification?: string;
+    occupation?: string;
+    contactNumber?: string;
+    aadhaarNo?: string;
+    annualIncome?: string;
+    isCampusEmployee: boolean;
   };
-
-  // Academic Information
-  admitSession: {
-    group: string;
-    stream: string;
-    class: string;
-    section: string;
-    rollNo: string;
-    semester: string;
-    feeGroup: string;
-    house: string;
+  mother?: {
+    name?: string;
+    email?: string;
+    emailPassword?: string;
+    qualification?: string;
+    occupation?: string;
+    contactNumber?: string;
+    aadhaarNo?: string;
+    annualIncome?: string;
+    isCampusEmployee: boolean;
   };
-  currentSession: {
-    group: string;
-    stream: string;
-    class: string;
-    section: string;
-    rollNo: string;
-    semester: string;
-    feeGroup: string;
-    house: string;
+  guardian?: {
+    name?: string;
+    address?: string;
+    contactNumber?: string;
+    email?: string;
+    aadhaarNo?: string;
+    occupation?: string;
+    annualIncome?: string;
   };
-
-  // Previous Education
-  previousEducation: {
-    school: string;
-    schoolAddress: string;
-    tcDate: string | null;
-    previousClass: string;
-    percentage: string;
-    attendance: string;
-    extraActivities: string;
+  other?: {
+    belongToBPL?: string;
+    minority?: string;
+    disability?: string;
+    accountNo?: string;
+    bank?: string;
+    ifscCode?: string;
+    medium?: string;
+    lastYearResult?: string;
+    singleParent?: string;
+    onlyChild?: string;
+    onlyGirlChild?: string;
+    adoptedChild?: string;
+    siblingAdmissionNo?: string;
+    transferCase?: string;
+    livingWith?: string;
+    motherTongue?: string;
+    admissionType?: string;
+    udiseNo?: string;
   };
-
-  // Academic Details
-  registrationNo: string;
-
-  // Other Information
-  other: {
-    belongToBPL: string;
-    minority: string;
-    disability: string;
-    accountNo: string;
-    bank: string;
-    ifscCode: string;
-    medium: string;
-    lastYearResult: string;
-    singleParent: string;
-    onlyChild: string;
-    onlyGirlChild: string;
-    adoptedChild: string;
-    siblingAdmissionNo: string;
-    transferCase: string;
-    livingWith: string;
-    motherTongue: string;
-    admissionType: string;
-    udiseNo: string;
-  };
-
-  // Document Information
-  documents: {
-    studentImage: string;
-    fatherImage: string;
-    motherImage: string;
-    guardianImage: string;
-    studentSignature: string;
-    parentSignature: string;
-    birthCertificate: string;
-    transferCertificate: string;
-    markSheet: string;
-    studentAadhaar: string;
-    fatherAadhaar: string;
-    motherAadhaar: string;
-    familyId: string;
-    fatherSignature: string;
-    motherSignature: string;
-    guardianSignature: string;
+  lastEducation?: {
+    school?: string;
+    address?: string;
+    tcDate?: string;
+    prevClass?: string;
+    percentage?: string;
+    attendance?: string;
+    extraActivity?: string;
   };
 }
 
-interface StudentEditProps {
-  student: Student;
-  isOpen: boolean;
-  onClose: () => void;
-  onStudentUpdated: () => void;
+interface TransportRoute {
+  id: string;
+  name: string;
+  fromLocation: string;
+  toLocation: string;
 }
 
-const AVAILABLE_CLASSES = [
+interface Driver {
+  id: string;
+  name: string;
+  contactNumber: string;
+}
+
+// Constants
+const CLASSES = [
   'Nursery', 'LKG', 'UKG',
   'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
   'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
@@ -193,561 +177,745 @@ const AVAILABLE_CLASSES = [
 ];
 
 const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
-const STREAMS = ['Science', 'Commerce', 'Arts', 'General', 'Vocational'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const CATEGORIES = ['General', 'EWS', 'OBC', 'BC', 'SC', 'ST'];
-const STATES = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
-  'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
-  'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
-  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-  'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
-];
-const SEMESTERS = ['1st sem', '2nd sem'];
-const BPL_OPTIONS = ['Yes', 'No'];
+const GENDERS = ['Male', 'Female', 'Other'];
+const RELIGIONS = ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Buddhist', 'Jain', 'Other'];
 
-const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onStudentUpdated }) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState<Student>({
-        ...student,
-    dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
-    tcDate: student.tcDate ? new Date(student.tcDate).toISOString().split('T')[0] : '',
-    admissionDate: student.admissionDate ? new Date(student.admissionDate).toISOString().split('T')[0] : '',
-    presentAddress: {
-      houseNo: student.presentAddress?.houseNo || '',
-      street: student.presentAddress?.street || '',
-      city: student.presentAddress?.city || '',
-      state: student.presentAddress?.state || '',
-      pinCode: student.presentAddress?.pinCode || ''
-    },
-    permanentAddress: {
-      houseNo: student.permanentAddress?.houseNo || '',
-      street: student.permanentAddress?.street || '',
-      city: student.permanentAddress?.city || '',
-      state: student.permanentAddress?.state || '',
-      pinCode: student.permanentAddress?.pinCode || ''
-    },
-    fatherDetails: {
-      name: student.fatherDetails?.name || '',
-      qualification: student.fatherDetails?.qualification || '',
-      occupation: student.fatherDetails?.occupation || '',
-      organization: student.fatherDetails?.organization || '',
-      designation: student.fatherDetails?.designation || '',
-      mobileNumber: student.fatherDetails?.mobileNumber || '',
-      officeContact: student.fatherDetails?.officeContact || '',
-      email: student.fatherDetails?.email || '',
-      aadhaarNumber: student.fatherDetails?.aadhaarNumber || '',
-      annualIncome: student.fatherDetails?.annualIncome || ''
-    },
-    motherDetails: {
-      name: student.motherDetails?.name || '',
-      qualification: student.motherDetails?.qualification || '',
-      occupation: student.motherDetails?.occupation || '',
-      email: student.motherDetails?.email || '',
-      aadhaarNumber: student.motherDetails?.aadhaarNumber || '',
-      annualIncome: student.motherDetails?.annualIncome || ''
-    },
-    guardianDetails: {
-      name: student.guardianDetails?.name || '',
-      address: student.guardianDetails?.address || '',
-      mobile: student.guardianDetails?.mobile || '',
-      email: student.guardianDetails?.email || '',
-      aadhaarNumber: student.guardianDetails?.aadhaarNumber || '',
-      occupation: student.guardianDetails?.occupation || '',
-      annualIncome: student.guardianDetails?.annualIncome || ''
-    },
-    admitSession: {
-      group: student.admitSession?.group || '',
-      stream: student.admitSession?.stream || '',
-      class: student.admitSession?.class || '',
-      section: student.admitSession?.section || '',
-      rollNo: student.admitSession?.rollNo || '',
-      semester: student.admitSession?.semester || '',
-      feeGroup: student.admitSession?.feeGroup || '',
-      house: student.admitSession?.house || ''
-    },
-    currentSession: {
-      group: student.currentSession?.group || '',
-      stream: student.currentSession?.stream || '',
-      class: student.currentSession?.class || '',
-      section: student.currentSession?.section || '',
-      rollNo: student.currentSession?.rollNo || '',
-      semester: student.currentSession?.semester || '',
-      feeGroup: student.currentSession?.feeGroup || '',
-      house: student.currentSession?.house || ''
-    },
-    previousEducation: {
-      school: student.previousEducation?.school || '',
-      schoolAddress: student.previousEducation?.schoolAddress || '',
-      tcDate: student.previousEducation?.tcDate || null,
-      previousClass: student.previousEducation?.previousClass || '',
-      percentage: student.previousEducation?.percentage || '',
-      attendance: student.previousEducation?.attendance || '',
-      extraActivities: student.previousEducation?.extraActivities || ''
-    },
-    other: {
-      belongToBPL: student.other?.belongToBPL || student.belongToBPL || 'no',
-      minority: student.other?.minority || 'no',
-      disability: student.other?.disability || student.typeOfDisability || '',
-      accountNo: student.other?.accountNo || '',
-      bank: student.other?.bank || '',
-      ifscCode: student.other?.ifscCode || '',
-      medium: student.other?.medium || '',
-      lastYearResult: student.other?.lastYearResult || '',
-      singleParent: student.other?.singleParent || 'no',
-      onlyChild: student.other?.onlyChild || 'no',
-      onlyGirlChild: student.other?.onlyGirlChild || 'no',
-      adoptedChild: student.other?.adoptedChild || 'no',
-      siblingAdmissionNo: student.other?.siblingAdmissionNo || '',
-      transferCase: student.other?.transferCase || 'no',
-      livingWith: student.other?.livingWith || '',
-      motherTongue: student.other?.motherTongue || '',
-      admissionType: student.other?.admissionType || 'new',
-      udiseNo: student.other?.udiseNo || ''
-    },
-    documents: {
-      studentImage: student.documents?.studentImage || '',
-      fatherImage: student.documents?.fatherImage || '',
-      motherImage: student.documents?.motherImage || '',
-      guardianImage: student.documents?.guardianImage || '',
-      studentSignature: student.documents?.studentSignature || '',
-      parentSignature: student.documents?.parentSignature || '',
-      birthCertificate: student.documents?.birthCertificate || '',
-      transferCertificate: student.documents?.transferCertificate || '',
-      markSheet: student.documents?.markSheet || '',
-      studentAadhaar: student.documents?.studentAadhaar || '',
-      fatherAadhaar: student.documents?.fatherAadhaar || '',
-      motherAadhaar: student.documents?.motherAadhaar || '',
-      familyId: student.documents?.familyId || '',
-      fatherSignature: student.documents?.fatherSignature || '',
-      motherSignature: student.documents?.motherSignature || '',
-      guardianSignature: student.documents?.guardianSignature || ''
-    }
-  });
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const StudentEdit: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // State
+  const [formData, setFormData] = useState<Student>({} as Student);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  
+  // State to track password changes - only store new passwords
+  const [passwordUpdates, setPasswordUpdates] = useState<{
+    emailPassword?: string;
+    [key: string]: string | undefined;
+  }>({});
 
-  // Auto-calculate age when date of birth changes
-  useEffect(() => {
-    if (formData.dateOfBirth) {
-      const birthDate = new Date(formData.dateOfBirth);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        setFormData(prev => ({ ...prev, age: age - 1 }));
-      } else {
-        setFormData(prev => ({ ...prev, age }));
-      }
-    }
-  }, [formData.dateOfBirth]);
+  const totalSteps = 7;
 
-  // Auto-fill permanent address if same as present address
-  useEffect(() => {
-    if (formData.sameAsPresentAddress) {
-      setFormData(prev => ({
-        ...prev,
-        permanentAddress: {
-          houseNo: prev.presentAddress.houseNo,
-          street: prev.presentAddress.street,
-          city: prev.presentAddress.city,
-          state: prev.presentAddress.state,
-          pinCode: prev.presentAddress.pinCode
-        }
-      }));
-    }
-  }, [formData.sameAsPresentAddress, formData.presentAddress]);
-
+  // Steps configuration
   const steps = [
     { id: 1, title: 'Basic Info', icon: '👤' },
     { id: 2, title: 'Academic', icon: '🎓' },
     { id: 3, title: 'Contact', icon: '📱' },
-    { id: 4, title: 'Address', icon: '🏠' },
-    { id: 5, title: 'Parents', icon: '👪' },
-    { id: 6, title: 'Documents', icon: '📄' },
-    { id: 7, title: 'Other', icon: 'ℹ️' },
+    { id: 4, title: 'Address & Transport', icon: '🏠' },
+    { id: 5, title: 'Parents & Guardian', icon: '👪' },
+    { id: 6, title: 'Previous Education', icon: '📚' },
+    { id: 7, title: 'Other Details', icon: 'ℹ️' },
   ];
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
+  // Toast notification
+  const showToast = (type: 'success' | 'error', message: string) => {
+    toast[type](message, {
+      duration: 3000,
+      style: {
+        background: type === 'success' ? '#2563EB' : '#EF4444',
+        color: '#ffffff',
+        padding: '16px',
+        borderRadius: '8px',
+      },
+    });
+  };
+
+  // Fetch transport data
+  const fetchTransportData = useCallback(async () => {
+    try {
+      const [routesResponse, driversResponse] = await Promise.all([
+        axios.get(`${API_URL}/transport/routes`, { headers: getAuthHeaders() }),
+        axios.get(`${API_URL}/transport/drivers`, { headers: getAuthHeaders() })
+      ]);
+
+      if (routesResponse.data?.success) {
+        setTransportRoutes(routesResponse.data.data || []);
+      }
+
+      if (driversResponse.data?.success) {
+        setDrivers(driversResponse.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching transport data:', error);
+    }
+  }, []);
+
+  // Fetch student data
+  const fetchStudentData = useCallback(async () => {
+    if (!id) return;
     
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setFormData(prev => ({
+    setLoading(true);
+    try {
+      console.log(`Fetching student data for ID: ${id}`);
+      const response = await axios.get(`${API_URL}/students/${id}`, { headers: getAuthHeaders() });
+      
+      console.log('API Response:', response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        const studentData = response.data.data;
+        
+        // Map the student data to form structure with proper null checks
+        const mappedData: Student = {
+          id: studentData.id || '',
+          fullName: studentData.fullName || '',
+          admissionNo: studentData.admissionNo || '',
+          email: studentData.email || '',
+          emailPassword: studentData.emailPassword || '',
+          dateOfBirth: studentData.dateOfBirth ? studentData.dateOfBirth.split('T')[0] : '',
+          age: studentData.age || 0,
+          gender: studentData.gender || '',
+          bloodGroup: studentData.bloodGroup || '',
+          nationality: studentData.nationality || '',
+          religion: studentData.religion || '',
+          category: studentData.category || '',
+          caste: studentData.caste || '',
+          aadhaarNumber: studentData.aadhaarNumber || '',
+          apaarId: studentData.apaarId || '',
+          penNo: studentData.penNo || '',
+          mobileNumber: studentData.mobileNumber || '',
+          emergencyContact: studentData.emergencyContact || '',
+          
+          // Address information - handle flat structure from database
+          address: {
+            houseNo: studentData.houseNo || '',
+            street: studentData.street || '',
+            city: studentData.city || '',
+            state: studentData.state || '',
+            pinCode: studentData.pinCode || '',
+            permanentHouseNo: studentData.permanentHouseNo || '',
+            permanentStreet: studentData.permanentStreet || '',
+            permanentCity: studentData.permanentCity || '',
+            permanentState: studentData.permanentState || '',
+            permanentPinCode: studentData.permanentPinCode || '',
+            sameAsPresentAddress: studentData.sameAsPresentAddress || false
+          },
+          
+          // Parent information - handle flat structure and nested parentInfo
+          father: {
+            name: studentData.fatherName || '',
+            email: studentData.fatherEmail || '',
+            emailPassword: studentData.fatherEmailPassword || '',
+            qualification: studentData.parentInfo?.fatherQualification || '',
+            occupation: studentData.parentInfo?.fatherOccupation || '',
+            contactNumber: studentData.parentInfo?.fatherContact || '',
+            aadhaarNo: studentData.parentInfo?.fatherAadhaarNo || '',
+            annualIncome: studentData.parentInfo?.fatherAnnualIncome || '',
+            isCampusEmployee: studentData.parentInfo?.fatherIsCampusEmployee === 'yes'
+          },
+          
+          mother: {
+            name: studentData.motherName || '',
+            email: studentData.motherEmail || '',
+            emailPassword: studentData.motherEmailPassword || '',
+            qualification: studentData.parentInfo?.motherQualification || '',
+            occupation: studentData.parentInfo?.motherOccupation || '',
+            contactNumber: studentData.parentInfo?.motherContact || '',
+            aadhaarNo: studentData.parentInfo?.motherAadhaarNo || '',
+            annualIncome: studentData.parentInfo?.motherAnnualIncome || '',
+            isCampusEmployee: studentData.parentInfo?.motherIsCampusEmployee === 'yes'
+          },
+          
+          guardian: {
+            name: studentData.parentInfo?.guardianName || '',
+            address: studentData.parentInfo?.guardianAddress || '',
+            contactNumber: studentData.parentInfo?.guardianContact || '',
+            email: studentData.parentInfo?.guardianEmail || '',
+            aadhaarNo: studentData.parentInfo?.guardianAadhaarNo || '',
+            occupation: studentData.parentInfo?.guardianOccupation || '',
+            annualIncome: studentData.parentInfo?.guardianAnnualIncome || ''
+          },
+          
+          // Session information
+          admitSession: {
+            class: studentData.sessionInfo?.admitClass || '',
+            section: studentData.sessionInfo?.admitSection || '',
+            rollNo: studentData.sessionInfo?.admitRollNo || '',
+            group: studentData.sessionInfo?.admitGroup || '',
+            stream: studentData.sessionInfo?.admitStream || '',
+            semester: studentData.sessionInfo?.admitSemester || '',
+            feeGroup: studentData.sessionInfo?.admitFeeGroup || '',
+            house: studentData.sessionInfo?.admitHouse || ''
+          },
+          
+          currentSession: {
+            class: studentData.sessionInfo?.currentClass || '',
+            section: studentData.sessionInfo?.currentSection || '',
+            rollNo: studentData.sessionInfo?.currentRollNo || '',
+            group: studentData.sessionInfo?.currentGroup || '',
+            stream: studentData.sessionInfo?.currentStream || '',
+            semester: studentData.sessionInfo?.currentSemester || '',
+            feeGroup: studentData.sessionInfo?.currentFeeGroup || '',
+            house: studentData.sessionInfo?.currentHouse || ''
+          },
+          
+          // Transport information
+          transport: {
+            mode: studentData.transportInfo?.transportMode || 'Own Transport',
+            area: studentData.transportInfo?.transportArea || '',
+            stand: studentData.transportInfo?.transportStand || '',
+            route: studentData.transportInfo?.transportRoute || '',
+            driver: studentData.transportInfo?.transportDriver || '',
+            pickupLocation: studentData.transportInfo?.pickupLocation || '',
+            dropLocation: studentData.transportInfo?.dropLocation || ''
+          },
+          
+          // Education information
+          lastEducation: {
+            school: studentData.educationInfo?.lastSchool || '',
+            address: studentData.educationInfo?.lastSchoolAddress || '',
+            tcDate: studentData.educationInfo?.lastTcDate ? studentData.educationInfo.lastTcDate.split('T')[0] : '',
+            prevClass: studentData.educationInfo?.lastClass || '',
+            percentage: studentData.educationInfo?.lastPercentage || '',
+            attendance: studentData.educationInfo?.lastAttendance || '',
+            extraActivity: studentData.educationInfo?.lastExtraActivity || ''
+          },
+          
+          // Other information
+          other: {
+            belongToBPL: studentData.otherInfo?.belongToBPL || 'no',
+            minority: studentData.otherInfo?.minority || 'no',
+            disability: studentData.otherInfo?.disability || '',
+            accountNo: studentData.otherInfo?.accountNo || '',
+            bank: studentData.otherInfo?.bank || '',
+            ifscCode: studentData.otherInfo?.ifscCode || '',
+            medium: studentData.otherInfo?.medium || '',
+            lastYearResult: studentData.otherInfo?.lastYearResult || '',
+            singleParent: studentData.otherInfo?.singleParent || 'no',
+            onlyChild: studentData.otherInfo?.onlyChild || 'no',
+            onlyGirlChild: studentData.otherInfo?.onlyGirlChild || 'no',
+            adoptedChild: studentData.otherInfo?.adoptedChild || 'no',
+            siblingAdmissionNo: studentData.otherInfo?.siblingAdmissionNo || '',
+            transferCase: studentData.otherInfo?.transferCase || 'no',
+            livingWith: studentData.otherInfo?.livingWith || '',
+            motherTongue: studentData.otherInfo?.motherTongue || '',
+            admissionType: studentData.otherInfo?.admissionType || 'new',
+            udiseNo: studentData.otherInfo?.udiseNo || ''
+          },
+          
+          // Image URLs
+          studentImagePath: studentData.studentImagePath || '',
+          fatherImagePath: studentData.fatherImagePath || '',
+          motherImagePath: studentData.motherImagePath || '',
+          guardianImagePath: studentData.guardianImagePath || '',
+          signaturePath: studentData.signaturePath || '',
+          parentSignaturePath: studentData.parentSignaturePath || '',
+          fatherAadharPath: studentData.fatherAadharPath || '',
+          motherAadharPath: studentData.motherAadharPath || '',
+          birthCertificatePath: studentData.birthCertificatePath || '',
+          migrationCertificatePath: studentData.migrationCertificatePath || '',
+          aadhaarCardPath: studentData.aadhaarCardPath || '',
+          familyIdPath: studentData.familyIdPath || '',
+          affidavitCertificatePath: studentData.affidavitCertificatePath || '',
+          incomeCertificatePath: studentData.incomeCertificatePath || '',
+          addressProof1Path: studentData.addressProof1Path || '',
+          addressProof2Path: studentData.addressProof2Path || '',
+          transferCertificatePath: studentData.transferCertificatePath || '',
+          markSheetPath: studentData.markSheetPath || '',
+          fatherSignaturePath: studentData.fatherSignaturePath || '',
+          motherSignaturePath: studentData.motherSignaturePath || '',
+          guardianSignaturePath: studentData.guardianSignaturePath || '',
+        };
+        
+        console.log('Mapped student data:', mappedData);
+        setFormData(mappedData);
+        showToast('success', 'Student data loaded successfully!');
+      } else {
+        console.error('Invalid API response structure:', response);
+        showToast('error', 'Failed to load student data - Invalid response');
+      }
+    } catch (error) {
+      console.error('Error fetching student:', error);
+      const apiErr = error as ApiError;
+      if (apiErr.status === 404) {
+        showToast('error', 'Student not found');
+        navigate('/student-management');
+      } else {
+        showToast('error', 'Failed to load student data');
+      }
+      setLoading(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, navigate]);
+
+  // Auto-calculate age when date of birth changes
+  useEffect(() => {
+    if (formData?.dateOfBirth) {
+      const birthDate = new Date(formData.dateOfBirth);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      
+      if (age >= 0) {
+        setFormData(prev => ({ ...prev, age }));
+      }
+    }
+  }, [formData?.dateOfBirth]);
+
+  // Handle input changes
+  const handleInputChange = (field: string, value: string | number | boolean) => {
+    // Handle password fields separately
+    if (field === 'emailPassword' || field.includes('emailPassword')) {
+      setPasswordUpdates(prev => ({
         ...prev,
-        [parent]: {
+        [field]: value as string
+      }));
+      return;
+    }
+
+    // Handle nested fields
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.');
+      setFormData(prev => ({
+          ...prev,
+          [parent]: {
           ...(prev[parent as keyof Student] as Record<string, unknown>),
-          [child]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-        }
+            [child]: value
+          }
       }));
     } else {
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+        [field]: value
       }));
     }
   };
 
-  // Helper function to render input fields
-  const renderInput = (label: string, name: string, type = 'text', required = false, placeholder = '', readonly = false) => {
-    const getValue = (name: string): string => {
-      if (!name.includes('.')) {
-        const val = formData[name as keyof Student];
-        return val !== null && val !== undefined ? String(val) : '';
-      } else {
-        try {
-          const parts = name.split('.');
-          let value: unknown = formData;
-          for (const part of parts) {
-            if (value === null || value === undefined) return '';
-            value = (value as Record<string, unknown>)[part];
-          }
-          return value !== null && value !== undefined ? String(value) : '';
-        } catch {
-          return '';
+  // Handle form submission
+  const handleSubmit = async () => {
+    if (!id) return;
+    
+    try {
+      setSaving(true);
+      
+      // Prepare submission data, including only changed passwords
+      const submissionData: Record<string, unknown> = { ...formData };
+      
+      // Handle email fields carefully to avoid unique constraint issues
+      if (submissionData.email === '') {
+        submissionData.email = null;
+      }
+      
+      if (submissionData.father && typeof submissionData.father === 'object') {
+        const father = submissionData.father as Record<string, unknown>;
+        if (father.email === '') {
+          father.email = null;
         }
       }
-    };
-
-  return (
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-600 mb-1">
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-                  <input
-          type={type}
-          name={name}
-          value={getValue(name)}
-                    onChange={handleChange}
-          placeholder={placeholder}
-          readOnly={readonly}
-          className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
-            readonly ? 'bg-gray-100' : ''
-          }`}
-          required={required}
-                  />
-              </div>
-    );
+      
+      if (submissionData.mother && typeof submissionData.mother === 'object') {
+        const mother = submissionData.mother as Record<string, unknown>;
+        if (mother.email === '') {
+          mother.email = null;
+        }
+      }
+      
+      // Add password updates if they exist
+      Object.keys(passwordUpdates).forEach(key => {
+        const value = passwordUpdates[key];
+        if (value && value.trim()) {
+          if (key.includes('.')) {
+            const [parent, child] = key.split('.');
+            if (!submissionData[parent]) {
+              submissionData[parent] = {};
+            }
+            (submissionData[parent] as Record<string, unknown>)[child] = value;
+          } else {
+            submissionData[key] = value;
+          }
+        }
+      });
+      
+      console.log('Submitting student data:', submissionData);
+      
+      const response = await axios.put(`${API_URL}/students/${id}`, submissionData, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        }
+      });
+      
+      if (response.data.success) {
+        showToast('success', 'Student updated successfully');
+        navigate('/school/students/manage-students');
+      } else {
+        showToast('error', response.data.message || 'Failed to update student');
+      }
+    } catch (error: unknown) {
+      console.error('Error updating student:', error);
+      
+      // Handle specific error types
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 400 && error.response?.data?.message?.includes('already exists')) {
+          showToast('error', error.response.data.message);
+        } else if (error.response?.data?.message) {
+          showToast('error', error.response.data.message);
+        } else {
+          showToast('error', 'Failed to update student. Please try again.');
+        }
+      } else {
+        showToast('error', 'Failed to update student. Please try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Helper function to render select fields
-  const renderSelect = (label: string, name: string, options: string[], required = false, placeholder = 'Select...') => {
-    const getValue = (name: string): string => {
-      if (!name.includes('.')) {
-        const val = formData[name as keyof Student];
-        return val !== null && val !== undefined ? String(val) : '';
-      } else {
-        try {
-          const parts = name.split('.');
-          let value: unknown = formData;
-          for (const part of parts) {
-            if (value === null || value === undefined) return '';
-            value = (value as Record<string, unknown>)[part];
-          }
-          return value !== null && value !== undefined ? String(value) : '';
-        } catch {
-          return '';
-        }
-      }
-    };
+  // Navigation functions
+  const nextStep = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
 
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  // Print function
+  const handlePrint = async () => {
+    try {
+      await generateAdmissionFormPrint(formData);
+    } catch (error) {
+      console.error('Error printing student profile:', error);
+      showToast('error', 'Failed to print student profile');
+    }
+  };
+
+  // Render form field helper
+  const renderInput = (
+    label: string, 
+    field: string, 
+    type: string = 'text', 
+    required: boolean = false,
+    placeholder?: string,
+    readOnly: boolean = false
+  ) => {
+    const isPasswordField = type === 'password';
+    
+    // Get password value from passwordUpdates if it's a password field
+    const passwordValue = isPasswordField ? (passwordUpdates[field] || '') : '';
+    
     return (
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-600 mb-1">
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-                  <select
-          name={name}
-          value={getValue(name)}
-                    onChange={handleChange}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          required={required}
-        >
-          <option value="">{placeholder}</option>
-          {options.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </div>
-    );
+    <div className="space-y-1">
+      <label className="block text-sm font-medium text-gray-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        type={type}
+          value={isPasswordField ? passwordValue : (getFieldValue(field) || '')}
+        onChange={readOnly ? undefined : (e) => handleInputChange(field, e.target.value)}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+          readOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+        }`}
+          placeholder={isPasswordField ? 'Enter new password (leave blank to keep current)' : placeholder}
+        required={required}
+        readOnly={readOnly}
+      />
+        {isPasswordField && (
+          <p className="text-xs text-gray-500">
+            Leave blank to keep current password. Enter new password to change.
+          </p>
+        )}
+    </div>
+  );
   };
 
-  // Helper function to render textarea fields
-  const renderTextarea = (label: string, name: string, required = false, rows = 3) => {
-    const getValue = (name: string): string => {
-      if (!name.includes('.')) {
-        const val = formData[name as keyof Student];
-        return val !== null && val !== undefined ? String(val) : '';
-      } else {
-        try {
-          const parts = name.split('.');
-          let value: unknown = formData;
-          for (const part of parts) {
-            if (value === null || value === undefined) return '';
-            value = (value as Record<string, unknown>)[part];
+  // Render select field helper
+  const renderSelect = (
+    label: string, 
+    field: string, 
+    options: string[] | { value: string; label: string }[], 
+    required: boolean = false
+  ) => (
+    <div className="space-y-1">
+      <label className="block text-sm font-medium text-gray-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <select
+        value={getFieldValue(field) || ''}
+        onChange={(e) => handleInputChange(field, e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        required={required}
+      >
+        <option value="">Select {label}</option>
+        {Array.isArray(options) ? options.map((option) => {
+          if (typeof option === 'string') {
+            return <option key={option} value={option}>{option}</option>;
+          } else {
+            return <option key={option.value} value={option.value}>{option.label}</option>;
           }
-          return value !== null && value !== undefined ? String(value) : '';
-        } catch {
-          return '';
-        }
-      }
-    };
+        }) : null}
+      </select>
+    </div>
+  );
 
-    return (
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-600 mb-1">
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-        <textarea
-          name={name}
-          value={getValue(name)}
-                    onChange={handleChange}
-          rows={rows}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          required={required}
-                  />
-                </div>
-    );
+  // Render file input helper
+  const renderFileInput = (
+    label: string,
+    field: string,
+    accept: string = 'image/*'
+  ) => (
+    <div className="space-y-1">
+      <label className="block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <input
+        type="file"
+        accept={accept}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            // For now, just store the file name. In a real implementation,
+            // you would upload the file and store the URL
+            handleInputChange(field, file.name);
+          }
+        }}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+      {getFieldValue(field) && (
+        <p className="text-sm text-gray-600">Current: {getFieldValue(field)}</p>
+      )}
+    </div>
+  );
+
+  // Get field value helper
+  const getFieldValue = (field: string): string => {
+    const keys = field.split('.');
+    if (keys.length === 1) {
+      return formData[field as keyof Student] as string || '';
+    } else {
+      const [parent, child] = keys;
+      const parentObj = formData[parent as keyof Student] as Record<string, unknown>;
+      return (parentObj?.[child] as string) || '';
+    }
   };
 
+  // Render form steps
   const renderFormStep = () => {
     switch (currentStep) {
       case 1:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Student Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {renderInput('Branch Name', 'branchName')}
-              {renderInput('Admission No', 'admissionNo', 'text', true, '', true)}
-              {renderInput('PEN No', 'penNo')}
-              {renderInput('APAAR ID', 'apaarId')}
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {renderInput('Full Name', 'fullName', 'text', true)}
-              {renderInput('SR No / Student ID', 'srNo')}
-              {renderInput('Date of Birth', 'dateOfBirth', 'date', true)}
-              {renderInput('Age', 'age', 'number', false, 'Auto-calculated', true)}
-              {renderInput('Height (cm)', 'height', 'number')}
-              {renderInput('Weight (kg)', 'weight', 'number')}
-              {renderInput('Religion', 'religion')}
-              {renderSelect('Gender', 'gender', ['Male', 'Female', 'Other'], true)}
+              {renderInput('Admission Number', 'admissionNo', 'text', true)}
+              {renderInput('PEN Number', 'penNo')}
+              {renderInput('APAAR ID', 'apaarId')} {/* Made optional */}
+              {renderInput('Date of Birth', 'dateOfBirth', 'date')}
+              {renderInput('Age', 'age', 'number', false, 'Auto-calculated from date of birth', true)}
+              {renderSelect('Gender', 'gender', GENDERS, true)}
               {renderSelect('Blood Group', 'bloodGroup', BLOOD_GROUPS)}
-              {renderSelect('Category', 'category', CATEGORIES, true)}
+              {renderSelect('Religion', 'religion', RELIGIONS)}
+              {renderSelect('Category', 'category', CATEGORIES)}
               {renderInput('Caste', 'caste')}
-              {renderSelect('Belong to BPL', 'belongToBPL', BPL_OPTIONS)}
-              {renderInput('Type of Disability', 'typeOfDisability')}
-              {renderInput('Nationality', 'nationality', 'text', true)}
-              {renderInput('Aadhaar Number', 'aadhaarNumber', 'text', true, '12-digit number')}
-                </div>
-                </div>
+              {renderInput('Nationality', 'nationality')}
+              {renderInput('Aadhaar Number', 'aadhaarNumber')}
+              
+              {/* Password Fields */}
+              {renderInput('Student Email Password', 'emailPassword', 'password')}
+            </div>
+            
+            {/* Document Upload Section */}
+            <h4 className="text-md font-medium text-gray-700 mt-6 border-b pb-2">Document Images</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderFileInput('Student Photo', 'studentImagePath')}
+              {renderFileInput('Student Signature', 'signaturePath')}
+              {renderFileInput('Birth Certificate', 'birthCertificatePath')}
+              {renderFileInput('Aadhaar Card', 'aadhaarCardPath')}
+              {renderFileInput('Transfer Certificate', 'transferCertificatePath')}
+              {renderFileInput('Mark Sheet', 'markSheetPath')}
+              {renderFileInput('Family ID', 'familyIdPath')}
+            </div>
+          </div>
         );
 
       case 2:
         return (
-          <div className="space-y-8">
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Academic Information</h3>
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Admit Session</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <h4 className="text-md font-medium text-gray-700">Admit Session</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {renderInput('Group', 'admitSession.group')}
-                {renderSelect('Stream', 'admitSession.stream', STREAMS)}
-                {renderSelect('Class', 'admitSession.class', AVAILABLE_CLASSES, true)}
+                {renderInput('Stream', 'admitSession.stream')}
+                {renderSelect('Class', 'admitSession.class', CLASSES, true)}
                 {renderSelect('Section', 'admitSession.section', SECTIONS)}
-                {renderInput('Roll No.', 'admitSession.rollNo')}
-                {renderSelect('Semester', 'admitSession.semester', SEMESTERS)}
+                {renderInput('Roll Number', 'admitSession.rollNo')}
+                {renderInput('Semester', 'admitSession.semester')}
                 {renderInput('Fee Group', 'admitSession.feeGroup')}
                 {renderInput('House', 'admitSession.house')}
-                </div>
               </div>
-            
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Current Session</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              
+              <h4 className="text-md font-medium text-gray-700 mt-6">Current Session</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {renderInput('Group', 'currentSession.group')}
-                {renderSelect('Stream', 'currentSession.stream', STREAMS)}
-                {renderSelect('Class', 'currentSession.class', AVAILABLE_CLASSES, true)}
+                {renderInput('Stream', 'currentSession.stream')}
+                {renderSelect('Class', 'currentSession.class', CLASSES)}
                 {renderSelect('Section', 'currentSession.section', SECTIONS)}
-                {renderInput('Roll No.', 'currentSession.rollNo')}
-                {renderSelect('Semester', 'currentSession.semester', SEMESTERS)}
+                {renderInput('Roll Number', 'currentSession.rollNo')}
+                {renderInput('Semester', 'currentSession.semester')}
                 {renderInput('Fee Group', 'currentSession.feeGroup')}
                 {renderInput('House', 'currentSession.house')}
-            </div>
-                </div>
-
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Previous Education</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('Previous School', 'previousEducation.school')}
-                {renderTextarea('School Address', 'previousEducation.schoolAddress')}
-                {renderInput('TC Date', 'previousEducation.tcDate', 'date')}
-                {renderInput('Previous Class', 'previousEducation.previousClass')}
-                {renderInput('Percentage/CGPA', 'previousEducation.percentage')}
-                {renderInput('Attendance', 'previousEducation.attendance')}
-                {renderTextarea('Extra Activities', 'previousEducation.extraActivities')}
-                </div>
-                </div>
-
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Academic Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('Registration No', 'registrationNo')}
-                </div>
-                </div>
               </div>
+            </div>
+          </div>
         );
 
       case 3:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Contact Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {renderInput('Mobile Number', 'mobileNumber', 'tel', true, '10-digit number')}
-              {renderInput('Student Email', 'email', 'email', true)}
-              {renderInput('Student Email Password', 'studentEmailPassword', 'password')}
-              {renderInput('Emergency Contact', 'emergencyContact', 'tel', true)}
-              {renderInput('Father Mobile', 'fatherMobile', 'tel')}
-              {renderInput('Mother Mobile', 'motherMobile', 'tel')}
-              {renderInput('Father Email', 'fatherEmail', 'email')}
-              {renderInput('Father Email Password', 'fatherEmailPassword', 'password')}
-              {renderInput('Mother Email', 'motherEmail', 'email')}
-              {renderInput('Mother Email Password', 'motherEmailPassword', 'password')}
-                    </div>
-                    </div>
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Contact Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('Mobile Number', 'mobileNumber', 'tel')}
+              {renderInput('Email', 'email', 'email')}
+              {renderInput('Emergency Contact', 'emergencyContact', 'tel')}
+            </div>
+          </div>
         );
 
       case 4:
         return (
-          <div className="space-y-8">
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Present Address</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('House/Flat No.', 'presentAddress.houseNo')}
-                {renderTextarea('Street/Area', 'presentAddress.street')}
-                {renderInput('City', 'presentAddress.city', 'text', true)}
-                {renderSelect('State', 'presentAddress.state', STATES, true)}
-                {renderInput('PIN Code', 'presentAddress.pinCode')}
-                </div>
-              </div>
-              
-            <div className="flex items-center my-4">
-                  <input
-                    type="checkbox"
-                id="sameAsPresentAddress"
-                    name="sameAsPresentAddress"
-                    checked={formData.sameAsPresentAddress}
-                    onChange={handleChange}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-              <label htmlFor="sameAsPresentAddress" className="ml-2 block text-gray-700">
-                    Same as Present Address
-                  </label>
-                </div>
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Address & Transport</h3>
+            
+            <h4 className="text-md font-medium text-gray-700">Present Address</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('House Number', 'address.houseNo')}
+              {renderInput('Street', 'address.street')}
+              {renderInput('City', 'address.city')}
+              {renderInput('State', 'address.state')}
+              {renderInput('PIN Code', 'address.pinCode')}
+            </div>
 
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Permanent Address</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('House/Flat No.', 'permanentAddress.houseNo')}
-                {renderTextarea('Street/Area', 'permanentAddress.street')}
-                {renderInput('City', 'permanentAddress.city')}
-                {renderSelect('State', 'permanentAddress.state', STATES)}
-                {renderInput('PIN Code', 'permanentAddress.pinCode')}
-                </div>
-                      </div>
+            <h4 className="text-md font-medium text-gray-700 mt-6">Permanent Address</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('House Number', 'address.permanentHouseNo')}
+              {renderInput('Street', 'address.permanentStreet')}
+              {renderInput('City', 'address.permanentCity')}
+              {renderInput('State', 'address.permanentState')}
+              {renderInput('PIN Code', 'address.permanentPinCode')}
+            </div>
 
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold border-b pb-2 mb-4">Transport Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderSelect('Transport Mode', 'transportMode', ['School Bus', 'Private Vehicle', 'Public Transport', 'Walking'])}
-                {renderInput('Transport Area', 'transportArea')}
-                {renderInput('Transport Stand', 'transportStand')}
-                {renderInput('Transport Route', 'transportRoute')}
-                {renderInput('Driver Name', 'transportDriver')}
-                {renderInput('Driver Phone', 'driverPhone', 'tel')}
-                {renderInput('Pickup Location', 'pickupLocation')}
-                {renderInput('Drop Location', 'dropLocation')}
-              </div>
-                  </div>
-                  </div>
+            <h4 className="text-md font-medium text-gray-700 mt-6">Transport Information</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderSelect('Transport Mode', 'transport.mode', ['Bus', 'Van', 'Auto', 'Private', 'Walking'])}
+              {renderInput('Transport Area', 'transport.area')}
+              {renderInput('Transport Stand', 'transport.stand')}
+              {renderSelect('Transport Route', 'transport.route', transportRoutes.map(route => ({
+                value: route.id,
+                label: `${route.name} (${route.fromLocation} - ${route.toLocation})`
+              })))}
+              {renderSelect('Driver', 'transport.driver', drivers.map(driver => ({
+                value: driver.id,
+                label: `${driver.name} (${driver.contactNumber})`
+              })))}
+              {renderInput('Pickup Location', 'transport.pickupLocation')}
+              {renderInput('Drop Location', 'transport.dropLocation')}
+            </div>
+          </div>
         );
 
       case 5:
         return (
-          <div className="space-y-8">
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-semibold mb-4">Father's Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('Name', 'fatherDetails.name', 'text', true)}
-                {renderInput('Qualification', 'fatherDetails.qualification')}
-                {renderInput('Occupation', 'fatherDetails.occupation')}
-                {renderInput('Organization', 'fatherDetails.organization')}
-                {renderInput('Designation', 'fatherDetails.designation')}
-                {renderInput('Mobile Number', 'fatherDetails.mobileNumber', 'tel', true)}
-                {renderInput('Office Contact', 'fatherDetails.officeContact', 'tel')}
-                {renderInput('Email', 'fatherDetails.email', 'email')}
-                {renderInput('Aadhaar Number', 'fatherDetails.aadhaarNumber')}
-                {renderInput('Annual Income', 'fatherDetails.annualIncome', 'number')}
-                </div>
-              </div>
-              
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-semibold mb-4">Mother's Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('Name', 'motherDetails.name', 'text', true)}
-                {renderInput('Qualification', 'motherDetails.qualification')}
-                {renderInput('Occupation', 'motherDetails.occupation')}
-                {renderInput('Email', 'motherDetails.email', 'email')}
-                {renderInput('Aadhaar Number', 'motherDetails.aadhaarNumber')}
-                {renderInput('Annual Income', 'motherDetails.annualIncome', 'number')}
-              </div>
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Parents & Guardian Information</h3>
+            
+            <h4 className="text-md font-medium text-gray-700">Father Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('Father Name', 'father.name', 'text', true)}
+              {renderInput('Qualification', 'father.qualification')}
+              {renderInput('Occupation', 'father.occupation')}
+              {renderInput('Email', 'father.email', 'email')}
+              {renderInput('Email Password', 'father.emailPassword', 'password')}
+              {renderInput('Contact Number', 'father.contactNumber', 'tel')}
+              {renderInput('Aadhaar Number', 'father.aadhaarNo')}
+              {renderInput('Annual Income', 'father.annualIncome')}
+              {renderFileInput('Father Photo', 'fatherImagePath')}
+            </div>
+
+            <h4 className="text-md font-medium text-gray-700 mt-6">Mother Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('Mother Name', 'mother.name')}
+              {renderInput('Qualification', 'mother.qualification')}
+              {renderInput('Occupation', 'mother.occupation')}
+              {renderInput('Email', 'mother.email', 'email')}
+              {renderInput('Email Password', 'mother.emailPassword', 'password')}
+              {renderInput('Contact Number', 'mother.contactNumber', 'tel')}
+              {renderInput('Aadhaar Number', 'mother.aadhaarNo')}
+              {renderInput('Annual Income', 'mother.annualIncome')}
+              {renderFileInput('Mother Photo', 'motherImagePath')}
+            </div>
+
+            <h4 className="text-md font-medium text-gray-700 mt-6">Guardian Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('Guardian Name', 'guardian.name')}
+              {renderInput('Address', 'guardian.address')}
+              {renderInput('Contact Number', 'guardian.contactNumber', 'tel')}
+              {renderInput('Email', 'guardian.email', 'email')}
+              {renderInput('Aadhaar Number', 'guardian.aadhaarNo')}
+              {renderInput('Occupation', 'guardian.occupation')}
+              {renderInput('Annual Income', 'guardian.annualIncome')}
+              {renderFileInput('Guardian Photo', 'guardianImagePath')}
             </div>
             
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-semibold mb-4">Guardian Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderInput('Guardian Name', 'guardianDetails.name')}
-                {renderTextarea('Guardian Address', 'guardianDetails.address')}
-                {renderInput('Guardian Mobile', 'guardianDetails.mobile', 'tel')}
-                {renderInput('Guardian Email', 'guardianDetails.email', 'email')}
-                {renderInput('Guardian Aadhaar No', 'guardianDetails.aadhaarNumber')}
-                {renderInput('Guardian Occupation', 'guardianDetails.occupation')}
-                {renderInput('Guardian Annual Income', 'guardianDetails.annualIncome', 'number')}
-                  </div>
-                  </div>
-                  </div>
+            {/* Parent Signature Section */}
+            <h4 className="text-md font-medium text-gray-700 mt-6 border-b pb-2">Parent Signatures</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderFileInput('Parent/Guardian Signature', 'parentSignaturePath')}
+            </div>
+          </div>
         );
 
       case 6:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Documents</h3>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600 mb-4">Document uploads are handled separately. Current document paths:</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div><strong>Student Image:</strong> {formData.documents.studentImage || 'Not uploaded'}</div>
-                <div><strong>Father Image:</strong> {formData.documents.fatherImage || 'Not uploaded'}</div>
-                <div><strong>Mother Image:</strong> {formData.documents.motherImage || 'Not uploaded'}</div>
-                <div><strong>Guardian Image:</strong> {formData.documents.guardianImage || 'Not uploaded'}</div>
-                <div><strong>Birth Certificate:</strong> {formData.documents.birthCertificate || 'Not uploaded'}</div>
-                <div><strong>Transfer Certificate:</strong> {formData.documents.transferCertificate || 'Not uploaded'}</div>
-                <div><strong>Mark Sheet:</strong> {formData.documents.markSheet || 'Not uploaded'}</div>
-                <div><strong>Aadhaar Card:</strong> {formData.documents.studentAadhaar || 'Not uploaded'}</div>
-                  </div>
-                  </div>
-                  </div>
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Previous Education</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderInput('Previous School', 'lastEducation.school')}
+              {renderInput('School Address', 'lastEducation.address')}
+              {renderInput('TC Date', 'lastEducation.tcDate', 'date')}
+              {renderInput('Previous Class', 'lastEducation.prevClass')}
+              {renderInput('Percentage', 'lastEducation.percentage')}
+              {renderInput('Attendance', 'lastEducation.attendance')}
+              {renderInput('Extra Activities', 'lastEducation.extraActivity')}
+            </div>
+          </div>
         );
 
       case 7:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Other Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-lg font-medium mb-4 border-b pb-2">Other Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {renderSelect('Belong to BPL', 'other.belongToBPL', ['Yes', 'No'])}
               {renderSelect('Minority', 'other.minority', ['Yes', 'No'])}
               {renderInput('Disability', 'other.disability')}
               {renderInput('Account Number', 'other.accountNo')}
-              {renderInput('Bank Name', 'other.bank')}
+              {renderInput('Bank', 'other.bank')}
               {renderInput('IFSC Code', 'other.ifscCode')}
-              {renderInput('Medium of Instruction', 'other.medium')}
+              {renderInput('Medium', 'other.medium')}
               {renderInput('Last Year Result', 'other.lastYearResult')}
               {renderSelect('Single Parent', 'other.singleParent', ['Yes', 'No'])}
               {renderSelect('Only Child', 'other.onlyChild', ['Yes', 'No'])}
@@ -757,10 +925,10 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
               {renderSelect('Transfer Case', 'other.transferCase', ['Yes', 'No'])}
               {renderInput('Living With', 'other.livingWith')}
               {renderInput('Mother Tongue', 'other.motherTongue')}
-              {renderSelect('Admission Type', 'other.admissionType', ['new', 'transfer'])}
-              {renderInput('UDISE No', 'other.udiseNo')}
-              </div>
+              {renderSelect('Admission Type', 'other.admissionType', ['New', 'Transfer', 'Readmission'])}
+              {renderInput('UDISE Number', 'other.udiseNo')}
             </div>
+          </div>
         );
 
       default:
@@ -768,154 +936,142 @@ const StudentEdit: React.FC<StudentEditProps> = ({ student, isOpen, onClose, onS
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  // Hook to fetch data on component mount
+  useEffect(() => {
+    fetchStudentData();
+    fetchTransportData();
+  }, [fetchStudentData, fetchTransportData]);
 
-    try {
-      // Format dates for submission
-      const submissionData = {
-        ...formData,
-        dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString() : null,
-        tcDate: formData.tcDate ? new Date(formData.tcDate).toISOString() : null,
-        admissionDate: formData.admissionDate ? new Date(formData.admissionDate).toISOString() : null,
-        // Flatten nested objects for backend compatibility
-        'address.houseNo': formData.presentAddress.houseNo,
-        'address.street': formData.presentAddress.street,
-        'address.city': formData.presentAddress.city,
-        'address.state': formData.presentAddress.state,
-        'address.pinCode': formData.presentAddress.pinCode,
-        'address.permanentHouseNo': formData.permanentAddress.houseNo,
-        'address.permanentStreet': formData.permanentAddress.street,
-        'address.permanentCity': formData.permanentAddress.city,
-        'address.permanentState': formData.permanentAddress.state,
-        'address.permanentPinCode': formData.permanentAddress.pinCode,
-        'father.name': formData.fatherDetails.name,
-        'father.qualification': formData.fatherDetails.qualification,
-        'father.occupation': formData.fatherDetails.occupation,
-        'father.contactNumber': formData.fatherDetails.mobileNumber,
-        'father.email': formData.fatherDetails.email,
-        'father.aadhaarNo': formData.fatherDetails.aadhaarNumber,
-        'father.annualIncome': formData.fatherDetails.annualIncome,
-        'mother.name': formData.motherDetails.name,
-        'mother.qualification': formData.motherDetails.qualification,
-        'mother.occupation': formData.motherDetails.occupation,
-        'mother.email': formData.motherDetails.email,
-        'mother.aadhaarNo': formData.motherDetails.aadhaarNumber,
-        'mother.annualIncome': formData.motherDetails.annualIncome,
-        'guardian.name': formData.guardianDetails.name,
-        'guardian.address': formData.guardianDetails.address,
-        'guardian.contactNumber': formData.guardianDetails.mobile,
-        'guardian.email': formData.guardianDetails.email,
-        'guardian.aadhaarNo': formData.guardianDetails.aadhaarNumber,
-        'guardian.occupation': formData.guardianDetails.occupation,
-        'guardian.annualIncome': formData.guardianDetails.annualIncome
-      };
-
-      const response = await fetch(`${STUDENT_API.UPDATE}/${student.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submissionData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update student');
-      }
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to update student');
-      }
-
-      onStudentUpdated();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, steps.length));
-  const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
-
-  if (!isOpen) return null;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-7xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center z-10">
-          <h2 className="text-xl font-semibold">Edit Student Details</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <FaTimes size={24} />
-          </button>
-                        </div>
-
-        {/* Step Navigation */}
-        <div className="px-6 py-4 border-b">
-          <div className="flex justify-between items-center">
-            {steps.map((step) => (
-              <div
-                key={step.id}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-                  currentStep === step.id
-                    ? 'bg-blue-100 text-blue-700'
-                    : currentStep > step.id
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-500'
-                }`}
-                onClick={() => setCurrentStep(step.id)}
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/school/students/manage-students')}
+                className="text-gray-600 hover:text-gray-800"
               >
-                <span className="text-lg">{step.icon}</span>
-                <span className="text-sm font-medium">{step.title}</span>
-                        </div>
-            ))}
-                  </div>
-                </div>
-
-        <form onSubmit={handleSubmit} className="p-6">
-          {error && (
-            <div className="bg-red-50 text-red-500 p-4 rounded-lg mb-6">
-              {error}
-                      </div>
-                    )}
-
-          {renderFormStep()}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8 pt-6 border-t">
+                <ArrowLeft className="h-6 w-6" />
+              </button>
+              <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Edit Student</h1>
+                  <p className="text-gray-600">{formData?.fullName} ({formData?.admissionNo})</p>
+              </div>
+            </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handlePrint}
+                className="flex items-center px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+                title="Print Student Profile"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </button>
             <button
-              type="button"
+              onClick={() => navigate('/school/students/manage-students')}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            {steps.map((step, index) => (
+              <div key={step.id} className="flex items-center">
+                <div
+                  className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                    currentStep >= step.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-600'
+                  }`}
+                >
+                  <span className="text-sm font-medium">{step.id}</span>
+                </div>
+                <div className="ml-2 text-sm font-medium text-gray-700">
+                  {step.title}
+                </div>
+                {index < steps.length - 1 && (
+                  <div
+                    className={`ml-4 w-8 h-0.5 ${
+                      currentStep > step.id ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Form Content */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          {renderFormStep()}
+        </div>
+
+        {/* Navigation Buttons */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
+          <div className="flex justify-between">
+            <button
               onClick={prevStep}
               disabled={currentStep === 1}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md disabled:opacity-50"
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              <ArrowLeft className="h-4 w-4 mr-2" />
               Previous
             </button>
             
-            {currentStep < steps.length ? (
-            <button
-              type="button"
-                onClick={nextStep}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-                Next
-            </button>
-            ) : (
-            <button
-              type="submit"
-              disabled={loading}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-            >
-                {loading ? 'Updating...' : 'Update Student'}
-            </button>
-            )}
+            <div className="flex space-x-3">
+              {currentStep === totalSteps ? (
+                <button
+                  onClick={handleSubmit}
+                  disabled={saving}
+                  className="flex items-center px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={nextStep}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </button>
+              )}
+            </div>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

@@ -4,15 +4,11 @@ import {
   Book, 
   Settings, 
   LogOut, 
-  FileText, 
   User, 
   Home, 
-  Calendar, 
   Users, 
-  Database, 
-  BarChart2,
-  HelpCircle,
-  MessageSquare
+  BookOpen,
+  Calendar
 } from "lucide-react";
 
 interface TeacherNavbarProps {
@@ -135,6 +131,12 @@ const TeacherNavbar = {
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             <NavLink 
+              to="/teacher/timetable" 
+              icon={<Calendar className="h-4 w-4 text-emerald-600" />}
+              label="My Timetable" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            />
+            {/* <NavLink 
               to="/classes/TeachingMaterials" 
               label="Teaching Materials" 
               onClick={() => setIsMobileSidebarOpen(false)}
@@ -142,6 +144,12 @@ const TeacherNavbar = {
             <NavLink 
               to="/teachers/myclasses/assignment" 
               label="Assignments" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            /> */}
+            <NavLink 
+              to="/teacher/diary" 
+              icon={<BookOpen className="h-4 w-4 text-emerald-600" />}
+              label="Teacher Diary" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
           </NavDropdown>
@@ -159,8 +167,8 @@ const TeacherNavbar = {
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             <NavLink 
-              to="/students/attendance" 
-              label="Take Attendance" 
+              to="/teacher/students-attendance" 
+              label="Student Attendance" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             <NavLink 
@@ -170,7 +178,7 @@ const TeacherNavbar = {
             />
           </NavDropdown>
 
-          {/* Examinations - Teacher view */}
+          {/* Examinations - Teacher view
           <NavDropdown 
             title="Examinations" 
             icon={<FileText className="h-5 w-5 text-orange-600" />}
@@ -187,7 +195,7 @@ const TeacherNavbar = {
               label="Exam Schedule" 
               onClick={() => setIsMobileSidebarOpen(false)}
             />
-          </NavDropdown>
+          </NavDropdown> */}
 
           {/* Teacher Resources - New section */}
           {/* <NavDropdown 
@@ -229,7 +237,7 @@ const TeacherNavbar = {
             onClick={() => setIsMobileSidebarOpen(false)}
           /> */}
 
-          {/* Parent Feedback */}
+          {/* Parent Feedback
           <NavLink 
             to="/teacher/feedback" 
             icon={<MessageSquare className="h-5 w-5 text-purple-600" />} 
@@ -241,7 +249,7 @@ const TeacherNavbar = {
             icon={<MessageSquare className="h-5 w-5 text-purple-600" />} 
             label="Studentfrom" 
             onClick={() => setIsMobileSidebarOpen(false)}
-          />
+          /> */}
         </nav>
       </div>
     );

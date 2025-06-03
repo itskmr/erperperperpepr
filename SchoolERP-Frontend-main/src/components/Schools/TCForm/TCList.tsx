@@ -30,10 +30,14 @@ const TCList: React.FC = () => {
     try {
       console.log('[DEBUG] Fetching transfer certificates...');
       const data = await fetchIssuedCertificates();
-      console.log(`[DEBUG] Fetched ${data.length} certificates`);
+      console.log(`[DEBUG] Fetched data:`, data);
+      
+      // Ensure data is an array
+      const certificatesArray = Array.isArray(data) ? data : [];
+      console.log(`[DEBUG] Fetched ${certificatesArray.length} certificates`);
       
       // Process the certificates for display
-      const processedCertificates = data.map(cert => {
+      const processedCertificates = certificatesArray.map(cert => {
         // Standardize class display
         let displayClass = cert.studentClass || '';
         
@@ -68,6 +72,8 @@ const TCList: React.FC = () => {
       
       setError(errorMessage);
       toast.error(errorMessage);
+      // Set empty array as fallback
+      setIssuedCertificates([]);
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +142,167 @@ const TCList: React.FC = () => {
               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
             </svg>
             Generate New Certificate
+          </button>
+        </div>
+      </div>
+
+      {/* Statistics Section */}
+      <div className="p-6 border-b border-gray-200">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-sm font-medium">Total Certificates</p>
+                <p className="text-2xl font-bold">{issuedCertificates.length}</p>
+              </div>
+              <div className="bg-blue-400 p-3 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Classes Covered</p>
+                <p className="text-2xl font-bold">
+                  {new Set(issuedCertificates.map(cert => cert.studentClass).filter(Boolean)).size}
+                </p>
+              </div>
+              <div className="bg-green-400 p-3 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-yellow-100 text-sm font-medium">This Month</p>
+                <p className="text-2xl font-bold">
+                  {issuedCertificates.filter(cert => {
+                    const issueDate = new Date(cert.issueDate);
+                    const currentDate = new Date();
+                    return issueDate.getMonth() === currentDate.getMonth() && 
+                           issueDate.getFullYear() === currentDate.getFullYear();
+                  }).length}
+                </p>
+              </div>
+              <div className="bg-yellow-400 p-3 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a1 1 0 012 0v4a1 1 0 001 1h2a1 1 0 001-1V3a1 1 0 112 0v4h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-purple-100 text-sm font-medium">Recent (7 days)</p>
+                <p className="text-2xl font-bold">
+                  {issuedCertificates.filter(cert => {
+                    const issueDate = new Date(cert.issueDate);
+                    const sevenDaysAgo = new Date();
+                    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                    return issueDate >= sevenDaysAgo;
+                  }).length}
+                </p>
+              </div>
+              <div className="bg-purple-400 p-3 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Export Buttons */}
+        <div className="flex flex-wrap items-center gap-4">
+          <button
+            onClick={() => {
+              const csvContent = [
+                ['TC No', 'Student Name', 'Class', 'Admission No', 'Issue Date', 'Leaving Date', 'Father Name', 'Mother Name'].join(','),
+                ...filteredCertificates.map(cert => [
+                  cert.tcNo,
+                  `"${cert.studentName}"`,
+                  cert.studentClass,
+                  cert.admissionNumber,
+                  new Date(cert.issueDate).toLocaleDateString(),
+                  new Date(cert.leavingDate).toLocaleDateString(),
+                  `"${cert.fatherName}"`,
+                  `"${cert.motherName}"`
+                ].join(','))
+              ].join('\n');
+              
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const link = document.createElement('a');
+              const url = URL.createObjectURL(blob);
+              link.setAttribute('href', url);
+              link.setAttribute('download', `transfer_certificates_${new Date().toISOString().split('T')[0]}.csv`);
+              link.style.visibility = 'hidden';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
+            disabled={filteredCertificates.length === 0}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Export CSV
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                const { jsPDF } = await import('jspdf');
+                const doc = new jsPDF();
+                
+                // Add title
+                doc.setFontSize(20);
+                doc.text('Transfer Certificates Report', 20, 20);
+                
+                // Add date
+                doc.setFontSize(12);
+                doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 35);
+                
+                // Add certificates
+                let yPosition = 50;
+                doc.setFontSize(10);
+                
+                filteredCertificates.forEach((cert, index) => {
+                  if (yPosition > 280) {
+                    doc.addPage();
+                    yPosition = 20;
+                  }
+                  
+                  doc.text(`${index + 1}. TC No: ${cert.tcNo}`, 20, yPosition);
+                  doc.text(`Student: ${cert.studentName}`, 30, yPosition + 8);
+                  doc.text(`Class: ${cert.studentClass}`, 30, yPosition + 16);
+                  doc.text(`Admission No: ${cert.admissionNumber}`, 30, yPosition + 24);
+                  doc.text(`Issue Date: ${new Date(cert.issueDate).toLocaleDateString()}`, 30, yPosition + 32);
+                  
+                  yPosition += 45;
+                });
+                
+                doc.save(`transfer_certificates_${new Date().toISOString().split('T')[0]}.pdf`);
+              } catch (error) {
+                console.error('Error exporting to PDF:', error);
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md transition duration-300 ease-in-out flex items-center"
+            disabled={filteredCertificates.length === 0}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Export PDF
           </button>
         </div>
       </div>

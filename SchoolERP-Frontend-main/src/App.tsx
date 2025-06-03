@@ -7,14 +7,13 @@ import SchoolLogin from './pages/auth/SchoolLogin';
 import TeacherLogin from './pages/auth/TeacherLogin';
 import ParentLogin from './pages/auth/ParentLogin';
 import StudentLogin from './pages/auth/StudentLogin';
-import ParentSignup from './pages/auth/ParentSignup';
-import StudentSignup from './pages/auth/StudentSignup';
 import StudentManagement from './pages/StudentManagement';
 import FeeStructure from './pages/FeeStructure';
 import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import StudentRegistrationForm from './pages/StudentForm';
+import StudentEdit from './components/ManageStudents/StudentEdit';
 // import AuthPage from './pages/AuthPage';
 import AccountsPage from './pages/AccountsPage';
 import UserManagement from './pages/UserManagement';
@@ -28,7 +27,7 @@ import Timetable from './components/Schools/Timetable';
 
 // import { ClassSectionManagement } from './components/Admin/Class'
 // import { ManageTeachers } from './pages/ManageTeachers'
-import { ManageStudent } from './pages/ManageStudents'
+// import { StudentManagement } from './`'
 // import  StudentFeeDetails  from './components/StudentFeeDetails'
 import TeacherProfile from './components/Teacher/TeacherProfile'
 import SchoolProfile from './components/Schools/SchoolProfile'
@@ -58,19 +57,27 @@ import FeeCollectionApp from "./components/Schools/FeesCollection";
 import  AttendanceManagement from "./components/Teacher/AttendanceManagement";
 import CheckBounceSystem from "./components/Schools/ChequeBounce";
 import GradeManagementSchool from "./components/Schools/ExamGrade";
-import BusTracking from "./components/Schools/Bustracking";
+// import BusTracking from "./components/Schools/Bustracking";
 import StudentRegistration from "./pages/StudentRegister";
 import AdminDashboard from "./components/Admin/AdminDashboard";
 import TeacherDashboard from "./components/Teacher/TeacherDashboard";
-import StudentDataPage from "./pages/RegisterStudentsData";
+import RegisterStudentDataTable from "./components/StudentForm/RegisterStudentDataTable";
+// import StudentFormProgress from "./components/StudentForm/StudentFormProgress";
 // Student components
 
+import StudentDashboard from "./components/Student/StudentDashboard";
+import TeacherDiary from './components/Teacher/TeacherDiary';
+import DiaryViewer from './components/common/DiaryViewer';
+import SchoolDiaryView from './components/Schools/SchoolDiaryView';
+import TeacherAttendanceManagement from "./components/School/TeacherAttendanceManagement";
+import TeacherTimetable from './components/Teacher/TeacherTimetable';
+import StudentTimetable from './components/Student/StudentTimetable';
 
 // Parent components
 import { ParentDashboard, ParentAttendance } from './components/parent';
 // import FeedbackPage from './pages/parent/FeedbackPage';
-import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
-import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
+// import TeacherFeedbackPage from './pages/teacher/TeacherFeedbackPage';
+// import SchoolFeedbackPage from './pages/school/SchoolFeedbackPage';
 // Uncomment these when the components are available
 // import StudentFeeDetails from './pages/StudentFeeDetails';
 // import PaymentGateway from './pages/PaymentGateway';
@@ -87,6 +94,10 @@ import StudentChat from './components/Student/chat';
 import StudentProfileDashboard from './components/Student/StudentProfileDashboard';
 import StudentFAQ from './components/Student/StudentFAQ';
 
+// Import auth test utility for debugging
+import './utils/authTest';
+import './utils/testAuthFix';
+
 // PathTracker component to save current path in sessionStorage
 const PathTracker = () => {
   const location = useLocation();
@@ -101,33 +112,47 @@ const PathTracker = () => {
   return null;
 };
 
-// Student components 
-import StudentDashboard from "./components/Student/StudentDashboard";
-
 // The main App component that provides authentication state
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Add loading state
 
   // Function to check authentication from localStorage
   const checkAuthFromStorage = () => {
     const storedToken = localStorage.getItem('authToken') || localStorage.getItem('token');
     const storedRole = localStorage.getItem('userRole') || localStorage.getItem('role');
 
-    console.log("Checking auth state:", { storedToken, storedRole });
+    console.log("Checking auth state:", { storedToken: storedToken ? '***' : null, storedRole });
 
     if (storedToken && storedRole) {
-      setToken(storedToken);
+      // Validate token is not expired (basic check)
+      try {
+        const tokenPayload = JSON.parse(atob(storedToken.split('.')[1]));
+        const isExpired = tokenPayload.exp * 1000 < Date.now();
+        
+        if (isExpired) {
+          console.log("Token is expired, clearing auth data");
+          handleLogout();
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log("Invalid token format, clearing auth data", error);
+        handleLogout();
+        setIsLoading(false);
+        return;
+      }
+      
       setUserRole(storedRole);
       setIsAuthenticated(true);
       console.log("User authenticated as:", storedRole);
     } else {
-      setToken(null);
       setUserRole(null);
       setIsAuthenticated(false);
       console.log("No authentication found in localStorage");
     }
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -157,11 +182,10 @@ function App() {
     localStorage.setItem('role', role); // For backward compatibility
 
     // Update state
-    setToken(token);
     setUserRole(role);
     setIsAuthenticated(true);
     
-    console.log("Authentication successful:", { token, role });
+    console.log("Authentication successful:", { token: token ? '***' : null, role });
   };
 
   const handleLogout = () => {
@@ -180,12 +204,23 @@ function App() {
     document.cookie = 'authCookie=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     
     // Reset state
-    setToken(null);
     setUserRole(null);
     setIsAuthenticated(false);
     
     console.log("Logout successful");
   };
+
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // The main App component that provides authentication state
   return (
@@ -303,12 +338,12 @@ function AppContent({
               <StudentLogin />
         } />
         
-        <Route path="/auth/parent-signup" element={
+        {/* <Route path="/auth/parent-signup" element={
           isAuthenticated && userRole === 'parent' ?
             <Navigate to="/parent/dashboard" replace /> :
             isAuthenticated ?
               <Navigate to={`/${userRole}/dashboard`} replace /> :
-              <ParentSignup />
+              <ParentSignup />  
         } />
         
         <Route path="/auth/student-signup" element={
@@ -317,7 +352,7 @@ function AppContent({
             isAuthenticated ?
               <Navigate to={`/${userRole}/dashboard`} replace /> :
               <StudentSignup />
-        } />
+        } /> */}
 
         {/* Default route - redirect to login if not authenticated, dashboard if authenticated */}
         <Route
@@ -346,7 +381,7 @@ function AppContent({
         />
 
         <Route
-          path="/school/students/financial-management/student-management"
+          path="/school/students/manage-students"
           element={
             <ProtectedRoute>
               <Layout userRole={userRole} onLogout={handleLogout}>
@@ -431,6 +466,17 @@ function AppContent({
           }
         />
         
+        <Route
+          path="/school/faculty-management/teacher-diary"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <SchoolDiaryView />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         {/* Transport Management Routes */}
         <Route
           path="/school/transport-management/driver-directory"
@@ -468,7 +514,7 @@ function AppContent({
           element={
             <ProtectedRoute allowedRoles={['school']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <StudentDataPage />
+                <RegisterStudentDataTable />
               </Layout>
             </ProtectedRoute>
           }
@@ -484,9 +530,21 @@ function AppContent({
             </ProtectedRoute>
           }
         />
-      
 
         <Route
+          path="/school/teacher-attendance"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherAttendanceManagement /> 
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
+      
+
+        {/* <Route
           path="/school/BusTracking"
           element={
             <ProtectedRoute allowedRoles={['school']}>
@@ -495,14 +553,46 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
+        /> */}
+
+        <Route
+          path="/teacher/diary"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherDiary />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/diary/view/:id"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DiaryViewer userRole="school" />
+              </Layout>
+            </ProtectedRoute>
+          }
         />
 
         <Route
-          path="/students/StudentRegistrationForm"
+          path="/teacher/timetable"
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <TeacherTimetable />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/student-edit/:id"
           element={
             <ProtectedRoute allowedRoles={['admin', 'school']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <StudentRegistrationForm />
+                <StudentEdit />
               </Layout>
             </ProtectedRoute>
           }
@@ -540,7 +630,17 @@ function AppContent({
         />
         
         <Route
-          path="/students/Attendance"
+          path="/school/student-attendance"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <AttendanceManagement />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/students-attendance"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
@@ -622,7 +722,7 @@ function AppContent({
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* <Route
           path="/school/feedback"
           element={
             <ProtectedRoute allowedRoles={['school']}>
@@ -631,7 +731,7 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
         <Route
           path="/school/students/register/addNew"
           element={
@@ -682,7 +782,7 @@ function AppContent({
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* <Route
           path="/teacher/feedback"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
@@ -691,11 +791,11 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
 
 
 
-        < Route
+        {/* < Route
           path='/master/class-section'
           element={
             <ProtectedRoute>
@@ -704,9 +804,9 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
 
-        <Route
+        {/* <Route
           path='/school/students/manage-students'
           element={
             <ProtectedRoute>
@@ -715,7 +815,7 @@ function AppContent({
               </Layout>
             </ProtectedRoute>
           }
-        />
+        /> */}
         {/* <Route
             path='/school/administration/manage-teachers'
             element={
@@ -835,6 +935,17 @@ function AppContent({
             <ProtectedRoute allowedRoles={['parent']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
                 <ParentAttendance />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parent/academics/diary"
+          element={
+            <ProtectedRoute allowedRoles={['parent']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DiaryViewer userRole="parent" />
               </Layout>
             </ProtectedRoute>
           }
@@ -1251,6 +1362,17 @@ function AppContent({
         />
 
         <Route
+          path="/student/academics/diary"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <DiaryViewer userRole="student" />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/student/academics/assignments"
           element={
             <ProtectedRoute allowedRoles={['student']}>
@@ -1336,7 +1458,39 @@ function AppContent({
           }
         />
 
-        
+        <Route
+          path="/student/timetable"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentTimetable />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parent/student/:studentId/timetable"
+          element={
+            <ProtectedRoute allowedRoles={['parent']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentTimetable userRole="parent" />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/students/StudentRegistrationForm"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <StudentRegistrationForm />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
       </Routes>
     </>
   );

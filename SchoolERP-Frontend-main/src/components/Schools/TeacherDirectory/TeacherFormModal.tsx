@@ -119,24 +119,97 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      console.log('Processing teacher image:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+
       if (!file.type.startsWith('image/')) {
         setErrors(prev => ({ ...prev, profileImage: 'Please upload an image file' }));
         return;
       }
       if (file.size > 2 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, profileImage: 'Image must be less than 2MB' }));
+        setErrors(prev => ({ ...prev, profileImage: 'Image must be less than 2MB for better compression' }));
         return;
       }
       
+      // Create a canvas to resize/compress the image
       const reader = new FileReader();
-      reader.onloadend = () => {
-        handleInputChange('profileImage', reader.result as string);
-        setErrors(prev => {
-          const newErrors = {...prev};
-          delete newErrors.profileImage;
-          return newErrors;
-        });
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            console.log('Original teacher image dimensions:', img.width, 'x', img.height);
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+              throw new Error('Could not get canvas context');
+            }
+            
+            // Set canvas size (max width/height 300px to reduce file size significantly)
+            const maxSize = 300;
+            let { width, height } = img;
+            
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            console.log('Resized teacher image dimensions:', width, 'x', height);
+            
+            // Draw and compress with higher compression
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5); // 50% quality for smaller size
+            
+            console.log('Compressed teacher image size:', Math.round(compressedDataUrl.length / 1024), 'KB');
+            
+            // Validate the compressed image size (strict limit)
+            if (compressedDataUrl.length > 400000) { // ~400KB after base64 encoding
+              console.error('Compressed teacher image still too large:', compressedDataUrl.length);
+              setErrors(prev => ({ ...prev, profileImage: 'Image is still too large after compression. Please choose a smaller image.' }));
+              return;
+            }
+            
+            console.log('Teacher image processed successfully');
+            handleInputChange('profileImage', compressedDataUrl);
+            setErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.profileImage;
+              return newErrors;
+            });
+            
+          } catch (error) {
+            console.error('Error processing teacher image:', error);
+            setErrors(prev => ({ ...prev, profileImage: 'Error processing image. Please try a different image.' }));
+          }
+        };
+        
+        img.onerror = () => {
+          console.error('Error loading teacher image');
+          setErrors(prev => ({ ...prev, profileImage: 'Error loading image. Please try a different file.' }));
+        };
+        
+        img.src = event.target?.result as string;
       };
+      
+      reader.onerror = () => {
+        console.error('Error reading teacher image file');
+        setErrors(prev => ({ ...prev, profileImage: 'Error reading file. Please try again.' }));
+      };
+      
       reader.readAsDataURL(file);
     }
   };
@@ -204,10 +277,17 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'email':
-        if (!value || (typeof value === 'string' && value.trim() === '')) {
-          setErrors(prev => ({ ...prev, email: 'Email is required' }));
-        } else if (typeof value === 'string' && !emailRegex.test(value)) {
-          setErrors(prev => ({ ...prev, email: 'Invalid email format' }));
+        // Email is optional, only validate if provided
+        if (value && typeof value === 'string' && value.trim() !== '') {
+          if (!emailRegex.test(value)) {
+            setErrors(prev => ({ ...prev, email: 'Invalid email format' }));
+          } else {
+            setErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.email;
+              return newErrors;
+            });
+          }
         } else {
           setErrors(prev => {
             const newErrors = {...prev};
@@ -230,10 +310,17 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
         }
         break;
       case 'phone':
-        if (!value || (typeof value === 'string' && value.trim() === '')) {
-          setErrors(prev => ({ ...prev, phone: 'Phone is required' }));
-        } else if (typeof value === 'string' && !phoneRegex.test(value.replace(/[^0-9]/g, ''))) {
-          setErrors(prev => ({ ...prev, phone: 'Phone must be 10 digits' }));
+        // Phone is optional, only validate if provided
+        if (value && typeof value === 'string' && value.trim() !== '') {
+          if (!phoneRegex.test(value.replace(/[^0-9]/g, ''))) {
+            setErrors(prev => ({ ...prev, phone: 'Phone must be 10 digits' }));
+          } else {
+            setErrors(prev => {
+              const newErrors = {...prev};
+              delete newErrors.phone;
+              return newErrors;
+            });
+          }
         } else {
           setErrors(prev => {
             const newErrors = {...prev};
@@ -292,7 +379,7 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
   // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    const requiredFields = ['fullName', 'email', 'gender', 'phone'];
+    const requiredFields = ['fullName', 'gender'];
     
     // Check required fields
     requiredFields.forEach(field => {
@@ -302,14 +389,19 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
       }
     });
 
-    // Check subjects
-    if (!Array.isArray(teacherData.subjects) || teacherData.subjects.length === 0) {
-      newErrors.subjects = 'At least one subject is required';
+    // Optional fields validation (only validate if provided)
+    if (teacherData.email && typeof teacherData.email === 'string' && teacherData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(teacherData.email)) {
+        newErrors.email = 'Invalid email format';
+      }
     }
 
-    // Check sections
-    if (!Array.isArray(teacherData.sections) || teacherData.sections.length === 0) {
-      newErrors.sections = 'At least one section is required';
+    if (teacherData.phone && typeof teacherData.phone === 'string' && teacherData.phone.trim()) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(teacherData.phone.replace(/[^0-9]/g, ''))) {
+        newErrors.phone = 'Phone must be 10 digits';
+      }
     }
 
     // Check class incharge fields only if isClassIncharge is true
@@ -430,12 +522,11 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email <span className="text-red-500">*</span>
+              Email
               </label>
               <input
                 type="email"
-                required
-                placeholder="Enter email address"
+                placeholder="Enter email address (optional)"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.email ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -453,12 +544,11 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password{mode === 'add' ? '*' : ''}
+              Password{mode === 'add' ? ' (optional)' : ''}
               </label>
               <input
                 type="password"
-              required={mode === 'add'}
-              placeholder={mode === 'add' ? 'Enter password' : 'Leave blank to keep current password'}
+              placeholder={mode === 'add' ? 'Enter password (optional)' : 'Leave blank to keep current password'}
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.password ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -476,12 +566,11 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone <span className="text-red-500">*</span>
+              Phone
               </label>
               <input
                 type="tel"
-                required
-              placeholder="Enter phone number"
+              placeholder="Enter phone number (optional)"
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
                   errors.phone ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -513,7 +602,6 @@ const TeacherFormModal: React.FC<TeacherFormModalProps> = ({
               <option value="">Select Gender</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
-              <option value="Other">Other</option>
             </select>
             {errors.gender && (
                 <p className="text-red-500 text-xs mt-1 flex items-center">

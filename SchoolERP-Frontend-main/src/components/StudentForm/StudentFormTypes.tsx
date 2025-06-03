@@ -21,9 +21,8 @@ export interface StudentFormData {
   // Basic Details
   fullName: string;
   admissionNo: string;
-  email: string;
+  email?: string;
   emailPassword?: string;
-  studentPassword?: string;  // Added student password field
   penNo?: string;
   apaarId: string;  // Apaar ID field
   studentId?: string;
@@ -39,6 +38,7 @@ export interface StudentFormData {
   mobileNumber: string;
   emergencyContact?: string;
   sameAsPresentAddress: boolean;
+  fatherName?: string;
 
   // ... rest of the interface remains the same ...
   documents: Documents;

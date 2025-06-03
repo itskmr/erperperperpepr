@@ -1,12 +1,26 @@
-import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import { useState, ChangeEvent, FormEvent, useEffect, useCallback } from 'react';
 import { 
   StudentFormData, 
   Documents, 
   UseStudentRegistrationReturn, 
   Step 
 } from './StudentFormTypes';
-import { validateStep, validateForm, hasValidationErrors } from './StudentFormValidation';
-import { STUDENT_API, handleApiResponse } from '../../config/api';
+import { validateStep, hasValidationErrors } from './StudentFormValidation';
+import { STUDENT_API } from '../../config/api';
+import { apiGet, apiPostFormData } from '../../utils/authApi';
+
+interface TransportRoute {
+  id: string;
+  name: string;
+  fromLocation: string;
+  toLocation: string;
+}
+
+interface Driver {
+  id: string;
+  name: string;
+  contactNumber: string;
+}
 
 /**
  * Custom hook for managing student registration form state and validation
@@ -14,43 +28,40 @@ import { STUDENT_API, handleApiResponse } from '../../config/api';
 export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   // Form steps
   const steps: Step[] = [
-    { id: 1, title: 'Basic Details', icon: '👤' },
+    { id: 1, title: 'Basic Info', icon: '👤' },
     { id: 2, title: 'Academic', icon: '📚' },
-    { id: 3, title: 'Contact', icon: '📱' },
+    { id: 3, title: 'Contact', icon: '📞' },
     { id: 4, title: 'Address', icon: '🏠' },
-    { id: 5, title: 'Parents', icon: '👨‍👩‍👦' },
+    { id: 5, title: 'Parents', icon: '👨‍👩‍👧‍👦' },
     { id: 6, title: 'Documents', icon: '📄' },
-    { id: 7, title: 'Other', icon: '✅' }
+    { id: 7, title: 'Others', icon: '📝' }
   ];
 
   // Initial form state
   const initialFormData: StudentFormData = {
     branchName: '',
     fullName: '',
+    admissionNo: '',
+    email: '',
+    emailPassword: '',
+    penNo: '',
+    apaarId: '',
+    studentId: '',
     dateOfBirth: '',
     age: '',
-    penNo: '',
     gender: '',
     bloodGroup: '',
-    nationality: '',
+    nationality: 'Indian',
     religion: '',
     category: '',
     caste: '',
+    height: '',
+    weight: '',
     aadhaarNumber: '',
     mobileNumber: '',
-    email: '',
-    emailPassword: '',
-    studentPassword: '',
     emergencyContact: '',
-    admissionNo: '',
-    studentId: '',
-    rollNumber: '',
-    className: '',
-    section: '',
-    stream: '',
-    semester: '',
-    admissionDate: new Date().toISOString().split('T')[0],
-    previousSchool: '',
+    loginEnabled: false,
+    schoolId: 2, 
     address: {
       houseNo: '',
       street: '',
@@ -87,7 +98,11 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     guardian: {
       name: '',
       address: '',
-      contactNumber: ''
+      contactNumber: '',
+      email: '',
+      aadhaarNo: '',
+      occupation: '',
+      annualIncome: ''
     },
     academic: {
       registrationNo: ''
@@ -122,22 +137,27 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       dropLocation: ''
     },
     documents: {
-      studentImage: undefined,
-      fatherImage: undefined,
-      motherImage: undefined,
-      guardianImage: undefined,
-      signature: undefined,
-      parentSignature: undefined,
-      birthCertificate: undefined,
-      transferCertificate: undefined,
-      markSheet: undefined,
-      aadhaarCard: undefined,
-      fatherAadhar: undefined,
-      motherAadhar: undefined,
-      familyId: undefined,
-      fatherSignature: undefined,
-      motherSignature: undefined,
-      guardianSignature: undefined
+      studentImage: null,
+      fatherImage: null,
+      motherImage: null,
+      guardianImage: null,
+      signature: null,
+      parentSignature: null,
+      fatherAadhar: null,
+      motherAadhar: null,
+      birthCertificate: null,
+      migrationCertificate: null,
+      aadhaarCard: null,
+      familyId: null,
+      affidavitCertificate: null,
+      incomeCertificate: null,
+      addressProof1: null,
+      addressProof2: null,
+      transferCertificate: null,
+      markSheet: null,
+      fatherSignature: null,
+      motherSignature: null,
+      guardianSignature: null
     },
     lastEducation: {
       school: '',
@@ -177,24 +197,38 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
 
-  /**
-   * Updates nested object properties with dot notation
-   * @param obj Object to update
-   * @param path Path in dot notation (e.g. 'father.name')
-   * @param value New value
-   * @returns Updated object
-   */
-  const updateNestedValue = (obj: any, path: string, value: any): any => {
-    const keys = path.split('.');
-    const lastKey = keys.pop()!;
-    const lastObj = keys.reduce((o, k) => {
-      if (o[k] === undefined) o[k] = {};
-      return o[k];
-    }, obj);
-    lastObj[lastKey] = value;
-    return { ...obj };
-  };
+  // Fetch transport data
+  const fetchTransportData = useCallback(async () => {
+    try {
+      const [routesData, driversData] = await Promise.all([
+        apiGet<TransportRoute[]>(`/transport/routes`),
+        apiGet<Driver[]>(`/transport/drivers`)
+      ]);
+
+      // Handle the response - the apiGet function already extracts the data
+      if (Array.isArray(routesData)) {
+        setTransportRoutes(routesData);
+      } else if (routesData && typeof routesData === 'object' && 'length' in routesData) {
+        setTransportRoutes(routesData as TransportRoute[]);
+      }
+
+      if (Array.isArray(driversData)) {
+        setDrivers(driversData);
+      } else if (driversData && typeof driversData === 'object' && 'length' in driversData) {
+        setDrivers(driversData as Driver[]);
+      }
+    } catch (error) {
+      console.error('Error fetching transport data:', error);
+    }
+  }, []);
+
+  // Fetch transport data on mount
+  useEffect(() => {
+    fetchTransportData();
+  }, [fetchTransportData]);
 
   // Handle form field changes
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>): void => {
@@ -208,7 +242,14 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     
     // Update form data (handle nested properties)
     if (name.includes('.')) {
-      updatedFormData = updateNestedValue({ ...formData }, name, isCheckbox ? checkboxValue : value);
+      const [parent, child] = name.split('.');
+      updatedFormData = {
+        ...formData,
+        [parent]: {
+          ...(formData[parent as keyof StudentFormData] as Record<string, unknown>),
+          [child]: isCheckbox ? checkboxValue : value
+        }
+      };
     } else {
       updatedFormData = {
         ...formData,
@@ -251,7 +292,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   // Step navigation with validation
   const nextStep = (): void => {
     // Validate current step
-    const errors = validateStep(formData, currentStep);
+    const errors = validateStep(currentStep, formData);
     
     if (Object.keys(errors).length === 0) {
       setCurrentStep(prev => Math.min(prev + 1, steps.length));
@@ -275,7 +316,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     // Validate all steps before submitting
     const allErrors = { ...validationErrors };
     for (let step = 1; step <= steps.length; step++) {
-      const stepErrors = validateStep(formData, step);
+      const stepErrors = validateStep(step, formData);
       Object.assign(allErrors, stepErrors);
     }
     
@@ -291,12 +332,46 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     setError('');
 
     try {
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setIsSubmitting(false);
+        return;
+      }
+
       // Create FormData for file uploads
       const formDataToSend = new FormData();
       
       // Add all text fields, ensuring proper nesting
       Object.entries(formData).forEach(([key, value]) => {
-        if (key !== 'documents') {
+        if (key !== 'documents' && key !== 'schoolId') { // Exclude schoolId from form data processing
           if (typeof value === 'object' && value !== null) {
             Object.entries(value).forEach(([nestedKey, nestedValue]) => {
               if (!(key === 'address' && nestedKey === 'sameAsPresentAddress')) {
@@ -315,30 +390,23 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
         }
       });
       
-      // Add document files - without the 'documents.' prefix
+      // Add document files - with the correct field names expected by backend
       Object.entries(formData.documents).forEach(([key, file]) => {
         if (file instanceof File) {
-          formDataToSend.append(key, file);
+          // Send the file with the documents. prefix that the backend expects
+          formDataToSend.append(`documents.${key}`, file);
         }
       });
       
-      // Add school ID
-      formDataToSend.append('schoolId', '1');
+      // Add school ID from authenticated context
+      formDataToSend.append('schoolId', String(schoolId));
 
       console.log("Sending student data to API");
       console.log("Form data keys:", Array.from(formDataToSend.keys()));
+      console.log("Using school ID:", schoolId);
       
-      const response = await fetch(STUDENT_API.CREATE, {
-        method: 'POST',
-        body: formDataToSend,
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || `Server error (${response.status}): Failed to register student`);
-      }
-
-      const result = await response.json();
+      const result = await apiPostFormData(STUDENT_API.CREATE, formDataToSend);
+      
       console.log("Student registered successfully:", result);
       setSuccess(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -408,6 +476,8 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     success,
     steps,
     validationErrors,
+    transportRoutes,
+    drivers,
     handleChange,
     handleFileChange,
     handleSubmit,

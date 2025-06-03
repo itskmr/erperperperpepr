@@ -3,66 +3,6 @@ import { toast } from 'react-toastify';
 import { IssuedCertificate } from './types';
 import { fetchStudentData, createCertificate, updateCertificate } from './data';
 import { MultiSelectInput } from './MultipleSelectInput';
-// Enums for select options
-const QualifiedStatus = {
-  Yes: 'Yes',
-  No: 'No',
-  NA: 'NA',
-  Pass: 'Pass',
-  Fail: 'Fail',
-  Compartment: 'Compartment',
-  AsperCBSEBoardResult: 'As per CBSE Board Result',
-  AppearedinclassXExam: 'Appeared in class X Exam',
-  AppearedinclassXIIExam: 'Appeared in class XII Exam',
-};
-
-const ReasonForLeaving = {
-  FamilyRelocation: 'Family Relocation',
-  AdmissionInOtherSchool: 'Admission in Other School',
-  Duetolongabsencewithoutinformation: 'Due to long absence without information',
-  FatherJobTransfer: 'Father Job Transfer',
-  GetAdmissioninHigherClass: 'Get Admission in Higher Class',
-  GoingtoNativePlace: 'Going to Native Place',
-  ParentWill: 'Parent Will',
-  Passedoutfromtheschool: 'Passed out from the school',
-  Shiftingtootherplace: 'Shifting to other place',
-  TransferCase: 'Transfer Case',
-  Other: 'Other',
-};
-
-const ConductStatus = {
-  Excellent: 'Excellent',
-  Good: 'Good',
-  Satisfactory: 'Satisfactory',
-  NeedsImprovement: 'Needs Improvement',
-  Poor: 'Poor',
-};
-
-const FeeConcessionStatus = {
-  None: 'None',
-  Partial: 'Partial',
-  Full: 'Full',
-};
-
-const ExamAppearedIn = {
-  School: 'School',
-  Board: 'Board',
-  NA: 'NA',
-  CBSEBoard: 'CBSE Board',
-  SchoolFailed: 'School Failed',
-  SchoolPassed: 'School Passed',
-  SchoolCompartment: 'School Compartment',
-  BoardPassed: 'Board Passed',
-  BoardFailed: 'Board Failed',
-  BoardCompartment: 'Board Compartment',
-};
-
-const WhetherFailed = {
-  Yes: 'Yes',
-  No: 'No',
-  NA: 'NA',
-  CBSEBoard: 'CBSE Board',
-};
 
 const GamesPlayed = [
   'Football',
@@ -86,6 +26,7 @@ const ExtraActivities = [
   'Participate In Dancing',
   'Participate In Other',
 ];
+
 interface TCFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -94,6 +35,98 @@ interface TCFormModalProps {
   setIssuedCertificates: React.Dispatch<React.SetStateAction<IssuedCertificate[]>>;
 }
 
+// Utility function to format ISO date string to YYYY-MM-DD for HTML date inputs
+const formatDateForInput = (isoDateString: string): string => {
+  if (!isoDateString) return new Date().toISOString().split('T')[0];
+  try {
+    const date = new Date(isoDateString);
+    return date.toISOString().split('T')[0];
+  } catch {
+    console.warn(`[WARN] Invalid date format: ${isoDateString}, using current date`);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
+// Helper function to get school ID from user data stored in localStorage
+const getSchoolIdFromUserData = (): { schoolId: number | null; error: string | null } => {
+  try {
+    // Try different localStorage keys where user data might be stored
+    const userDataSources = ['userData', 'user'];
+    
+    for (const source of userDataSources) {
+      const userDataStr = localStorage.getItem(source);
+      if (userDataStr) {
+        try {
+          const userData = JSON.parse(userDataStr);
+          console.log(`[DEBUG] Found user data in ${source}:`, userData);
+          
+          // School users have their ID directly
+          if (userData.id && typeof userData.id === 'number') {
+            return { schoolId: userData.id, error: null };
+          }
+          
+          // Check if there's a schoolId property
+          if (userData.schoolId && typeof userData.schoolId === 'number') {
+            return { schoolId: userData.schoolId, error: null };
+          }
+        } catch (parseError) {
+          console.warn(`[WARN] Failed to parse user data from ${source}:`, parseError);
+        }
+      }
+    }
+    
+    return { schoolId: null, error: 'School information not found in user data. Please log in again.' };
+  } catch (error) {
+    console.error('[ERROR] Error retrieving school ID:', error);
+    return { schoolId: null, error: 'Failed to retrieve school information. Please log in again.' };
+  }
+};
+
+// Helper function to validate authentication tokens
+const validateAuthentication = (): { isValid: boolean; token: string | null; error: string | null } => {
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  
+  if (!token) {
+    return { 
+      isValid: false, 
+      token: null, 
+      error: 'Authentication token not found. Please log in again.' 
+    };
+  }
+  
+  try {
+    // Basic token validation - check if it's not empty and has parts
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) {
+      return { 
+        isValid: false, 
+        token: null, 
+        error: 'Invalid token format. Please log in again.' 
+      };
+    }
+    
+    // Check if token is expired (basic check)
+    const payload = JSON.parse(atob(tokenParts[1]));
+    const isExpired = payload.exp && payload.exp * 1000 < Date.now();
+    
+    if (isExpired) {
+      // Clear expired token
+      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
+      return { 
+        isValid: false, 
+        token: null, 
+        error: 'Session expired. Please log in again.' 
+      };
+    }
+    
+    return { isValid: true, token, error: null };
+  } catch (error) {
+    console.warn('[WARN] Token validation failed:', error);
+    // If validation fails, assume token is valid but warn user
+    return { isValid: true, token, error: null };
+  }
+};
 
 const TCFormModal: React.FC<TCFormModalProps> = ({
   isOpen,
@@ -258,14 +291,16 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
         fatherName: student.fatherName || prev.fatherName,
         nationality: student.nationality || prev.nationality,
         category: student.category || prev.category,
-        dateOfBirth: student.dateOfBirth || prev.dateOfBirth,
+        dateOfBirth: formatDateForInput(student.dateOfBirth) || prev.dateOfBirth,
         subject: student.subjectStudied || prev.subject,
         generalConduct: student.conduct || prev.generalConduct,
         remarks: student.remarks || prev.remarks,
-        dateOfLeaving: student.dateOfLeaving || prev.dateOfLeaving,
-        dateOfIssue: student.dateOfIssue || prev.dateOfIssue,
+        dateOfLeaving: formatDateForInput(student.dateOfLeaving) || prev.dateOfLeaving,
+        dateOfIssue: formatDateForInput(student.dateOfIssue) || prev.dateOfIssue,
         admitClass: student.admitClass || prev.admitClass,
-        feesPaidUpTo: student.feesUpToDate || prev.feesPaidUpTo,
+        feesPaidUpTo: formatDateForInput(student.feesUpToDate) || prev.feesPaidUpTo,
+        lastAttendanceDate: formatDateForInput(student.lastAttendanceDate) || prev.lastAttendanceDate,
+        dateOfAdmission: formatDateForInput(student.dateOfAdmission) || prev.dateOfAdmission,
         rollNo: student.rollNo || prev.rollNo,
         gamesPlayed: student.gamesPlayed ? 
           (Array.isArray(student.gamesPlayed as string[] | string) ? 
@@ -298,62 +333,123 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate required fields
+    // Validate required fields with proper fallback values
     const requiredFields = [
-      'tcNo', 'studentName', 'admissionNumber', 'fatherName', 'motherName',
-      'dateOfBirth', 'studentClass', 'dateOfLeaving', 'reason', 'generalConduct'
+      { field: 'tcNo', value: formData.tcNo, label: 'TC Number' },
+      { field: 'studentName', value: formData.studentName, label: 'Student Name' },
+      { field: 'admissionNumber', value: formData.admissionNumber, label: 'Admission Number' },
+      { field: 'fatherName', value: formData.fatherName, label: "Father's Name" },
+      { field: 'motherName', value: formData.motherName, label: "Mother's Name" },
+      { field: 'dateOfBirth', value: formData.dateOfBirth, label: 'Date of Birth' },
+      { field: 'studentClass', value: formData.studentClass, label: 'Current Class' },
+      { field: 'dateOfLeaving', value: formData.dateOfLeaving, label: 'Date of Leaving' },
     ];
     
-    const missingFields = requiredFields.filter(field => !formData[field as keyof IssuedCertificate]);
+    const missingFields = requiredFields.filter(({ value }) => !value || value.trim() === '');
     
     if (missingFields.length > 0) {
-      toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      const missingLabels = missingFields.map(({ label }) => label);
+      toast.error(`Please fill in all required fields: ${missingLabels.join(', ')}`);
       return;
     }
     
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      // Get school ID from local storage
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const schoolId = user.id;
-      
-      if (!schoolId) {
-        toast.error('School information not found. Please log in again.');
+      // Validate authentication
+      const authValidation = validateAuthentication();
+      if (!authValidation.isValid) {
+        toast.error(authValidation.error || 'Authentication failed');
         return;
       }
       
-      // Ensure dates are in the correct format
+      // Get school ID
+      const schoolData = getSchoolIdFromUserData();
+      if (!schoolData.schoolId) {
+        toast.error(schoolData.error || 'School information not found');
+        return;
+      }
+      
+      console.log(`[DEBUG] Using school ID: ${schoolData.schoolId} for ${isEdit ? 'update' : 'create'}`);
+      
+      // Ensure all required fields have valid values with proper defaults
       const formattedCertificate: IssuedCertificate = {
         ...formData,
+        schoolId: schoolData.schoolId,
+        // Ensure proper date formatting
         dateOfBirth: new Date(formData.dateOfBirth).toISOString(),
         dateOfAdmission: new Date(formData.dateOfAdmission).toISOString(),
         dateOfLeaving: new Date(formData.dateOfLeaving).toISOString(),
-        feesPaidUpTo: new Date(formData.feesPaidUpTo).toISOString(),
-        lastAttendanceDate: new Date(formData.lastAttendanceDate).toISOString(),
-        dateOfIssue: new Date(formData.dateOfIssue).toISOString(),
-        // Convert to numbers where needed
-        maxAttendance: formData.maxAttendance.toString(),
-        obtainedAttendance: formData.obtainedAttendance.toString(),
-        tcCharge: formData.tcCharge.toString(),
+        feesPaidUpTo: new Date(formData.feesPaidUpTo || new Date()).toISOString(),
+        lastAttendanceDate: new Date(formData.lastAttendanceDate || new Date()).toISOString(),
+        dateOfIssue: new Date(formData.dateOfIssue || new Date()).toISOString(),
+        // Ensure numeric fields are properly formatted
+        maxAttendance: formData.maxAttendance || '220',
+        obtainedAttendance: formData.obtainedAttendance || '200',
+        tcCharge: formData.tcCharge || '0',
+        // Ensure required enum fields have valid defaults
+        whetherFailed: formData.whetherFailed || 'No',
+        examIn: formData.examIn || 'School',
+        qualified: formData.qualified || 'Yes',
+        reason: formData.reason || 'ParentWill',
+        generalConduct: formData.generalConduct || 'Good',
+        feesConcessionAvailed: formData.feesConcessionAvailed || 'None',
+        // Ensure text fields are not empty
+        nationality: formData.nationality || 'Indian',
+        category: formData.category || 'General',
+        section: formData.section || '',
+        subject: formData.subject || 'English, Hindi, Mathematics, Science, Social Studies',
+        behaviorRemarks: formData.behaviorRemarks || '',
+        toClass: formData.toClass || '',
+        classInWords: formData.classInWords || '',
+        rollNo: formData.rollNo || '',
+        // Ensure arrays are properly set
+        gamesPlayed: formData.gamesPlayed || [],
+        extraActivity: formData.extraActivity || [],
       };
       
+      let result: IssuedCertificate;
       if (isEdit) {
-        const updated = await updateCertificate(formattedCertificate);
+        console.log(`[DEBUG] Updating certificate for admission number: ${admissionNumber}`);
+        result = await updateCertificate(formattedCertificate);
         setIssuedCertificates((prev) =>
-          prev.map((cert) => (cert.admissionNumber === admissionNumber ? updated : cert))
+          prev.map((cert) => (cert.admissionNumber === admissionNumber ? result : cert))
         );
         toast.success('Certificate updated successfully!');
       } else {
-        const created = await createCertificate(formattedCertificate);
-        setIssuedCertificates((prev) => [created, ...prev]);
+        console.log(`[DEBUG] Creating new certificate for admission number: ${formData.admissionNumber}`);
+        result = await createCertificate(formattedCertificate);
+        setIssuedCertificates((prev) => [result, ...prev]);
         toast.success('Certificate created successfully!');
       }
+      
       onClose();
     } catch (error) {
+      console.error(`[ERROR] ${isEdit ? 'Update' : 'Create'} operation failed:`, error);
+      
+      let errorMessage = 'Operation failed. Please try again.';
+      
       if (error instanceof Error) {
-        toast.error(`Operation failed: ${error.message}`);
-      } else {
-        toast.error('Operation failed. Please try again.');
+        errorMessage = error.message;
+        
+        // Handle specific error cases
+        if (error.message.includes('Authentication')) {
+          // Clear invalid tokens
+          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
+          errorMessage = 'Session expired. Please log in again and try.';
+        } else if (error.message.includes('School information')) {
+          errorMessage = 'School information not found. Please log in again.';
+        } else if (error.message.includes('Student not found')) {
+          errorMessage = 'Student not found. Please check the admission number.';
+        }
       }
+      
+      toast.error(errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -429,6 +525,38 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 readOnly
               />
             </div>
+            
+            {/* Date Information */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+              <input
+                type="date"
+                value={formatDateForInput(formData.dateOfBirth)}
+                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                className="w-full p-2 border rounded-md"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Date of Admission</label>
+              <input
+                type="date"
+                value={formatDateForInput(formData.dateOfAdmission)}
+                onChange={(e) => setFormData({ ...formData, dateOfAdmission: e.target.value })}
+                className="w-full p-2 border rounded-md"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Last Attendance Date</label>
+              <input
+                type="date"
+                value={formatDateForInput(formData.lastAttendanceDate)}
+                onChange={(e) => setFormData({ ...formData, lastAttendanceDate: e.target.value })}
+                className="w-full p-2 border rounded-md"
+                required
+              />
+            </div>
 
             {/* Academic Information */}
             <div>
@@ -464,7 +592,7 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
               <label className="block text-sm font-medium text-gray-700">Fees Paid Up To</label>
               <input
                 type="date"
-                value={formData.feesPaidUpTo}
+                value={formatDateForInput(formData.feesPaidUpTo)}
                 onChange={(e) => setFormData({ ...formData, feesPaidUpTo: e.target.value })}
                 className="w-full p-2 border rounded-md"
               />
@@ -497,11 +625,10 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select</option>
-                {Object.values(WhetherFailed).map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="NA">N/A</option>
+                <option value="CBSEBoard">CBSE Board</option>
               </select>
             </div>
 
@@ -514,11 +641,16 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select</option>
-                {Object.values(ExamAppearedIn).map((exam) => (
-                  <option key={exam} value={exam}>
-                    {exam}
-                  </option>
-                ))}
+                <option value="School">School</option>
+                <option value="Board">Board</option>
+                <option value="NA">N/A</option>
+                <option value="CBSEBoard">CBSE Board</option>
+                <option value="SchoolFailed">School Failed</option>
+                <option value="SchoolPassed">School Passed</option>
+                <option value="SchoolCompartment">School Compartment</option>
+                <option value="BoardPassed">Board Passed</option>
+                <option value="BoardFailed">Board Failed</option>
+                <option value="BoardCompartment">Board Compartment</option>
               </select>
             </div>
             <div>
@@ -529,11 +661,15 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select</option>
-                {Object.values(QualifiedStatus).map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="NA">N/A</option>
+                <option value="Pass">Pass</option>
+                <option value="Fail">Fail</option>
+                <option value="Compartment">Compartment</option>
+                <option value="AsperCBSEBoardResult">As per CBSE Board Result</option>
+                <option value="AppearedinclassXExam">Appeared in class X Exam</option>
+                <option value="AppearedinclassXIIExam">Appeared in class XII Exam</option>
               </select>
             </div>
 
@@ -581,7 +717,7 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
               <label className="block text-sm font-medium text-gray-700">Date of Issue</label>
               <input
                 type="date"
-                value={formData.dateOfIssue}
+                value={formatDateForInput(formData.dateOfIssue)}
                 className="w-full p-2 border rounded-md"
                 onChange={(e) => setFormData({ ...formData, dateOfIssue: e.target.value })}
               />
@@ -590,7 +726,7 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
               <label className="block text-sm font-medium text-gray-700">Date of Leaving</label>
               <input
                 type="date"
-                value={formData.dateOfLeaving}
+                value={formatDateForInput(formData.dateOfLeaving)}
                 className="w-full p-2 border rounded-md"
                 onChange={(e) => setFormData({ ...formData, dateOfLeaving: e.target.value })}
               />
@@ -603,11 +739,9 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select</option>
-                {Object.values(FeeConcessionStatus).map((concession) => (
-                  <option key={concession} value={concession}>
-                    {concession}
-                  </option>
-                ))}
+                <option value="None">None</option>
+                <option value="Partial">Partial</option>
+                <option value="Full">Full</option>
               </select>
             </div>
             {/* Behavior and Conduct */}
@@ -628,11 +762,11 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select</option>
-                {Object.values(ConductStatus).map((conduct) => (
-                  <option key={conduct} value={conduct}>
-                    {conduct}
-                  </option>
-                ))}
+                <option value="Excellent">Excellent</option>
+                <option value="Good">Good</option>
+                <option value="Satisfactory">Satisfactory</option>
+                <option value="NeedsImprovement">Needs Improvement</option>
+                <option value="Poor">Poor</option>
               </select>
             </div>
             <div>
@@ -677,11 +811,17 @@ const TCFormModal: React.FC<TCFormModalProps> = ({
                 className="w-full p-2 border rounded-md"
               >
                 <option value="">Select</option>
-                {Object.values(ReasonForLeaving).map((reason) => (
-                  <option key={reason} value={reason}>
-                    {reason}
-                  </option>
-                ))}
+                <option value="FamilyRelocation">Family Relocation</option>
+                <option value="AdmissionInOtherSchool">Admission in Other School</option>
+                <option value="Duetolongabsencewithoutinformation">Due to long absence without information</option>
+                <option value="FatherJobTransfer">Father Job Transfer</option>
+                <option value="GetAdmissioninHigherClass">Get Admission in Higher Class</option>
+                <option value="GoingtoNativePlace">Going to Native Place</option>
+                <option value="ParentWill">Parent Will</option>
+                <option value="Passedoutfromtheschool">Passed out from the school</option>
+                <option value="Shiftingtootherplace">Shifting to other place</option>
+                <option value="TransferCase">Transfer Case</option>
+                <option value="Other">Other</option>
               </select>
             </div>
           </div>

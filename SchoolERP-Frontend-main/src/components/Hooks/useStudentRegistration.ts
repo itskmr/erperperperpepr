@@ -38,11 +38,22 @@ interface Documents {
   motherImage: File | null;
   guardianImage: File | null;
   signature: File | null;
+  parentSignature: File | null;
   fatherAadhar: File | null;
   motherAadhar: File | null;
   birthCertificate: File | null;
   migrationCertificate: File | null;
   aadhaarCard: File | null;
+  familyId: File | null;
+  affidavitCertificate: File | null;
+  incomeCertificate: File | null;
+  addressProof1: File | null;
+  addressProof2: File | null;
+  transferCertificate: File | null;
+  markSheet: File | null;
+  fatherSignature: File | null;
+  motherSignature: File | null;
+  guardianSignature: File | null;
 }
 
 interface Academic {
@@ -251,11 +262,22 @@ export const useStudentRegistration = () => {
       motherImage: null,
       guardianImage: null,
       signature: null,
+      parentSignature: null,
       fatherAadhar: null,
       motherAadhar: null,
       birthCertificate: null,
       migrationCertificate: null,
-      aadhaarCard: null
+      aadhaarCard: null,
+      familyId: null,
+      affidavitCertificate: null,
+      incomeCertificate: null,
+      addressProof1: null,
+      addressProof2: null,
+      transferCertificate: null,
+      markSheet: null,
+      fatherSignature: null,
+      motherSignature: null,
+      guardianSignature: null
     },
     lastEducation: {
       school: '',
@@ -437,8 +459,42 @@ export const useStudentRegistration = () => {
         }
       });
       
-      // Add school ID
-      formDataToSend.append('schoolId', '1');  // Use the appropriate school ID
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch (e) {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch (e) {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Add school ID from authenticated context
+      formDataToSend.append('schoolId', String(schoolId));
 
       console.log("Sending student data to API");
       

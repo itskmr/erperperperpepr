@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { getSchoolIdFromContext } from '../middlewares/authMiddleware.js';
+
 const prisma = new PrismaClient();
 
 // Default fee categories if none exist in database
@@ -23,20 +25,26 @@ export const DEFAULT_FEE_CATEGORIES = [
   'Maintenance Fee'
 ];
 
-// Function to seed fee categories in the database
-const seedFeeCategories = async () => {
+// Function to seed fee categories in the database for a specific school
+const seedFeeCategoriesForSchool = async (schoolId) => {
   try {
-    // Get existing categories
+    // Get existing categories for this school
     const existingCategories = await prisma.feeCategory.findMany({
+      where: {
+        structure: {
+          schoolId: schoolId
+        }
+      },
       select: { name: true },
       distinct: ['name']
     });
     
     if (existingCategories.length === 0) {
-      console.log("No fee categories found, seeding default categories...");
+      console.log(`No fee categories found for school ${schoolId}, seeding default categories...`);
       
-      // Create a dummy fee structure if none exists
+      // Create a default fee structure if none exists for this school
       const existingStructures = await prisma.feeStructure.findMany({
+        where: { schoolId: schoolId },
         take: 1
       });
       
@@ -47,7 +55,7 @@ const seedFeeCategories = async () => {
         const newStructure = await prisma.feeStructure.create({
           data: {
             className: 'Sample Class',
-            schoolId: 1,
+            schoolId: schoolId,
             totalAnnualFee: 0,
             description: 'Temporary structure for initial categories'
           }
@@ -57,7 +65,7 @@ const seedFeeCategories = async () => {
         structureId = existingStructures[0].id;
       }
       
-      // Create default categories
+      // Create default categories for this school
       for (const categoryName of DEFAULT_FEE_CATEGORIES) {
         await prisma.feeCategory.create({
           data: {
@@ -69,72 +77,222 @@ const seedFeeCategories = async () => {
         });
       }
       
-      console.log("Successfully seeded default fee categories");
+      console.log(`Successfully seeded default fee categories for school ${schoolId}`);
     } else {
-      console.log(`Found ${existingCategories.length} existing fee categories`);
+      console.log(`Found ${existingCategories.length} existing fee categories for school ${schoolId}`);
     }
   } catch (error) {
-    console.error("Error seeding fee categories:", error);
+    console.error(`Error seeding fee categories for school ${schoolId}:`, error);
   }
 };
 
-// Call the seed function when the server starts
-seedFeeCategories();
-
-// Get all fee structures, optionally filtered by schoolId
+// Get all fee structures with authentication and school context
 export const getAllFeeStructures = async (req, res) => {
   try {
-    const { schoolId } = req.query;
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
     
-    const filter = schoolId ? { where: { schoolId: parseInt(schoolId) } } : {};
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    // Build where clause based on user role
+    let whereClause = { schoolId: schoolId };
+    
+    // Allow admins to see fee structures from specific schools or all schools
+    if (req.user?.role === 'admin') {
+      if (req.query.schoolId) {
+        whereClause.schoolId = parseInt(req.query.schoolId);
+      } else if (req.query.all === 'true') {
+        whereClause = {}; // Admin can see all fee structures across schools
+      }
+    }
     
     const feeStructures = await prisma.feeStructure.findMany({
-      ...filter,
+      where: whereClause,
       include: {
-        categories: true,
+        categories: true
       },
       orderBy: {
         className: 'asc',
       },
     });
 
-    return res.status(200).json(feeStructures);
+    // Seed categories for this school if none exist
+    if (feeStructures.length === 0) {
+      await seedFeeCategoriesForSchool(whereClause.schoolId || schoolId);
+    }
+
+    // Fetch school data for each fee structure if needed
+    const feeStructuresWithSchool = await Promise.all(
+      feeStructures.map(async (structure) => {
+        if (structure.schoolId) {
+          const schoolData = await prisma.school.findUnique({
+            where: { id: structure.schoolId },
+            select: {
+              id: true,
+              schoolName: true,
+              code: true
+            }
+          });
+          return {
+            ...structure,
+            school: schoolData
+          };
+        }
+        return structure;
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Fee structures retrieved successfully",
+      data: feeStructuresWithSchool,
+      meta: {
+        schoolId: whereClause.schoolId || schoolId,
+        totalCount: feeStructures.length,
+        userRole: req.user?.role
+      }
+    });
   } catch (error) {
     console.error('Error fetching fee structures:', error);
-    return res.status(500).json({ message: 'Failed to fetch fee structures', error: error.message });
+    return res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch fee structures', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
 
-// Get a single fee structure by id
+// Get a single fee structure by id with school context validation
 export const getFeeStructureById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const feeStructure = await prisma.feeStructure.findUnique({
-      where: { id },
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    // Build where clause based on user role
+    let whereClause = { 
+      id: id,
+      schoolId: schoolId
+    };
+    
+    // Allow admins to access any fee structure
+    if (req.user?.role === 'admin') {
+      whereClause = { id: id };
+    }
+    
+    const feeStructure = await prisma.feeStructure.findFirst({
+      where: whereClause,
       include: {
-        categories: true,
+        categories: true
       },
     });
 
     if (!feeStructure) {
-      return res.status(404).json({ message: 'Fee structure not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Fee structure not found or you do not have permission to access it' 
+      });
     }
 
-    return res.status(200).json(feeStructure);
+    // Fetch school data separately if needed
+    let schoolData = null;
+    if (feeStructure.schoolId) {
+      schoolData = await prisma.school.findUnique({
+        where: { id: feeStructure.schoolId },
+        select: {
+          id: true,
+          schoolName: true,
+          code: true
+        }
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Fee structure retrieved successfully",
+      data: {
+        ...feeStructure,
+        school: schoolData
+      }
+    });
   } catch (error) {
     console.error('Error fetching fee structure:', error);
-    return res.status(500).json({ message: 'Failed to fetch fee structure', error: error.message });
+    return res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch fee structure', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
 
-// Create a new fee structure
+// Create a new fee structure with school context
 export const createFeeStructure = async (req, res) => {
   try {
-    const { className, description, schoolId = 1, categories = [], totalAnnualFee = 0 } = req.body;
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    const { className, description, categories = [], totalAnnualFee = 0 } = req.body;
     
     if (!className) {
-      return res.status(400).json({ message: 'Class name is required' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Class name is required' 
+      });
+    }
+
+    // Verify the school exists and is active
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, schoolName: true, status: true }
+    });
+
+    if (!school) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "School not found"
+      });
+    }
+
+    if (school.status === 'inactive') {
+      return res.status(403).json({ 
+        success: false, 
+        message: "School is inactive. Contact administrator."
+      });
+    }
+
+    // Check if fee structure already exists for this class in this school
+    const existingStructure = await prisma.feeStructure.findFirst({
+      where: {
+        className: className,
+        schoolId: schoolId
+      }
+    });
+
+    if (existingStructure) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Fee structure for class '${className}' already exists in your school`
+      });
     }
 
     // Begin a transaction to ensure all operations succeed or fail together
@@ -144,7 +302,7 @@ export const createFeeStructure = async (req, res) => {
         data: {
           className,
           description,
-          schoolId: schoolId ? parseInt(schoolId) : 1, // Default to school ID 1 if not provided
+          schoolId: schoolId,
           totalAnnualFee: parseFloat(totalAnnualFee),
         },
       });
@@ -167,83 +325,202 @@ export const createFeeStructure = async (req, res) => {
       }
 
       // Return the created fee structure with its categories
-      return prisma.feeStructure.findUnique({
+      const createdStructure = await prisma.feeStructure.findUnique({
         where: { id: feeStructure.id },
-        include: { categories: true },
+        include: { 
+          categories: true
+        },
       });
+
+      // Fetch school data separately
+      const schoolData = await prisma.school.findUnique({
+        where: { id: schoolId },
+        select: {
+          id: true,
+          schoolName: true,
+          code: true
+        }
+      });
+
+      return {
+        ...createdStructure,
+        school: schoolData
+      };
     });
 
-    return res.status(201).json(result);
+    // Log the activity for production
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        await prisma.activityLog.create({
+          data: {
+            action: 'FEE_STRUCTURE_CREATED',
+            entityType: 'FEE_STRUCTURE',
+            entityId: result.id,
+            userId: req.user?.id,
+            userRole: req.user?.role,
+            schoolId: schoolId,
+            details: `Fee structure created for class ${className} with ${categories.length} categories`,
+            ipAddress: req.ip || req.connection?.remoteAddress,
+            userAgent: req.headers['user-agent']
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('Failed to log fee structure creation activity:', logError);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Fee structure created successfully",
+      data: result
+    });
   } catch (error) {
     console.error('Error creating fee structure:', error);
-    return res.status(500).json({ message: 'Failed to create fee structure', error: error.message });
+    return res.status(500).json({ 
+      success: false,
+      message: 'Failed to create fee structure', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
 
-// Update an existing fee structure
+// Update an existing fee structure with school context validation
 export const updateFeeStructure = async (req, res) => {
   try {
     const { id } = req.params;
-    const { className, description, schoolId, categories, totalAnnualFee } = req.body;
     
-    // First check if the fee structure exists
-    const existingStructure = await prisma.feeStructure.findUnique({
-      where: { id },
-      include: { categories: true },
+    // Get school ID from authenticated user context
+    const schoolId = await getSchoolIdFromContext(req);
+    
+    if (!schoolId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "School context is required. Please ensure you're logged in properly."
+      });
+    }
+
+    const { className, description, categories, totalAnnualFee } = req.body;
+    
+    // Build where clause based on user role
+    let whereClause = { 
+      id: id,
+      schoolId: schoolId
+    };
+    
+    // Allow admins to update any fee structure
+    if (req.user?.role === 'admin') {
+      whereClause = { id: id };
+    }
+    
+    // First check if the fee structure exists and user has permission
+    const existingStructure = await prisma.feeStructure.findFirst({
+      where: whereClause,
+      include: { 
+        categories: true
+      },
     });
 
     if (!existingStructure) {
-      return res.status(404).json({ message: 'Fee structure not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Fee structure not found or you do not have permission to update it' 
+      });
     }
 
     // Begin a transaction for updating
     const result = await prisma.$transaction(async (prisma) => {
-      // Update the fee structure basic info
-      const updatedStructure = await prisma.feeStructure.update({
-        where: { id },
+      // Update the fee structure
+      const updatedFeeStructure = await prisma.feeStructure.update({
+        where: { id: id },
         data: {
-          className: className || existingStructure.className,
-          description: description !== undefined ? description : existingStructure.description,
-          // Keep existing schoolId if not provided, or use schoolId=1 as fallback
-          schoolId: schoolId ? parseInt(schoolId) : (existingStructure.schoolId || 1),
-          totalAnnualFee: totalAnnualFee !== undefined ? parseFloat(totalAnnualFee) : existingStructure.totalAnnualFee,
+          ...(className && { className }),
+          ...(description !== undefined && { description }),
+          ...(totalAnnualFee !== undefined && { totalAnnualFee: parseFloat(totalAnnualFee) }),
         },
       });
 
-      // If categories are provided, handle them
+      // If categories are provided, replace existing ones
       if (categories && Array.isArray(categories)) {
-        // Delete existing categories to replace them with new ones
+        // Delete existing categories
         await prisma.feeCategory.deleteMany({
           where: { structureId: id },
         });
 
-        // Create the new categories
-        await Promise.all(
-          categories.map((category) =>
-            prisma.feeCategory.create({
-              data: {
-                name: category.name,
-                amount: parseFloat(category.amount),
-                frequency: category.frequency,
-                description: category.description,
-                structureId: id,
-              },
-            })
-          )
-        );
+        // Create new categories
+        if (categories.length > 0) {
+          await Promise.all(
+            categories.map((category) =>
+              prisma.feeCategory.create({
+                data: {
+                  name: category.name,
+                  amount: parseFloat(category.amount),
+                  frequency: category.frequency,
+                  description: category.description,
+                  structureId: id,
+                },
+              })
+            )
+          );
+        }
       }
 
       // Return the updated fee structure with its categories
-      return prisma.feeStructure.findUnique({
-        where: { id },
-        include: { categories: true },
+      const finalStructure = await prisma.feeStructure.findUnique({
+        where: { id: id },
+        include: { 
+          categories: true
+        },
       });
+
+      // Fetch school data separately
+      const schoolData = await prisma.school.findUnique({
+        where: { id: existingStructure.schoolId },
+        select: {
+          id: true,
+          schoolName: true,
+          code: true
+        }
+      });
+
+      return {
+        ...finalStructure,
+        school: schoolData
+      };
     });
 
-    return res.status(200).json(result);
+    // Log the activity for production
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        await prisma.activityLog.create({
+          data: {
+            action: 'FEE_STRUCTURE_UPDATED',
+            entityType: 'FEE_STRUCTURE',
+            entityId: result.id,
+            userId: req.user?.id,
+            userRole: req.user?.role,
+            schoolId: existingStructure.schoolId,
+            details: `Fee structure updated for class ${result.className}`,
+            ipAddress: req.ip || req.connection?.remoteAddress,
+            userAgent: req.headers['user-agent']
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('Failed to log fee structure update activity:', logError);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Fee structure updated successfully",
+      data: result
+    });
   } catch (error) {
     console.error('Error updating fee structure:', error);
-    return res.status(500).json({ message: 'Failed to update fee structure', error: error.message });
+    return res.status(500).json({ 
+      success: false,
+      message: 'Failed to update fee structure', 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
 

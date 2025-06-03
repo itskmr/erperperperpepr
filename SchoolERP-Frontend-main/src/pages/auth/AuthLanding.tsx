@@ -115,20 +115,12 @@ const AuthLanding: React.FC = () => {
               <p className="text-gray-600 mb-6">
                 Login to view your child's academic progress, attendance, and communicate with teachers.
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  to="/auth/parent-login"
-                  className="py-3 px-4 bg-orange-600 text-white text-center rounded-lg font-medium hover:bg-orange-700 transition duration-200"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/auth/parent-signup"
-                  className="py-3 px-4 bg-gray-200 text-gray-700 text-center rounded-lg font-medium hover:bg-gray-300 transition duration-200"
-                >
-                  Sign Up
-                </Link>
-              </div>
+              <Link
+                to="/auth/parent-login"
+                className="block w-full py-3 px-4 bg-orange-600 text-white text-center rounded-lg font-medium hover:bg-orange-700 transition duration-200"
+              >
+                Parent Login
+              </Link>
             </div>
           </motion.div>
 
@@ -147,20 +139,12 @@ const AuthLanding: React.FC = () => {
               <p className="text-gray-600 mb-6">
                 Login to access your courses, assignments, grades, and school resources.
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  to="/auth/student-login"
-                  className="py-3 px-4 bg-green-600 text-white text-center rounded-lg font-medium hover:bg-green-700 transition duration-200"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/auth/student-signup"
-                  className="py-3 px-4 bg-gray-200 text-gray-700 text-center rounded-lg font-medium hover:bg-gray-300 transition duration-200"
-                >
-                  Sign Up
-                </Link>
-              </div>
+              <Link
+                to="/auth/student-login"
+                className="block w-full py-3 px-4 bg-green-600 text-white text-center rounded-lg font-medium hover:bg-green-700 transition duration-200"
+              >
+                Student Login
+              </Link>
             </div>
           </motion.div>
         </motion.div>

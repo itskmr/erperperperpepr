@@ -1,81 +1,85 @@
-import { useState, ChangeEvent, FormEvent } from "react";
+import React, { useState } from 'react';
+import { toast } from 'react-hot-toast';
+
+// Class options as specified by user
+const CLASS_OPTIONS = [
+  'Nursery',
+  'LKG', 
+  'UKG',
+  'Class 1',
+  'Class 2', 
+  'Class 3',
+  'Class 4',
+  'Class 5',
+  'Class 6',
+  'Class 7',
+  'Class 8',
+  'Class 9',
+  'Class 10',
+  'Class 11 (Science)',
+  'Class 11 (Commerce)', 
+  'Class 11 (Arts)',
+  'Class 12 (Science)',
+  'Class 12 (Commerce)',
+  'Class 12 (Arts)'
+];
 
 interface FormData {
+   // Required fields (only 3 now)
   fullName: string;
-  gender: string;
-  formNo: string;
-  dob: string;
-  category: string;
-  religion: string;
-  registerForClass: string;
-  admissionCategory: string;
-  bloodGroup: string;
+  formNo: string; // Required now
   regnDate: string;
-  testDate: string;
-  transactionNo: string;
-  singleParent: boolean;
-  contactNo: string;
-  studentEmail: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-  studentAadharCardNo: string;
-  regnCharge: string;
-  examSubject: string;
-  paymentStatus: string;
-  fatherName: string;
-  fatherMobileNo: string;
-  smsAlert: boolean;
-  fatherEmail: string;
-  fatherAadharCardNo: string;
-  isFatherCampusEmployee: boolean;
-  motherName: string;
-  motherMobileNo: string;
-  motherAadharCardNo: string;
-  casteCertificate: File | null;
-  studentAadharCard: File | null;
-  fatherAadharCard: File | null;
-  motherAadharCard: File | null;
-  previousClassMarksheet: File | null;
-  transferCertificate: File | null;
-  studentDateOfBirthCertificate: File | null;
+  registerForClass: string;
+  
+  // Optional fields
+  testDate?: string; // Optional now
+  branchName?: string;
+  gender?: string;
+  dob?: string;
+  category?: string;
+  religion?: string;
+  admissionCategory?: string;
+  bloodGroup?: string;
+  transactionNo?: string;
+  singleParent?: boolean;
+  contactNo?: string;
+  studentEmail?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  studentAadharCardNo?: string;
+  regnCharge?: string;
+  examSubject?: string;
+  paymentStatus?: string;
+  fatherName?: string;
+  fatherMobileNo?: string;
+  smsAlert?: boolean;
+  fatherEmail?: string;
+  fatherAadharCardNo?: string;
+  isFatherCampusEmployee?: boolean;
+  motherName?: string;
+  motherMobileNo?: string;
+  motherAadharCardNo?: string;
+
 }
-
-// Add these validation functions after the FormData interface and before the component
-const validatePhoneNumber = (phone: string): boolean => {
-  const phoneRegex = /^[6-9]\d{9}$/;
-  return phoneRegex.test(phone);
-};
-
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-const validatePincode = (pincode: string): boolean => {
-  const pincodeRegex = /^\d{6}$/;
-  return pincodeRegex.test(pincode);
-};
-
-const validateAadhar = (aadhar: string): boolean => {
-  const aadharRegex = /^\d{12}$/;
-  return aadharRegex.test(aadhar);
-};
 
 const StudentRegistration = () => {
   const [formData, setFormData] = useState<FormData>({
+    // Required fields
     fullName: "",
-    gender: "",
     formNo: "",
+    regnDate: new Date().toISOString().split('T')[0], // Default to today
+    registerForClass: "",
+    
+    // Optional fields
+    branchName: "",
+    gender: "",
     dob: "",
     category: "",
     religion: "",
-    registerForClass: "",
     admissionCategory: "",
     bloodGroup: "",
-    regnDate: "",
-    testDate: "",
     transactionNo: "",
     singleParent: false,
     contactNo: "",
@@ -87,7 +91,7 @@ const StudentRegistration = () => {
     studentAadharCardNo: "",
     regnCharge: "",
     examSubject: "",
-    paymentStatus: "",
+    paymentStatus: "Pending",
     fatherName: "",
     fatherMobileNo: "",
     smsAlert: false,
@@ -97,218 +101,370 @@ const StudentRegistration = () => {
     motherName: "",
     motherMobileNo: "",
     motherAadharCardNo: "",
-    casteCertificate: null,
-    studentAadharCard: null,
-    fatherAadharCard: null,
-    motherAadharCard: null,
-    previousClassMarksheet: null,
-    transferCertificate: null,
-    studentDateOfBirthCertificate: null,
   });
 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
 
-  const [validationErrors, setValidationErrors] = useState<{
-    contactNo?: string;
-    studentEmail?: string;
-    pincode?: string;
-    studentAadharCardNo?: string;
-    fatherAadharCardNo?: string;
-    motherAadharCardNo?: string;
-  }>({});
+  const steps = [
+    { id: 1, title: 'Basic Information', icon: '👤' },
+    { id: 2, title: 'Contact & Address', icon: '📍' },
+    { id: 3, title: 'Parent Details', icon: '👪' }
+  ];
 
-  const validateForm = (): boolean => {
-    const errors: typeof validationErrors = {};
-    let isValid = true;
-
-    // Contact Number validation
-    if (formData.contactNo && !validatePhoneNumber(formData.contactNo)) {
-      errors.contactNo = "Please enter a valid 10-digit mobile number starting with 6-9";
-      isValid = false;
+  const validateCurrentStep = () => {
+    const errors: string[] = [];
+    
+    if (currentStep === 1) {
+      // Required fields validation
+      if (!formData.fullName?.trim()) errors.push('Full Name is required');
+      if (!formData.formNo?.trim()) errors.push('Form Number is required');  
+      if (!formData.registerForClass?.trim()) errors.push('Class is required');
+      if (!formData.regnDate?.trim()) errors.push('Registration Date is required');
     }
-
-    // Email validation
-    if (formData.studentEmail && !validateEmail(formData.studentEmail)) {
-      errors.studentEmail = "Please enter a valid email address";
-      isValid = false;
+    
+    if (currentStep === 3) {
+      // Father name is required in parent details step
+      if (!formData.fatherName?.trim()) errors.push("Father's Name is required");
     }
-
-    // Pincode validation
-    if (formData.pincode && !validatePincode(formData.pincode)) {
-      errors.pincode = "Please enter a valid 6-digit pincode";
-      isValid = false;
-    }
-
-    // Aadhar Card validations
-    if (formData.studentAadharCardNo && !validateAadhar(formData.studentAadharCardNo)) {
-      errors.studentAadharCardNo = "Please enter a valid 12-digit Aadhar number";
-      isValid = false;
-    }
-
-    if (formData.fatherAadharCardNo && !validateAadhar(formData.fatherAadharCardNo)) {
-      errors.fatherAadharCardNo = "Please enter a valid 12-digit Aadhar number";
-      isValid = false;
-    }
-
-    if (formData.motherAadharCardNo && !validateAadhar(formData.motherAadharCardNo)) {
-      errors.motherAadharCardNo = "Please enter a valid 12-digit Aadhar number";
-      isValid = false;
-    }
-
-    setValidationErrors(errors);
-    return isValid;
+    
+    return errors;
   };
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type, checked, files } = e.target as HTMLInputElement;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : type === "file" ? files?.[0] || null : value,
-    }));
+  const nextStep = () => {
+    const errors = validateCurrentStep();
+    if (errors.length > 0) {
+      setError(errors.join(', '));
+      return;
+    }
+    setError(null);
+    setCurrentStep(prev => Math.min(prev + 1, steps.length));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, files } = e.target;
-    if (files && files.length > 0) {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: files[0],
-      }));
+  const prevStep = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 1));
+    setError(null);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({ ...prev, [name]: checked }));
+    } else if (type === 'file') {
+      const file = (e.target as HTMLInputElement).files?.[0] || null;
+      setFormData(prev => ({ ...prev, [name]: file }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+    
+    // Clear error when user starts typing
+    if (error) setError(null);
+  };
+
+  const renderInput = (
+    label: string, 
+    name: string, 
+    type: string = 'text', 
+    required: boolean = false,
+    placeholder?: string,
+    options?: string[]
+  ) => {
+    if (type === 'select' && options) {
+      return (
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <select
+            name={name}
+            value={formData[name as keyof FormData] as string || ''}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            required={required}
+          >
+            <option value="">{placeholder || `Select ${label}`}</option>
+            {options.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        <input
+          type={type}
+          name={name}
+          value={formData[name as keyof FormData] as string || ''}
+          onChange={handleChange}
+          placeholder={placeholder}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required={required}
+        />
+      </div>
+    );
+  };
+
+  // const renderFileInput = (label: string, name: string) => {
+  //   return (
+  //     <div className="mb-4">
+  //       <label className="block text-sm font-medium text-gray-700 mb-1">
+  //         {label}
+  //       </label>
+  //       <input
+  //         type="file"
+  //         name={name}
+  //         onChange={handleChange}
+  //         accept=".pdf,.jpg,.jpeg,.png"
+  //         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  //       />
+  //     </div>
+  //   );
+  // };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {renderInput('Full Name', 'fullName', 'text', true, 'Enter student full name')}
+              {renderInput('Test Date', 'testDate', 'date', false)}
+              {renderInput('Registration Date', 'regnDate', 'date', true)}
+              {renderInput('Register For Class', 'registerForClass', 'select', true, 'Select class', CLASS_OPTIONS)}
+              {renderInput('Branch Name', 'branchName', 'text', false, 'Branch/Campus name')}
+              {renderInput('Form Number', 'formNo', 'text', true, 'Registration form number')}
+              {renderInput('Gender', 'gender', 'select', false, 'Select gender', ['Male', 'Female', 'Other'])}
+              {renderInput('Date of Birth', 'dob', 'date', false)}
+              {renderInput('Category', 'category', 'text', false, 'e.g., General, OBC, SC, ST')}
+              {renderInput('Religion', 'religion', 'select', false, 'Select religion', ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Buddhist', 'Jain', 'Other'])}
+              {renderInput('Blood Group', 'bloodGroup', 'select', false, 'Select blood group', ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])}
+              {renderInput('Admission Category', 'admissionCategory', 'text', false, 'e.g., Regular, Management')}
+            </div>
+          </div>
+        );
+      
+      case 2:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Contact & Address Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {renderInput('Contact Number', 'contactNo', 'tel', false, '10-digit mobile number')}
+              {renderInput('Student Email', 'studentEmail', 'email', false, 'student@example.com')}
+              {renderInput('Address', 'address', 'text', false, 'Complete address')}
+              {renderInput('City', 'city', 'text', false)}
+              {renderInput('State', 'state', 'text', false)}
+              {renderInput('Pincode', 'pincode', 'text', false, '6-digit pincode')}
+              {renderInput('Student Aadhaar Number', 'studentAadharCardNo', 'text', false, '12-digit Aadhaar number')}
+              {renderInput('Transaction Number', 'transactionNo', 'text', false, 'Payment transaction number')}
+              {renderInput('Registration Charge', 'regnCharge', 'number', false, 'Amount in rupees')}
+              {renderInput('Exam Subject', 'examSubject', 'text', false, 'Entrance exam subjects')}
+              {renderInput('Payment Status', 'paymentStatus', 'select', false, 'Payment status', ['Pending', 'Paid', 'Partial', 'Failed'])}
+            </div>
+            <div className="mt-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="singleParent"
+                  checked={formData.singleParent || false}
+                  onChange={handleChange}
+                  className="mr-2"
+                />
+                <span className="text-sm text-gray-700">Single Parent</span>
+              </label>
+            </div>
+          </div>
+        );
+      
+      case 3:
+        return (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Parent Details</h3>
+            
+            {/* Father Details */}
+            <div>
+              <h4 className="text-md font-medium text-gray-700 mb-3">Father's Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {renderInput('Father Name', 'fatherName', 'text', false, 'Enter father\'s full name')}
+                {renderInput('Father Mobile Number', 'fatherMobileNo', 'tel', false, '10-digit mobile number')}
+                {renderInput('Father Email', 'fatherEmail', 'email', false, 'father@example.com')}
+                {renderInput('Father Aadhaar Number', 'fatherAadharCardNo', 'text', false, '12-digit Aadhaar number')}
+              </div>
+              <div className="mt-4 space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="isFatherCampusEmployee"
+                    checked={formData.isFatherCampusEmployee || false}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Father is Campus Employee</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="smsAlert"
+                    checked={formData.smsAlert || false}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Enable SMS Alerts</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* Mother Details */}
+            <div>
+              <h4 className="text-md font-medium text-gray-700 mb-3">Mother's Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {renderInput('Mother Name', 'motherName', 'text', false)}
+                {renderInput('Mother Mobile Number', 'motherMobileNo', 'tel', false, '10-digit mobile number')}
+                {renderInput('Mother Aadhaar Number', 'motherAadharCardNo', 'text', false, '12-digit Aadhaar number')}
+              </div>
+            </div>
+          </div>
+        );
+      
+      // case 4:
+      //   return (
+      //     <div className="space-y-4">
+      //       <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Document Upload</h3>
+      //       <p className="text-sm text-gray-600 mb-4">Upload the following documents (PDF, JPG, PNG formats accepted)</p>
+      //       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      //         {renderFileInput('Caste Certificate', 'casteCertificate')}
+      //         {renderFileInput('Student Aadhaar Card', 'studentAadharCard')}
+      //         {renderFileInput('Father Aadhaar Card', 'fatherAadharCard')}
+      //         {renderFileInput('Mother Aadhaar Card', 'motherAadharCard')}
+      //         {renderFileInput('Previous Class Marksheet', 'previousClassMarksheet')}
+      //         {renderFileInput('Transfer Certificate', 'transferCertificate')}
+      //         {renderFileInput('Birth Certificate', 'studentDateOfBirthCertificate')}
+      //       </div>
+            
+      //       {/* Print Form Button */}
+      //       <div className="mt-6 pt-4 border-t">
+      //         <button
+      //           type="button"
+      //           onClick={generatePrintForm}
+      //           className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center"
+      //         >
+      //           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      //             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+      //           </svg>
+      //           Print Form
+      //         </button>
+      //       </div>
+      //     </div>
+      //   );
+      
+      default:
+        return null;
     }
   };
-  
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Only allow submission on the final step
+    if (currentStep !== steps.length) {
+      return;
+    }
+
+    // Final validation before submission
+    const allErrors: string[] = [];
+    
+    // Check all required fields
+    if (!formData.fullName?.trim()) allErrors.push('Full Name is required');
+    if (!formData.formNo?.trim()) allErrors.push('Form Number is required');  
+    if (!formData.registerForClass?.trim()) allErrors.push('Class is required');
+    
+    if (allErrors.length > 0) {
+      setError(allErrors.join(', '));
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    // Validate required fields
-    if (!formData.formNo || !formData.fullName || !formData.contactNo || !formData.registerForClass || 
-        !formData.city || !formData.state || !formData.fatherName || !formData.motherName) {
-      setError("Please fill in all required fields");
-      setLoading(false);
-      return;
-    }
-
-    // Run all validations
-    if (!validateForm()) {
-      setLoading(false);
-      return;
-    }
-
     try {
-      const formDataToSend = new FormData();
+      // Prepare clean data object for JSON submission
+      const cleanedData: Record<string, string | number | boolean> = {};
       
-      // Map form fields to match backend expectations
-      const mappedData = {
-        // Basic student info
-        admissionNo: formData.formNo.trim(), // Trim whitespace
-        fullName: formData.fullName.trim(),
-        dateOfBirth: formData.dob,
-        gender: formData.gender,
-        bloodGroup: formData.bloodGroup,
-        mobileNumber: formData.contactNo.trim(),
-        email: formData.studentEmail?.trim() || '',
-        className: formData.registerForClass.trim(),
-        section: formData.admissionCategory || 'A', // Default to 'A' if not provided
-        
-        // Address info
-        'address.city': formData.city.trim(),
-        'address.state': formData.state.trim(),
-        'address.pinCode': formData.pincode?.trim() || '',
-        
-        // Parent info
-        'father.name': formData.fatherName.trim(),
-        'father.contactNumber': formData.fatherMobileNo?.trim() || '',
-        'father.email': formData.fatherEmail?.trim() || '',
-        'father.aadhaarNo': formData.fatherAadharCardNo?.trim() || '',
-        'father.isCampusEmployee': formData.isFatherCampusEmployee ? 'yes' : 'no',
-        
-        'mother.name': formData.motherName.trim(),
-        'mother.contactNumber': formData.motherMobileNo?.trim() || '',
-        'mother.aadhaarNo': formData.motherAadharCardNo?.trim() || '',
-        
-        // Other fields
-        category: formData.category || 'General',
-        religion: formData.religion || 'Other',
-        aadhaarNumber: formData.studentAadharCardNo?.trim() || '',
-        regnDate: formData.regnDate || new Date().toISOString().split('T')[0],
-        testDate: formData.testDate || '',
-        transactionNo: formData.transactionNo?.trim() || '',
-        regnCharge: formData.regnCharge?.trim() || '0',
-        examSubject: formData.examSubject?.trim() || '',
-        paymentStatus: formData.paymentStatus?.trim() || 'Pending',
-        singleParent: formData.singleParent ? 'yes' : 'no',
-        smsAlert: formData.smsAlert ? 'yes' : 'no',
-      };
-
-      // Add all mapped fields to FormData
-      Object.entries(mappedData).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          formDataToSend.append(key, String(value));
+      // Add all form fields with proper cleaning
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          // Convert boolean values properly
+          if (typeof value === 'boolean') {
+            cleanedData[key] = value;
+          } else if (typeof value === 'string') {
+            // Only add non-empty strings
+            const trimmedValue = value.trim();
+            if (trimmedValue) {
+              cleanedData[key] = trimmedValue;
+            }
+          } else {
+            cleanedData[key] = value;
+          }
         }
       });
 
-      // Add document files
-      if (formData.casteCertificate) {
-        formDataToSend.append('documents.casteCertificate', formData.casteCertificate);
-      }
-      if (formData.studentAadharCard) {
-        formDataToSend.append('documents.studentAadharCard', formData.studentAadharCard);
-      }
-      if (formData.fatherAadharCard) {
-        formDataToSend.append('documents.fatherAadharCard', formData.fatherAadharCard);
-      }
-      if (formData.motherAadharCard) {
-        formDataToSend.append('documents.motherAadharCard', formData.motherAadharCard);
-      }
-      if (formData.previousClassMarksheet) {
-        formDataToSend.append('documents.previousClassMarksheet', formData.previousClassMarksheet);
-      }
-      if (formData.transferCertificate) {
-        formDataToSend.append('documents.transferCertificate', formData.transferCertificate);
-      }
-      if (formData.studentDateOfBirthCertificate) {
-        formDataToSend.append('documents.studentDateOfBirthCertificate', formData.studentDateOfBirthCertificate);
+      // Debug: Log what we're sending
+      console.log('Clean form data being sent:', cleanedData);
+
+      // Get authentication token
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      
+      console.log('Token check:', {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenStart: token?.substring(0, 20) + '...'
+      });
+      
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
       }
 
-      // Add required schoolId
-      formDataToSend.append('schoolId', '1');
+      const response = await fetch('http://localhost:5000/register/student/register', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(cleanedData),
+      });
 
-      const response = await fetch(
-        'http://localhost:5000/api/students',
-        {
-          method: "POST",
-          body: formDataToSend,
-        }
-      );
-
-      const data = await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
-        if (response.status === 500) {
-          throw new Error('Server error occurred. Please try again later.');
-        }
-        throw new Error(data.message || 'Failed to submit registration');
+        throw new Error(result.message || result.error || 'Registration failed');
       }
 
-      if (data.success) {
-        alert("Registration submitted successfully!");
-        // Reset form after successful submission
+      if (result.success) {
+        toast.success(result.message || 'Student registered successfully!');
+        
+        // Reset form
         setFormData({
           fullName: "",
-          gender: "",
           formNo: "",
+          regnDate: new Date().toISOString().split('T')[0],
+          registerForClass: "",
+          branchName: "",
+          gender: "",
           dob: "",
           category: "",
           religion: "",
-          registerForClass: "",
           admissionCategory: "",
           bloodGroup: "",
-          regnDate: "",
-          testDate: "",
           transactionNo: "",
           singleParent: false,
           contactNo: "",
@@ -320,7 +476,7 @@ const StudentRegistration = () => {
           studentAadharCardNo: "",
           regnCharge: "",
           examSubject: "",
-          paymentStatus: "",
+          paymentStatus: "Pending",
           fatherName: "",
           fatherMobileNo: "",
           smsAlert: false,
@@ -330,657 +486,122 @@ const StudentRegistration = () => {
           motherName: "",
           motherMobileNo: "",
           motherAadharCardNo: "",
-          casteCertificate: null,
-          studentAadharCard: null,
-          fatherAadharCard: null,
-          motherAadharCard: null,
-          previousClassMarksheet: null,
-          transferCertificate: null,
-          studentDateOfBirthCertificate: null,
         });
+        setCurrentStep(1);
       } else {
-        throw new Error(data.message || 'Registration failed');
+        throw new Error(result.message || 'Registration failed');
       }
-    } catch (err) {
-      const errorMessage = (err as Error).message;
+    } catch (err: unknown) {
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        
+        // Handle specific error cases
+        if (err.message.includes('401')) {
+          errorMessage = 'Authentication failed. Please log in again.';
+          // Redirect to login
+          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
+          window.location.href = '/login';
+          return;
+        } else if (err.message.includes('403')) {
+          errorMessage = 'You do not have permission to register students.';
+        } else if (err.message.includes('400')) {
+          errorMessage = err.message.includes('required') 
+            ? 'Please fill in all required fields.' 
+            : err.message;
+        }
+      }
+      
       setError(errorMessage);
-      alert("Failed to submit registration: " + errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // if (loading) return <div className="text-center py-10">Submitting...</div>;
-  // if (error)
-  //   return (
-  //     <div className="text-center py-10 text-red-500">
-  //       {error}. Please ensure the backend server is running at
-  //       http://localhost:5000.
-  //     </div>
-  //   );
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Prevent default form submission behavior
+    // Only handle submission through the submit button
+  };
 
   return (
-    <div className="container mx-auto p-6 bg-white shadow-lg rounded-lg">
-      <h1 className="text-2xl font-bold text-blue-700 mb-6 text-center">
-        STUDENT REGISTRATION
-      </h1>
-      <form onSubmit={handleSubmit}>
-      {/* Student Information Section */}
-      <div className="p-6 border rounded-lg shadow-md bg-white mb-6">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          Student Information
-        </h2>
-       
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
-            </label>
-            <input
-              type="text"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="w-full max-w-full mx-auto px-4">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-lg mb-6 p-6 max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold text-center text-blue-700 mb-4">
+            Student Registration
+          </h1>
+          
+          {/* Progress Bar */}
+          <div className="flex justify-between items-center mb-6">
+            {steps.map((step, index) => (
+              <div key={step.id} className="flex items-center">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium ${
+                  step.id <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {step.id <= currentStep ? '✓' : step.id}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Gender
-            </label>
-            <select
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Form No
-            </label>
-            <input
-              type="text"
-              name="formNo"
-              value={formData.formNo}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date of Birth
-            </label>
-            <input
-              type="Date"
-              name="dob"
-              value={formData.dob}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Category
-            </label>
-            <input
-              type="Text"
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Religion
-            </label>
-            <select
-              name="religion"
-              value={formData.religion}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Religion</option>
-              <option value="Hindu">Hindu</option>
-              <option value="Muslim">Muslim</option>
-              <option value="Christian">Christian</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Register For Class
-            </label>
-            <input
-              type="text"
-              name="registerForClass"
-              value={formData.registerForClass}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Admission Category
-            </label>
-            <input
-              type="text"
-              name="admissionCategory"
-              value={formData.admissionCategory}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Blood Group
-            </label>
-            <input
-              type="text"
-              name="bloodGroup"
-              value={formData.bloodGroup}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Registration Date
-            </label>
-            <input
-              type="Date"
-              name="regnDate"
-              value={formData.regnDate}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Test Date
-            </label>
-            <input
-              type="Date"
-              name="testDate"
-              value={formData.testDate}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tracsaction Number
-            </label>
-            <input
-              type="text"
-              name="transactionNo"
-              value={formData.transactionNo}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contact Number
-            </label>
-            <input
-              type="text"
-              name="contactNo"
-              value={formData.contactNo}
-              onChange={handleChange}
-              className={`mt-1 block w-full px-3 py-2 border ${
-                validationErrors.contactNo ? 'border-red-500' : 'border-gray-300'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
-            {validationErrors.contactNo && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.contactNo}</p>
+                <span className="ml-2 text-sm font-medium text-gray-700">{step.title}</span>
+                {index < steps.length - 1 && (
+                  <div className={`w-20 h-1 mx-4 ${
+                    step.id < currentStep ? 'bg-blue-600' : 'bg-gray-200'
+                  }`} />
             )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Student Email
-            </label>
-            <input
-              type="email"
-              name="studentEmail"
-              value={formData.studentEmail}
-              onChange={handleChange}
-              className={`mt-1 block w-full px-3 py-2 border ${
-                validationErrors.studentEmail ? 'border-red-500' : 'border-gray-300'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
-            {validationErrors.studentEmail && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.studentEmail}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Address
-            </label>
-            <input
-              type="Text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              City
-            </label>
-            <input
-              type="Text"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              State
-            </label>
-            <input
-              type="Text"
-              name="state"
-              value={formData.state}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Pincode
-            </label>
-            <input
-              type="text"
-              name="pincode"
-              value={formData.pincode}
-              onChange={handleChange}
-              className={`mt-1 block w-full px-3 py-2 border ${
-                validationErrors.pincode ? 'border-red-500' : 'border-gray-300'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
-            {validationErrors.pincode && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.pincode}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Student Aadhar Card Number
-            </label>
-            <input
-              type="text"
-              name="studentAadharCardNo"
-              value={formData.studentAadharCardNo}
-              onChange={handleChange}
-              className={`mt-1 block w-full px-3 py-2 border ${
-                validationErrors.studentAadharCardNo ? 'border-red-500' : 'border-gray-300'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
-            {validationErrors.studentAadharCardNo && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.studentAadharCardNo}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Registration Charge
-            </label>
-            <input
-              type="Text"
-              name="regnCharge"
-              value={formData.regnCharge}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Exam Subject
-            </label>
-            <input
-              type="Text"
-              name="examSubject"
-              value={formData.examSubject}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payment Status
-            </label>
-            <input
-              type="Text"
-              name="paymentStatus"
-              value={formData.paymentStatus}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Single Parent
-            </label>
-            <input
-              type="checkbox"
-              name="singleParent"
-              checked={formData.singleParent}
-              onChange={handleChange}
-              className="mt-1 h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            />
+            ))}
           </div>
         </div>
+
+        {/* Form */}
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-6xl mx-auto">
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+              {error}
       </div>
-     
+          )}
 
-      {/* Father Details Section */}
-      <div className="p-6 border rounded-lg shadow-md bg-white mb-6">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          Father Details
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Father Name
-            </label>
-            <input
-              type="text"
-              name="fatherName"
-              value={formData.fatherName}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Father Mobile No
-            </label>
-            <input
-              type="text"
-              name="fatherMobileNo"
-              value={formData.fatherMobileNo}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <form onSubmit={handleFormSubmit}>
+            {renderStep()}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Father Email
-            </label>
-            <input
-              type="text"
-              name="fatherEmail"
-              value={formData.fatherEmail}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Father Aadhar Card No
-            </label>
-            <input
-              type="text"
-              name="fatherAadharCardNo"
-              value={formData.fatherAadharCardNo}
-              onChange={handleChange}
-              className={`mt-1 block w-full px-3 py-2 border ${
-                validationErrors.fatherAadharCardNo ? 'border-red-500' : 'border-gray-300'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
-            {validationErrors.fatherAadharCardNo && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.fatherAadharCardNo}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              SMS Alert
-            </label>
-            <input
-              type="checkbox"
-              name="smsAlert"
-              checked={formData.smsAlert}
-              onChange={handleChange}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Is Father Campus Employee
-            </label>
-            <input
-              type="checkbox"
-              name="isFatherCampusEmployee"
-              checked={formData.isFatherCampusEmployee}
-              onChange={handleChange}
-              className="mt-1"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Mother Details Section */}
-      <div className="p-6 border rounded-lg shadow-md bg-white mb-6">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          Mother Details
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mother Name
-            </label>
-            <input
-              type="text"
-              name="motherName"
-              value={formData.motherName}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mother Mobile No
-            </label>
-            <input
-              type="text"
-              name="motherMobileNo"
-              value={formData.motherMobileNo}
-              onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mother Aadhar Card No
-            </label>
-            <input
-              type="text"
-              name="motherAadharCardNo"
-              value={formData.motherAadharCardNo}
-              onChange={handleChange}
-              className={`mt-1 block w-full px-3 py-2 border ${
-                validationErrors.motherAadharCardNo ? 'border-red-500' : 'border-gray-300'
-              } rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
-            {validationErrors.motherAadharCardNo && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.motherAadharCardNo}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Documents Section */}
-      <div className="p-6 border rounded-lg shadow-md bg-white mb-6">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Documents</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Caste Certificate
-            </label>
-            <input
-              type="file"
-              name="casteCertificate"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Student Aadhar Card
-            </label>
-            <input
-              type="file"
-              name="studentAadharCard"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Father Aadhar Card
-            </label>
-            <input
-              type="file"
-              name="fatherAadharCard"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mother Aadhar Card
-            </label>
-            <input
-              type="file"
-              name="motherAdharCard"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Previous Class Marksheet
-            </label>
-            <input
-              type="file"
-              name="previousClassMarksheet"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Transfer Certificate
-            </label>
-            <input
-              type="file"
-              name="transferCertificate"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Student Date of Birth Certificate
-            </label>
-            <input
-              type="file"
-              name="studentDateOfBirthCertificate"
-              onChange={handleFileChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Buttons */}
-      <div className="flex justify-end space-x-4 mb-4">
+            {/* Navigation Buttons */}
+            <div className="flex justify-between mt-8 pt-6 border-t">
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          onClick={() => alert("Print Info")}
-        >
-          Print Info
+                type="button"
+                onClick={prevStep}
+                disabled={currentStep === 1}
+                className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
         </button>
+              
+              <div className="space-x-4">
+                {currentStep < steps.length ? (
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          onClick={() => alert("Print Form")}
-        >
-          Print Form
-        </button>
-        {loading ? (
-          <button
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-          >
-            Saving...
+                    type="button"
+                    onClick={nextStep}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Next
           </button>
         ) : (
           <button
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            type="submit"
+            type="button"
+            onClick={handleSubmit}
+                    disabled={loading}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save
+                    {loading ? 'Registering...' : 'Register Student'}
           </button>
         )}
-        <button
-          className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700"
-          onClick={() =>
-            setFormData({
-              fullName: "",
-              gender: "",
-              formNo: "",
-              dob: "",
-              category: "",
-              religion: "",
-              registerForClass: "",
-              admissionCategory: "",
-              bloodGroup: "",
-              regnDate: "",
-              testDate: "",
-              transactionNo: "",
-              singleParent: false,
-              contactNo: "",
-              studentEmail: "",
-              address: "",
-              city: "",
-              state: "",
-              pincode: "",
-              studentAadharCardNo: "",
-              regnCharge: "",
-              examSubject: "",
-              paymentStatus: "",
-              fatherName: "",
-              fatherMobileNo: "",
-              smsAlert: false,
-              fatherEmail: "",
-              fatherAadharCardNo: "",
-              isFatherCampusEmployee: false,
-              motherName: "",
-              motherMobileNo: "",
-              motherAadharCardNo: "",
-              casteCertificate: null,
-              studentAadharCard: null,
-              fatherAadharCard: null,
-              motherAadharCard: null,
-              previousClassMarksheet: null,
-              transferCertificate: null,
-              studentDateOfBirthCertificate: null,
-            })
-          }
-        >
-          Reset
-        </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
-      </form>
     </div>
   );
 };

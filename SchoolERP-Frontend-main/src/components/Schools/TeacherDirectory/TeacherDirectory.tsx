@@ -7,12 +7,9 @@ import SearchFilters from './SearchFilter';
 import Pagination from './Pegination';
 import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
-import axios, { AxiosError } from 'axios';
 import jsPDF from 'jspdf';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 // import autoTable from 'jspdf-autotable';
-
-// Update API URL to ensure it's correctly pointing to your backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 interface AddTeacherFormData extends Partial<Teacher> {
   fullName: string;
@@ -70,36 +67,59 @@ const TeacherDirectory: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
 
-  // Configure axios defaults for better error handling
-  useEffect(() => {
-    axios.defaults.headers.common['Content-Type'] = 'application/json';
-    
-    // Add interceptor to log request data for debugging
-    axios.interceptors.request.use(request => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Request:', request.method, request.url, request.data);
-      }
-      return request;
-    });
-  }, []);
-
   // Fetch teachers from API
   const fetchTeachers = useCallback(async () => {
     try {
       setLoading(true);
-      const storedSchoolId = localStorage.getItem('schoolId') || '1';
-      // Update API endpoint to match your backend route
-      const response = await axios.get(`${API_URL}/teachers/school/${storedSchoolId}`);
       
-      if (response.data && response.data.success) {
-        setTeachers(response.data.data || []);
-        setError(null);
-      } else {
-        setError('Failed to fetch teachers');
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setLoading(false);
+        return;
       }
-    } catch (error: unknown) {
-      console.error('Error fetching teachers:', error);
-      setError(`Failed to fetch teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      console.log('🔍 Fetching teachers for school ID:', schoolId);
+      // School isolation will be handled automatically by backend auth middleware
+      const data = await apiGet(`/teachers/school/${schoolId}`);
+      
+      if (Array.isArray(data)) {
+        setTeachers(data);
+      } else {
+        setTeachers([]);
+      }
+      setError(null);
+    } catch (err: unknown) {
+      console.error('Error fetching teachers:', err);
+      const apiErr = err as ApiError;
+      setError(`Failed to fetch teachers: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -117,8 +137,43 @@ const TeacherDirectory: React.FC = () => {
   const searchTeachers = useCallback(async () => {
     try {
       setLoading(true);
-      const storedSchoolId = localStorage.getItem('schoolId') || '1';
-      let url = `${API_URL}/teachers/school/${storedSchoolId}/search?`;
+      
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        setError('School context not found. Please login again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('🔍 Searching teachers for school ID:', schoolId);
+      let url = `/teachers/school/${schoolId}/search?`;
       
       if (searchTerm) {
         url += `searchTerm=${encodeURIComponent(searchTerm)}&`;
@@ -128,17 +183,18 @@ const TeacherDirectory: React.FC = () => {
         url += `classFilter=${encodeURIComponent(classFilter)}&`;
       }
       
-      const response = await axios.get(url);
+      const data = await apiGet(url);
       
-      if (response.data && response.data.success) {
-        setTeachers(response.data.data || []);
-        setError(null);
+      if (Array.isArray(data)) {
+        setTeachers(data);
       } else {
-        setError('Failed to search teachers');
+        setTeachers([]);
       }
-    } catch (error: unknown) {
-      console.error('Error searching teachers:', error);
-      setError(`Failed to search teachers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(null);
+    } catch (err: unknown) {
+      console.error('Error searching teachers:', err);
+      const apiErr = err as ApiError;
+      setError(`Failed to search teachers: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -198,10 +254,11 @@ const TeacherDirectory: React.FC = () => {
   const handleViewProfile = async (teacher: Teacher) => {
     try {
       // Fetch the complete teacher data
-      const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      const data = await apiGet(`/teachers/${teacher.id}`);
       
-      if (response.data.success) {
-        const teacherData = response.data.data;
+      if (data) {
+        // The apiGet function already extracts the data, so use it directly
+        const teacherData = data as Teacher;
         
         // Format the data to ensure all fields are properly set
         const formattedTeacherData = {
@@ -214,11 +271,11 @@ const TeacherDirectory: React.FC = () => {
           dateOfBirth: teacherData.dateOfBirth || '',
           age: teacherData.age || 0,
           designation: teacherData.designation || 'Teacher',
-          qualification: teacherData.qualification || teacherData.education || '',
+          qualification: teacherData.qualification || '',
           address: teacherData.address || '',
           subjects: Array.isArray(teacherData.subjects) ? teacherData.subjects : [],
           sections: Array.isArray(teacherData.sections) ? teacherData.sections : [],
-          joining_year: teacherData.joining_year || teacherData.joinDate || '',
+          joining_year: teacherData.joining_year || '',
           experience: teacherData.experience || '',
           profileImage: teacherData.profileImage || '',
           isClassIncharge: teacherData.isClassIncharge || false,
@@ -245,13 +302,14 @@ const TeacherDirectory: React.FC = () => {
 
         console.log('Teacher Profile Data:', formattedTeacherData);
         setSelectedTeacher(formattedTeacherData);
-    setIsProfileOpen(true);
+        setIsProfileOpen(true);
       } else {
         showToast('error', 'Failed to fetch teacher details');
       }
-    } catch (error) {
-      console.error('Error fetching teacher details:', error);
-      showToast('error', 'Failed to fetch teacher details');
+    } catch (err: unknown) {
+      console.error('Error fetching teacher details:', err);
+      const apiErr = err as ApiError;
+      showToast('error', 'Failed to fetch teacher details: ' + (apiErr.message || 'Unknown error'));
     }
   };
 
@@ -261,6 +319,39 @@ const TeacherDirectory: React.FC = () => {
       // Ensure we have valid form data
       if (!formData) {
         toast.error('Invalid form data');
+        return;
+      }
+
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        toast.error('School context not found. Please login again.');
         return;
       }
 
@@ -292,12 +383,12 @@ const TeacherDirectory: React.FC = () => {
         address: formData.address || '',
         qualification: formData.qualification || '',
         experience: formData.experience || '0',
-        profileImage: formData.profileImage || 'https://randomuser.me/api/portraits/men/0.jpg',
+        profileImage: formData.profileImage || '',
         isClassIncharge: formData.isClassIncharge || false,
         inchargeClass: formData.isClassIncharge ? formData.inchargeClass : null,
         inchargeSection: formData.isClassIncharge ? formData.inchargeSection : null,
         status: formData.status || 'active',
-        schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
+        schoolId: schoolId, // Use authenticated school context
         documents: [],
         password: '123456', // Default password for new teachers
         
@@ -320,13 +411,10 @@ const TeacherDirectory: React.FC = () => {
       };
 
       // Validate required fields before sending
-      type RequiredField = keyof Pick<Teacher, 'fullName' | 'email' | 'gender' | 'phone' | 'subjects' | 'sections'>;
-      const requiredFields: RequiredField[] = ['fullName', 'email', 'gender', 'phone', 'subjects', 'sections'];
+      type RequiredField = keyof Pick<Teacher, 'fullName' | 'gender'>;
+      const requiredFields: RequiredField[] = ['fullName', 'gender'];
       const missingFields = requiredFields.filter(field => {
         const value = formData[field];
-        if (field === 'subjects' || field === 'sections') {
-          return !value || !Array.isArray(value) || value.length === 0;
-        }
         return !value;
       });
 
@@ -337,24 +425,16 @@ const TeacherDirectory: React.FC = () => {
 
       console.log('Sending teacher data:', formattedData);
 
-      const response = await axios.post(`${API_URL}/teachers`, formattedData);
+      await apiPost(`/teachers`, formattedData);
       
-      if (response.data.success) {
-        toast.success('Teacher added successfully');
-        setIsAddFormOpen(false);
-        fetchTeachers(); // Refresh the teacher list
-      } else {
-        toast.error(response.data.message || 'Failed to add teacher');
-      }
+      // If we get here, the teacher was added successfully (apiPost would throw on error)
+      toast.success('Teacher added successfully');
+      setIsAddFormOpen(false);
+      fetchTeachers(); // Refresh the teacher list
     } catch (error) {
       console.error('Error adding teacher:', error);
-      if (axios.isAxiosError(error)) {
-        const errorMessage = error.response?.data?.message || 'Error adding teacher';
-        console.error('Server error details:', error.response?.data);
-        toast.error(errorMessage);
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      const apiErr = error as ApiError;
+      toast.error(apiErr.message || 'Error adding teacher');
     }
   };
 
@@ -362,11 +442,9 @@ const TeacherDirectory: React.FC = () => {
   const handleEditTeacher = async (teacher: Teacher) => {
     try {
       // Fetch the complete teacher data
-      const response = await axios.get(`${API_URL}/teachers/${teacher.id}`);
+      const teacherData = await apiGet(`/teachers/${teacher.id}`) as Teacher;
       
-      if (response.data.success) {
-        const teacherData = response.data.data;
-        
+      if (teacherData) {
         // Format the data to ensure all fields are properly set
         const formattedTeacherData = {
           id: teacherData.id,
@@ -421,35 +499,33 @@ const TeacherDirectory: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching teacher details:', error);
-      if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || 'Failed to fetch teacher details');
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      const apiErr = error as ApiError;
+      toast.error(apiErr.message || 'Failed to fetch teacher details');
     }
   };
 
   // Handle deleting a teacher
-  const handleDeleteTeacher = (teacher: Teacher) => {
-    setTeacherToDelete(teacher);
-    setIsDeleteModalOpen(true);
+  const handleDeleteTeacher = (teacherId: number) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    if (teacher) {
+      setTeacherToDelete(teacher);
+      setIsDeleteModalOpen(true);
+    }
   };
 
   const confirmDelete = async () => {
     if (!teacherToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/teachers/${teacherToDelete.id}`);
+      await apiDelete(`/teachers/${teacherToDelete.id}`);
       
-      if (response.data.success) {
-        setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherToDelete.id));
-        showToast('success', 'Teacher deleted successfully!');
-      } else {
-        showToast('error', response.data.message || 'Failed to delete teacher. Please try again.');
-      }
+      // If we get here, the deletion was successful (apiDelete would throw on error)
+      setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherToDelete.id));
+      showToast('success', 'Teacher deleted successfully!');
     } catch (error: unknown) {
       console.error('Error deleting teacher:', error);
-      showToast('error', error instanceof Error ? error.message : 'Unknown error');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to delete teacher. Please try again.');
     } finally {
       setIsDeleteModalOpen(false);
       setTeacherToDelete(null);
@@ -526,13 +602,10 @@ const TeacherDirectory: React.FC = () => {
   const handleEditSubmit = async () => {
     try {
       // Validate required fields
-      type RequiredField = keyof Pick<Teacher, 'fullName' | 'email' | 'gender' | 'phone' | 'subjects' | 'sections'>;
-      const requiredFields: RequiredField[] = ['fullName', 'email', 'gender', 'phone', 'subjects', 'sections'];
+      type RequiredField = keyof Pick<Teacher, 'fullName' | 'gender'>;
+      const requiredFields: RequiredField[] = ['fullName', 'gender'];
       const missingFields = requiredFields.filter(field => {
         const value = editTeacher[field];
-        if (field === 'subjects' || field === 'sections') {
-          return !value || !Array.isArray(value) || value.length === 0;
-        }
         return !value;
       });
 
@@ -551,6 +624,39 @@ const TeacherDirectory: React.FC = () => {
         return;
       }
     }
+
+      // Get school ID from authenticated user context
+      const getSchoolIdFromAuth = (): number | null => {
+        // First try to get from JWT token
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.schoolId) return payload.schoolId;
+          } catch {
+            console.warn('Failed to decode token for school ID');
+          }
+        }
+        
+        // Then try from user data
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            return user.schoolId || user.id; // For school users, their ID is the school ID
+          } catch {
+            console.warn('Failed to parse user data for school ID');
+          }
+        }
+        
+        return null;
+      };
+      
+      const schoolId = getSchoolIdFromAuth();
+      if (!schoolId) {
+        toast.error('School context not found. Please login again.');
+        return;
+      }
 
       // Create the teacher update object with only provided fields
       const teacherToUpdate = {
@@ -575,7 +681,7 @@ const TeacherDirectory: React.FC = () => {
           inchargeSection: editTeacher.inchargeSection
         }),
         ...(editTeacher.status && { status: editTeacher.status }),
-        schoolId: parseInt(localStorage.getItem('schoolId') || '1'),
+        schoolId: schoolId, // Use authenticated school context
         
         // Optional personal information - only include if provided
         ...(editTeacher.religion && { religion: editTeacher.religion }),
@@ -595,28 +701,18 @@ const TeacherDirectory: React.FC = () => {
 
       console.log('Updating teacher data:', teacherToUpdate);
       
-      const response = await axios.put(`${API_URL}/teachers/${editTeacher.id}`, teacherToUpdate);
+      await apiPut(`/teachers/${editTeacher.id}`, teacherToUpdate);
       
-      if (response.data.success) {
-        const updatedTeachers = teachers.map((teacher) =>
-          teacher.id === editTeacher.id ? response.data.data : teacher
-        );
-        setTeachers(updatedTeachers);
-        setIsEditModalOpen(false);
-        showToast('success', 'Teacher updated successfully!');
-        
-        // Refresh the list to ensure we have the latest data
-        fetchTeachers();
-      } else {
-        showToast('error', response.data.message || 'Failed to update teacher. Please try again.');
-      }
+      // If we get here, the teacher was updated successfully (apiPut would throw on error)
+      setIsEditModalOpen(false);
+      showToast('success', 'Teacher updated successfully!');
+      
+      // Refresh the list to ensure we have the latest data
+      fetchTeachers();
     } catch (error: unknown) {
       console.error('Error updating teacher:', error);
-      if (error instanceof AxiosError && error.response?.data?.message) {
-        showToast('error', error.response.data.message);
-      } else {
-        showToast('error', 'Failed to update teacher. Please try again.');
-      }
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to update teacher. Please try again.');
     }
   };
 
@@ -904,7 +1000,7 @@ const TeacherDirectory: React.FC = () => {
       });
 
       // Add page numbers
-      const totalPages = (doc as any).internal.getNumberOfPages();
+      const totalPages = (doc.internal as any).getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
@@ -961,6 +1057,73 @@ const TeacherDirectory: React.FC = () => {
             <UserPlus className="h-4 w-4 mr-2" />
             {isAddFormOpen ? 'Cancel' : 'Add New Teacher'}
           </button>
+        </div>
+      </div>
+
+      {/* Statistics Section */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Teachers</p>
+              <p className="text-2xl font-bold">{teachers.length}</p>
+            </div>
+            <div className="bg-blue-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Active Teachers</p>
+              <p className="text-2xl font-bold">
+                {teachers.filter(teacher => teacher.status === 'active').length}
+              </p>
+            </div>
+            <div className="bg-green-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">Class Incharges</p>
+              <p className="text-2xl font-bold">
+                {teachers.filter(teacher => teacher.isClassIncharge).length}
+              </p>
+            </div>
+            <div className="bg-yellow-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Avg Experience</p>
+              <p className="text-2xl font-bold">
+                {teachers.length > 0 
+                  ? Math.round(teachers.filter(t => t.experience && parseFloat(t.experience)).reduce((sum, teacher) => sum + parseFloat(teacher.experience || '0'), 0) / teachers.filter(t => t.experience && parseFloat(t.experience)).length || 0)
+                  : 0} yrs
+              </p>
+            </div>
+            <div className="bg-purple-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

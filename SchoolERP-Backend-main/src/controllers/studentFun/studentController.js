@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { addSchoolFilter } from '../../middlewares/authMiddleware.js';
+
 const prisma = new PrismaClient();
 
 /**
@@ -9,12 +11,19 @@ const prisma = new PrismaClient();
 export const createStudent = async (req, res) => {
   try {
     console.log("Creating new student with form data");
+    console.log("Form fields received:", Object.keys(req.body));
+    console.log("Files received:", req.files ? Object.keys(req.files) : 'No files');
     
     // Extract basic fields from request body
     const {
       branchName,
       fullName,
       dateOfBirth,
+      age,
+      penNo,
+      apaarId,
+      srNo,
+      registrationNo,
       gender,
       bloodGroup,
       nationality,
@@ -27,184 +36,307 @@ export const createStudent = async (req, res) => {
       emergencyContact,
       admissionNo,
       studentId,
+      rollNumber,
+      className,
+      section,
+      stream,
+      semester,
       admissionDate,
       previousSchool,
-      schoolId = 1, // Default school ID
+      schoolId , // Default school ID
     } = req.body;
     
-    // Extract address fields
+    // Extract address fields - support both nested and flattened formats
     const address = {
-      houseNo: req.body['address.houseNo'] || '',
-      street: req.body['address.street'] || '',
-      city: req.body['address.city'] || '',
-      state: req.body['address.state'] || '',
-      pinCode: req.body['address.pinCode'] || '',
-      permanentHouseNo: req.body['address.permanentHouseNo'] || '',
-      permanentStreet: req.body['address.permanentStreet'] || '',
-      permanentCity: req.body['address.permanentCity'] || '',
-      permanentState: req.body['address.permanentState'] || '',
-      permanentPinCode: req.body['address.permanentPinCode'] || '',
+      houseNo: req.body['address.houseNo'] || req.body.houseNo || '',
+      street: req.body['address.street'] || req.body.street || '',
+      city: req.body['address.city'] || req.body.city || '',
+      state: req.body['address.state'] || req.body.state || '',
+      pinCode: req.body['address.pinCode'] || req.body.pinCode || '',
+      permanentHouseNo: req.body['address.permanentHouseNo'] || req.body.permanentHouseNo || '',
+      permanentStreet: req.body['address.permanentStreet'] || req.body.permanentStreet || '',
+      permanentCity: req.body['address.permanentCity'] || req.body.permanentCity || '',
+      permanentState: req.body['address.permanentState'] || req.body.permanentState || '',
+      permanentPinCode: req.body['address.permanentPinCode'] || req.body.permanentPinCode || '',
+      sameAsPresentAddress: req.body['address.sameAsPresentAddress'] || req.body.sameAsPresentAddress || false,
     };
     
     // Extract parent information
     const father = {
       name: req.body['father.name'] || req.body.fatherName || '',
-      qualification: req.body['father.qualification'] || '',
-      occupation: req.body['father.occupation'] || '',
-      contactNumber: req.body['father.contactNumber'] || '',
-      email: req.body['father.email'] || '',
-      aadhaarNo: req.body['father.aadhaarNo'] || '',
-      annualIncome: req.body['father.annualIncome'] || '',
-      isCampusEmployee: req.body['father.isCampusEmployee'] || 'no',
+      qualification: req.body['father.qualification'] || req.body.fatherQualification || '',
+      occupation: req.body['father.occupation'] || req.body.fatherOccupation || '',
+      contactNumber: req.body['father.contactNumber'] || req.body.fatherMobile || req.body.fatherContact || '',
+      email: req.body['father.email'] || req.body.fatherEmail || '',
+      aadhaarNo: req.body['father.aadhaarNo'] || req.body.fatherAadhaar || '',
+      annualIncome: req.body['father.annualIncome'] || req.body.fatherIncome || '',
+      isCampusEmployee: req.body['father.isCampusEmployee'] || req.body.fatherCampusEmployee || 'no',
     };
     
     const mother = {
       name: req.body['mother.name'] || req.body.motherName || '',
-      qualification: req.body['mother.qualification'] || '',
-      occupation: req.body['mother.occupation'] || '',
-      contactNumber: req.body['mother.contactNumber'] || '',
-      email: req.body['mother.email'] || '',
-      aadhaarNo: req.body['mother.aadhaarNo'] || '',
-      annualIncome: req.body['mother.annualIncome'] || '',
-      isCampusEmployee: req.body['mother.isCampusEmployee'] || 'no',
+      qualification: req.body['mother.qualification'] || req.body.motherQualification || '',
+      occupation: req.body['mother.occupation'] || req.body.motherOccupation || '',
+      contactNumber: req.body['mother.contactNumber'] || req.body.motherMobile || req.body.motherContact || '',
+      email: req.body['mother.email'] || req.body.motherEmail || '',
+      aadhaarNo: req.body['mother.aadhaarNo'] || req.body.motherAadhaar || '',
+      annualIncome: req.body['mother.annualIncome'] || req.body.motherIncome || '',
+      isCampusEmployee: req.body['mother.isCampusEmployee'] || req.body.motherCampusEmployee || 'no',
     };
     
     const guardian = {
-      name: req.body['guardian.name'] || '',
-      address: req.body['guardian.address'] || '',
-      contactNumber: req.body['guardian.contactNumber'] || '',
-      email: req.body['guardian.email'] || '',
-      aadhaarNo: req.body['guardian.aadhaarNo'] || '',
-      occupation: req.body['guardian.occupation'] || '',
-      annualIncome: req.body['guardian.annualIncome'] || '',
+      name: req.body['guardian.name'] || req.body.guardianName || '',
+      address: req.body['guardian.address'] || req.body.guardianAddress || '',
+      contactNumber: req.body['guardian.contactNumber'] || req.body.guardianMobile || req.body.guardianContact || '',
+      email: req.body['guardian.email'] || req.body.guardianEmail || '',
+      aadhaarNo: req.body['guardian.aadhaarNo'] || req.body.guardianAadhaar || '',
+      occupation: req.body['guardian.occupation'] || req.body.guardianOccupation || '',
+      annualIncome: req.body['guardian.annualIncome'] || req.body.guardianIncome || '',
     };
     
-    // Extract session information - only for admission session
+    // Extract session information - support both admit and current sessions
     const sessionInfo = {
-      admitGroup: req.body.admitSession.group,
-      admitClass: req.body.admitSession.class,
-      admitSection: req.body.admitSession.section,
-      admitRollNo: req.body.admitSession.rollNo,
-      currentGroup: null,
-      currentClass: null,
-      currentSection: null,
-      currentRollNo: null,
-      stream: null,
-      semester: null,
-      feeGroup: req.body.currentSession.feeGroup,
-      house: req.body.currentSession.house
+      admitGroup: req.body['admitSession.group'] || req.body.admitGroup || '',
+      admitClass: req.body['admitSession.class'] || req.body.className || req.body.admitClass || '',
+      admitSection: req.body['admitSession.section'] || req.body.section || req.body.admitSection || '',
+      admitRollNo: req.body['admitSession.rollNo'] || req.body.rollNumber || req.body.admitRollNo || '',
+      admitStream: req.body['admitSession.stream'] || req.body.stream || req.body.admitStream || '',
+      admitSemester: req.body['admitSession.semester'] || req.body.semester || req.body.admitSemester || '',
+      admitFeeGroup: req.body['admitSession.feeGroup'] || req.body.feeGroup || req.body.admitFeeGroup || '',
+      admitHouse: req.body['admitSession.house'] || req.body.house || req.body.admitHouse || '',
+      currentGroup: req.body['currentSession.group'] || req.body.currentGroup || null,
+      currentClass: req.body['currentSession.class'] || req.body.currentClass || null,
+      currentSection: req.body['currentSession.section'] || req.body.currentSection || null,
+      currentRollNo: req.body['currentSession.rollNo'] || req.body.currentRollNo || null,
+      currentStream: req.body['currentSession.stream'] || req.body.currentStream || null,
+      currentSemester: req.body['currentSession.semester'] || req.body.currentSemester || null,
+      currentFeeGroup: req.body['currentSession.feeGroup'] || req.body.currentFeeGroup || null,
+      currentHouse: req.body['currentSession.house'] || req.body.currentHouse || null,
     };
     
     // Extract transport information
     const transport = {
-      mode: req.body['transport.mode'] || '',
-      area: req.body['transport.area'] || '',
-      stand: req.body['transport.stand'] || '',
-      route: req.body['transport.route'] || '',
-      driver: req.body['transport.driver'] || '',
+      mode: req.body['transport.mode'] || req.body.transportMode || '',
+      area: req.body['transport.area'] || req.body.transportArea || '',
+      stand: req.body['transport.stand'] || req.body.transportStand || '',
+      route: req.body['transport.route'] || req.body.transportRoute || '',
+      driver: req.body['transport.driver'] || req.body.transportDriver || '',
+      pickupLocation: req.body['transport.pickupLocation'] || req.body.pickupLocation || '',
+      dropLocation: req.body['transport.dropLocation'] || req.body.dropLocation || '',
     };
     
     // Extract academic registration
     const academic = {
-      registrationNo: req.body['academic.registrationNo'] || '',
+      registrationNo: req.body['academic.registrationNo'] || req.body.registrationNo || '',
     };
     
     // Extract last education details
     const lastEducation = {
-      school: req.body['lastEducation.school'] || '',
-      address: req.body['lastEducation.address'] || '',
-      tcDate: req.body['lastEducation.tcDate'] || null,
-      prevClass: req.body['lastEducation.prevClass'] || '',
-      percentage: req.body['lastEducation.percentage'] || '',
-      attendance: req.body['lastEducation.attendance'] || '',
-      extraActivity: req.body['lastEducation.extraActivity'] || '',
+      school: req.body['lastEducation.school'] || req.body.previousSchool || '',
+      address: req.body['lastEducation.address'] || req.body.lastSchoolAddress || '',
+      tcDate: req.body['lastEducation.tcDate'] || req.body.tcDate || null,
+      prevClass: req.body['lastEducation.prevClass'] || req.body.previousClass || '',
+      percentage: req.body['lastEducation.percentage'] || req.body.previousPercentage || '',
+      attendance: req.body['lastEducation.attendance'] || req.body.previousAttendance || '',
+      extraActivity: req.body['lastEducation.extraActivity'] || req.body.extraActivities || '',
     };
     
-    // Extract other information
+    // Extract other information with comprehensive mapping
     const other = {
-      belongToBPL: req.body['other.belongToBPL'] || 'no',
-      minority: req.body['other.minority'] || 'no',
-      disability: req.body['other.disability'] || '',
-      accountNo: req.body['other.accountNo'] || '',
-      bank: req.body['other.bank'] || '',
-      ifscCode: req.body['other.ifscCode'] || '',
-      medium: req.body['other.medium'] || '',
-      lastYearResult: req.body['other.lastYearResult'] || '',
-      singleParent: req.body['other.singleParent'] || 'no',
-      onlyChild: req.body['other.onlyChild'] || 'no',
-      onlyGirlChild: req.body['other.onlyGirlChild'] || 'no',
-      adoptedChild: req.body['other.adoptedChild'] || 'no',
-      siblingAdmissionNo: req.body['other.siblingAdmissionNo'] || '',
-      transferCase: req.body['other.transferCase'] || 'no',
-      livingWith: req.body['other.livingWith'] || '',
-      motherTongue: req.body['other.motherTongue'] || '',
-      admissionType: req.body['other.admissionType'] || 'new',
-      udiseNo: req.body['other.udiseNo'] || '',
+      belongToBPL: req.body['other.belongToBPL'] || req.body.belongToBPL || 'no',
+      minority: req.body['other.minority'] || req.body.minority || 'no',
+      disability: req.body['other.disability'] || req.body.disability || req.body.typeOfDisability || '',
+      accountNo: req.body['other.accountNo'] || req.body.accountNo || '',
+      bank: req.body['other.bank'] || req.body.bank || '',
+      ifscCode: req.body['other.ifscCode'] || req.body.ifscCode || '',
+      medium: req.body['other.medium'] || req.body.medium || '',
+      lastYearResult: req.body['other.lastYearResult'] || req.body.lastYearResult || '',
+      singleParent: req.body['other.singleParent'] || req.body.singleParent || 'no',
+      onlyChild: req.body['other.onlyChild'] || req.body.onlyChild || 'no',
+      onlyGirlChild: req.body['other.onlyGirlChild'] || req.body.onlyGirlChild || 'no',
+      adoptedChild: req.body['other.adoptedChild'] || req.body.adoptedChild || 'no',
+      siblingAdmissionNo: req.body['other.siblingAdmissionNo'] || req.body.siblingAdmissionNo || '',
+      transferCase: req.body['other.transferCase'] || req.body.transferCase || 'no',
+      livingWith: req.body['other.livingWith'] || req.body.livingWith || '',
+      motherTongue: req.body['other.motherTongue'] || req.body.motherTongue || '',
+      admissionType: req.body['other.admissionType'] || req.body.admissionType || 'new',
+      udiseNo: req.body['other.udiseNo'] || req.body.udiseNo || '',
     };
     
-    // Handle file uploads and get paths
+    // **UPDATED: Handle file uploads and map to schema document path fields**
     const files = req.files || {};
     
-    // Get file paths if they exist
-    const getFilePath = (fieldName) => {
-      if (files[fieldName] && files[fieldName][0]) {
-        return files[fieldName][0].path;
-      }
-      return null;
+    // Create document paths object based on schema fields
+    const documentPaths = {
+      studentImagePath: null,
+      fatherImagePath: null,
+      motherImagePath: null,
+      guardianImagePath: null,
+      signaturePath: null,
+      parentSignaturePath: null,
+      fatherAadharPath: null,
+      motherAadharPath: null,
+      birthCertificatePath: null,
+      migrationCertificatePath: null,
+      aadhaarCardPath: null,
+      familyIdPath: null,
+      affidavitCertificatePath: null,
+      incomeCertificatePath: null,
+      addressProof1Path: null,
+      addressProof2Path: null,
+      transferCertificatePath: null,
+      markSheetPath: null,
+      fatherSignaturePath: null,
+      motherSignaturePath: null,
+      guardianSignaturePath: null,
+    };
+
+    // Document verification status fields
+    const documentStatus = {
+      documentsVerified: false,
+      birthCertificateSubmitted: false,
+      studentAadharSubmitted: false,
+      fatherAadharSubmitted: false,
+      motherAadharSubmitted: false,
+      tcSubmitted: false,
+      marksheetSubmitted: false,
     };
     
-    const documents = {
-      studentImagePath: getFilePath('documents.studentImage'),
-      fatherImagePath: getFilePath('documents.fatherImage'),
-      motherImagePath: getFilePath('documents.motherImage'),
-      guardianImagePath: getFilePath('documents.guardianImage'),
-      signaturePath: getFilePath('documents.signature'),
-      fatherAadharPath: getFilePath('documents.fatherAadhar'),
-      motherAadharPath: getFilePath('documents.motherAadhar'),
-      birthCertificatePath: getFilePath('documents.birthCertificate'),
-      migrationCertificatePath: getFilePath('documents.migrationCertificate'),
-      aadhaarCardPath: getFilePath('documents.aadhaarCard'),
+    // Map uploaded files to document path fields
+    const fileFieldMapping = {
+      'studentImage': 'studentImagePath',
+      'documents.studentImage': 'studentImagePath',
+      'fatherImage': 'fatherImagePath',
+      'documents.fatherImage': 'fatherImagePath',
+      'motherImage': 'motherImagePath',
+      'documents.motherImage': 'motherImagePath',
+      'guardianImage': 'guardianImagePath',
+      'documents.guardianImage': 'guardianImagePath',
+      'signature': 'signaturePath',
+      'documents.signature': 'signaturePath',
+      'parentSignature': 'parentSignaturePath',
+      'documents.parentSignature': 'parentSignaturePath',
+      'fatherAadhar': 'fatherAadharPath',
+      'documents.fatherAadhar': 'fatherAadharPath',
+      'motherAadhar': 'motherAadharPath',
+      'documents.motherAadhar': 'motherAadharPath',
+      'birthCertificate': 'birthCertificatePath',
+      'documents.birthCertificate': 'birthCertificatePath',
+      'migrationCertificate': 'migrationCertificatePath',
+      'documents.migrationCertificate': 'migrationCertificatePath',
+      'transferCertificate': 'transferCertificatePath',
+      'documents.transferCertificate': 'transferCertificatePath',
+      'markSheet': 'markSheetPath',
+      'documents.markSheet': 'markSheetPath',
+      'aadhaarCard': 'aadhaarCardPath',
+      'documents.aadhaarCard': 'aadhaarCardPath',
+      'familyId': 'familyIdPath',
+      'documents.familyId': 'familyIdPath',
+      'affidavitCertificate': 'affidavitCertificatePath',
+      'documents.affidavitCertificate': 'affidavitCertificatePath',
+      'incomeCertificate': 'incomeCertificatePath',
+      'documents.incomeCertificate': 'incomeCertificatePath',
+      'addressProof1': 'addressProof1Path',
+      'documents.addressProof1': 'addressProof1Path',
+      'addressProof2': 'addressProof2Path',
+      'documents.addressProof2': 'addressProof2Path',
+      'fatherSignature': 'fatherSignaturePath',
+      'documents.fatherSignature': 'fatherSignaturePath',
+      'motherSignature': 'motherSignaturePath',
+      'documents.motherSignature': 'motherSignaturePath',
+      'guardianSignature': 'guardianSignaturePath',
+      'documents.guardianSignature': 'guardianSignaturePath',
     };
+    
+    // Process uploaded files and map to correct schema fields
+    Object.keys(files).forEach(fieldName => {
+      const file = files[fieldName][0];
+      if (file && fileFieldMapping[fieldName]) {
+        const schemaField = fileFieldMapping[fieldName];
+        documentPaths[schemaField] = file.path;
+        
+        // Set document submission status based on file type
+        if (fieldName.includes('birthCertificate')) {
+          documentStatus.birthCertificateSubmitted = true;
+        } else if (fieldName.includes('aadhaar') || fieldName.includes('aadhaarCard')) {
+          documentStatus.studentAadharSubmitted = true;
+        } else if (fieldName.includes('fatherAadhar')) {
+          documentStatus.fatherAadharSubmitted = true;
+        } else if (fieldName.includes('motherAadhar')) {
+          documentStatus.motherAadharSubmitted = true;
+        } else if (fieldName.includes('transferCertificate')) {
+          documentStatus.tcSubmitted = true;
+        } else if (fieldName.includes('markSheet')) {
+          documentStatus.marksheetSubmitted = true;
+        }
+      }
+    });
+
+    // Check if any documents were uploaded
+    const hasDocuments = Object.values(documentPaths).some(path => path !== null);
+    if (hasDocuments) {
+      documentStatus.documentsVerified = true;
+    }
     
     // Use a transaction to ensure all related records are created or none at all
     const student = await prisma.$transaction(async (prisma) => {
-      // Create the student record first
+      // Create the student record first with comprehensive field mapping including document paths
       const newStudent = await prisma.student.create({
         data: {
-          branchName,
-          fullName,
+          // Basic Information
+          branchName: branchName || '',
+          fullName: fullName || '',
+          admissionNo: admissionNo || '',
+          email: email || null,
+          emailPassword: req.body.emailPassword || null,
+          penNo: penNo || '',
+          apaarId: apaarId || '',
+          studentId: studentId || '',
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
-          gender: gender || "OTHER",
-          bloodGroup,
-          nationality: nationality || "Indian",
-          religion,
-          category,
-          caste,
-          aadhaarNumber,
-          mobileNumber: mobileNumber || "0000000000",
-          email: email || "",
-          emergencyContact,
-          admissionNo: admissionNo || `ADM-${Date.now()}`,
-          studentId,
-          admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
-          previousSchool,
+          age: age ? parseInt(age) : null,
+          gender: gender || '',
+          bloodGroup: bloodGroup || '',
+          nationality: nationality || 'Indian',
+          religion: religion || '',
+          category: category || '',
+          caste: caste || '',
+          height: req.body.height ? parseFloat(req.body.height) : null,
+          weight: req.body.weight ? parseFloat(req.body.weight) : null,
+          aadhaarNumber: aadhaarNumber || '',
+          mobileNumber: mobileNumber || '',
+          emergencyContact: emergencyContact || '',
+          loginEnabled: req.body.loginEnabled === 'true' || req.body.loginEnabled === true || false,
           
-          // Address fields - map from nested structure to flat structure
+          // Address fields
           houseNo: address.houseNo,
           street: address.street,
-          city: address.city || "Unknown",
-          state: address.state || "Unknown",
+          city: address.city,
+          state: address.state,
           pinCode: address.pinCode,
           permanentHouseNo: address.permanentHouseNo,
           permanentStreet: address.permanentStreet,
           permanentCity: address.permanentCity,
           permanentState: address.permanentState,
           permanentPinCode: address.permanentPinCode,
-          sameAsPresentAddress: req.body['address.sameAsPresentAddress'] || false,
+          sameAsPresentAddress: address.sameAsPresentAddress,
           
-          // Parent information - ensure both direct and nested paths are checked
-          fatherName: father.name || req.body.fatherName || '',
-          motherName: mother.name || req.body.motherName || '',
+          // Parent Information - Only basic fields in Student table
+          fatherName: father.name,
+          fatherEmail: father.email || null,
+          fatherEmailPassword: req.body.fatherEmailPassword || null,
+          motherName: mother.name,
+          motherEmail: mother.email || null,
+          motherEmailPassword: req.body.motherEmailPassword || null,
+          
+          // Other fields in main table
+          belongToBPL: other.belongToBPL === 'yes', // Fix boolean conversion
+          disability: other.disability,
+          
+          // **NEW: Document paths from schema**
+          ...documentPaths,
+          
+          // **NEW: Document verification status**
+          ...documentStatus,
           
           // Connect to school
           school: {
@@ -215,7 +347,10 @@ export const createStudent = async (req, res) => {
           
           // SessionInfo
           sessionInfo: {
-            create: sessionInfo
+            create: {
+              admitDate: new Date(),
+              ...sessionInfo
+            }
           }
         },
         include: {
@@ -229,7 +364,6 @@ export const createStudent = async (req, res) => {
           fatherQualification: father.qualification,
           fatherOccupation: father.occupation,
           fatherContact: father.contactNumber,
-          fatherEmail: father.email,
           fatherAadhaarNo: father.aadhaarNo,
           fatherAnnualIncome: father.annualIncome,
           fatherIsCampusEmployee: father.isCampusEmployee,
@@ -237,7 +371,6 @@ export const createStudent = async (req, res) => {
           motherQualification: mother.qualification,
           motherOccupation: mother.occupation,
           motherContact: mother.contactNumber,
-          motherEmail: mother.email,
           motherAadhaarNo: mother.aadhaarNo,
           motherAnnualIncome: mother.annualIncome,
           motherIsCampusEmployee: mother.isCampusEmployee,
@@ -267,30 +400,8 @@ export const createStudent = async (req, res) => {
           transportStand: transport.stand,
           transportRoute: transport.route,
           transportDriver: transport.driver,
-          
-          // Connect to student
-          student: {
-            connect: {
-              id: newStudent.id
-            }
-          }
-        }
-      });
-      
-      // Create Documents record
-      await prisma.documents.create({
-        data: {
-          studentImagePath: documents.studentImagePath,
-          fatherImagePath: documents.fatherImagePath,
-          motherImagePath: documents.motherImagePath,
-          guardianImagePath: documents.guardianImagePath,
-          signaturePath: documents.signaturePath,
-          fatherAadharPath: documents.fatherAadharPath,
-          motherAadharPath: documents.motherAadharPath,
-          birthCertificatePath: documents.birthCertificatePath,
-          migrationCertificatePath: documents.migrationCertificatePath,
-          aadhaarCardPath: documents.aadhaarCardPath,
-          academicRegistrationNo: academic.registrationNo,
+          pickupLocation: transport.pickupLocation,
+          dropLocation: transport.dropLocation,
           
           // Connect to student
           student: {
@@ -324,24 +435,7 @@ export const createStudent = async (req, res) => {
       // Create OtherInfo record
       await prisma.otherInfo.create({
         data: {
-          belongToBPL: other.belongToBPL,
-          minority: other.minority,
-          disability: other.disability,
-          accountNo: other.accountNo,
-          bank: other.bank,
-          ifscCode: other.ifscCode,
-          medium: other.medium,
-          lastYearResult: other.lastYearResult,
-          singleParent: other.singleParent,
-          onlyChild: other.onlyChild,
-          onlyGirlChild: other.onlyGirlChild,
-          adoptedChild: other.adoptedChild,
-          siblingAdmissionNo: other.siblingAdmissionNo,
-          transferCase: other.transferCase,
-          livingWith: other.livingWith,
-          motherTongue: other.motherTongue,
-          admissionType: other.admissionType,
-          udiseNo: other.udiseNo,
+          ...other,
           
           // Connect to student
           student: {
@@ -364,7 +458,7 @@ export const createStudent = async (req, res) => {
       student: {
         id: student.id,
         fullName: student.fullName,
-        admissionNo: student.admissionNo
+        admissionNo: student.admissionNo,
       }
     });
   
@@ -380,19 +474,43 @@ export const createStudent = async (req, res) => {
 };
 
 /**
- * Get all students with pagination and filtering
+ * Get all students with pagination and filtering - WITH SCHOOL ISOLATION
  * @route GET /api/students
- * @access Public
+ * @access Protected - requires authentication
  */
 export const getAllStudents = async (req, res) => {
   try {
     console.log("Fetching students with query:", req.query);
 
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, class: className, section, category } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // Enhanced query to include related data
+    // Build base where clause with school isolation
+    let baseWhere = {};
+    
+    // Add category filter if provided
+    if (category) {
+      baseWhere.category = category;
+    }
+
+    // Add class and section filters if provided
+    if (className || section) {
+      baseWhere.sessionInfo = {
+        is: {
+          ...(className && { currentClass: className }),
+          ...(section && { currentSection: section })
+        }
+      };
+    }
+    
+    // Apply school-based filtering for multi-school isolation
+    const whereClause = addSchoolFilter(req, baseWhere);
+    
+    console.log('Applied where clause for school isolation:', whereClause);
+    
+    // Enhanced query to include related data with school filtering
     const students = await prisma.student.findMany({
+      where: whereClause,
       skip,
       take: parseInt(limit),
       orderBy: { createdAt: 'desc' },
@@ -400,25 +518,36 @@ export const getAllStudents = async (req, res) => {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
+        school: {
+          select: { id: true, schoolName: true, code: true }
+        }
       }
     });
     
-    // Get total count for pagination
-    const total = await prisma.student.count();
+    // Get total count for pagination with same filter
+    const total = await prisma.student.count({ where: whereClause });
     
-    console.log(`Found ${students.length} students (total: ${total})`);
+    console.log(`Found ${students.length} students (total: ${total}) for school context: ${req.user?.schoolId || 'admin'}`);
     
     return res.status(200).json({
       success: true,
-      students,
+      data: students, // Changed from 'students' to 'data' for consistency
       pagination: {
         total,
         page: parseInt(page),
         limit: parseInt(limit),
         totalPages: Math.ceil(total / parseInt(limit))
+      },
+      meta: {
+        schoolId: req.user?.schoolId,
+        userRole: req.user?.role,
+        appliedFilters: {
+          class: className,
+          section: section,
+          category: category
+        }
       }
     });
     
@@ -433,46 +562,80 @@ export const getAllStudents = async (req, res) => {
 };
 
 /**
- * Get a single student by ID with all related information
+ * Get a single student by ID with all related information - WITH SCHOOL ISOLATION
  * @route GET /api/students/:id
- * @access Public
+ * @access Protected - requires authentication and school ownership validation
  */
 export const getStudentById = async (req, res) => {
   try {
     const { id } = req.params;
     console.log(`Fetching student with ID: ${id}`);
     
-    const student = await prisma.student.findUnique({
-      where: { id: parseInt(id) },
+    // Validate ID format
+    if (!id || id.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID is required'
+      });
+    }
+    
+    // Build where clause with school isolation
+    const whereClause = addSchoolFilter(req, { id: id.toString() });
+    
+    console.log('Applied where clause for student lookup:', whereClause);
+    
+    const student = await prisma.student.findFirst({
+      where: whereClause,
       include: {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
+        previousSchool: true,
+        siblings: true,
+        officeDetails: true,
+        school: {
+          select: { id: true, schoolName: true, code: true }
+        }
       }
     });
     
     if (!student) {
-      console.log(`Student with ID ${id} not found`);
+      console.log(`Student with ID ${id} not found in school context: ${req.user?.schoolId || 'admin'}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found or you do not have permission to access this student'
+      });
+    }
+    
+    console.log(`Student found: ${student.fullName} (ID: ${student.id}) from school: ${student.school?.schoolName}`);
+    
+    return res.status(200).json({
+      success: true,
+      data: student,
+      message: 'Student data retrieved successfully',
+      meta: {
+        schoolId: student.schoolId,
+        accessedBy: req.user?.role
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error getting student:', error);
+    
+    // Handle Prisma specific errors
+    if (error.code === 'P2025') {
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
     
-    return res.status(200).json({
-      success: true,
-      student
-    });
-    
-  } catch (error) {
-    console.error('Error getting student:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve student details',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
@@ -487,432 +650,321 @@ export const updateStudent = async (req, res) => {
     const { id } = req.params;
     const studentData = req.body;
     
-    console.log(`Updating student ${id} with data:`, studentData);
-    
-    // Format dates if they exist in the request
-    if (studentData.dateOfBirth) {
-      studentData.dateOfBirth = new Date(studentData.dateOfBirth);
-    }
-    
-    if (studentData.admissionDate) {
-      studentData.admissionDate = new Date(studentData.admissionDate);
-    }
-    
-    if (studentData.tcDate) {
-      studentData.tcDate = new Date(studentData.tcDate);
-    }
+    console.log(`Updating student ${id} with data:`, Object.keys(studentData));
     
     // Handle the update in a transaction to ensure consistency
-    await prisma.$transaction(async (prisma) => {
-      // Update main student record with all fields
-      const updatedStudent = await prisma.student.update({
-        where: { id: parseInt(id) },
-        data: {
-          // Basic Information
-          branchName: studentData.branchName,
-          fullName: studentData.fullName,
-          dateOfBirth: studentData.dateOfBirth,
-          age: studentData.age ? parseInt(studentData.age) : undefined,
-          height: studentData.height ? parseFloat(studentData.height) : undefined,
-          weight: studentData.weight ? parseFloat(studentData.weight) : undefined,
-          gender: studentData.gender,
-          bloodGroup: studentData.bloodGroup,
-          nationality: studentData.nationality,
-          religion: studentData.religion,
-          category: studentData.category,
-          caste: studentData.caste,
-          aadhaarNumber: studentData.aadhaarNumber,
-          penNo: studentData.penNo,
-          apaarId: studentData.apaarId,
-          
-          // Contact Information
-          mobileNumber: studentData.mobileNumber,
-          email: studentData.email,
-          emailPassword: studentData.emailPassword,
-          studentPassword: studentData.studentEmailPassword,
-          emergencyContact: studentData.emergencyContact,
-          
-          // Academic Information
-          admissionNo: studentData.admissionNo,
-          studentId: studentData.srNo,
-          admissionDate: studentData.admissionDate,
-          registrationNo: studentData.registrationNo,
-          
-          // Address fields - handle both nested and flat structure
-          houseNo: studentData.houseNo || studentData['address.houseNo'] || studentData.presentAddress?.houseNo,
-          street: studentData.street || studentData['address.street'] || studentData.presentAddress?.street,
-          city: studentData.city || studentData['address.city'] || studentData.presentAddress?.city,
-          state: studentData.state || studentData['address.state'] || studentData.presentAddress?.state,
-          pinCode: studentData.pinCode || studentData['address.pinCode'] || studentData.presentAddress?.pinCode,
-          permanentHouseNo: studentData.permanentHouseNo || studentData['address.permanentHouseNo'] || studentData.permanentAddress?.houseNo,
-          permanentStreet: studentData.permanentStreet || studentData['address.permanentStreet'] || studentData.permanentAddress?.street,
-          permanentCity: studentData.permanentCity || studentData['address.permanentCity'] || studentData.permanentAddress?.city,
-          permanentState: studentData.permanentState || studentData['address.permanentState'] || studentData.permanentAddress?.state,
-          permanentPinCode: studentData.permanentPinCode || studentData['address.permanentPinCode'] || studentData.permanentAddress?.pinCode,
-          sameAsPresentAddress: studentData.sameAsPresentAddress || false,
-          
-          // Parent Information - basic fields
-          fatherName: studentData.fatherName || studentData['father.name'] || studentData.fatherDetails?.name,
-          motherName: studentData.motherName || studentData['mother.name'] || studentData.motherDetails?.name,
-          fatherEmail: studentData.fatherEmail || studentData['father.email'] || studentData.fatherDetails?.email,
-          motherEmail: studentData.motherEmail || studentData['mother.email'] || studentData.motherDetails?.email,
-          fatherEmailPassword: studentData.fatherEmailPassword,
-          motherEmailPassword: studentData.motherEmailPassword,
-          
-          // Transport Information
-          transportMode: studentData.transportMode,
-          transportArea: studentData.transportArea,
-          transportStand: studentData.transportStand,
-          transportRoute: studentData.transportRoute,
-          transportDriver: studentData.transportDriver,
-          
-          // Other Information
-          belongToBPL: studentData.belongToBPL || studentData.other?.belongToBPL || 'no',
-          typeOfDisability: studentData.typeOfDisability || studentData.other?.disability || '',
-          
-          lastLogin: new Date(),
-          updatedAt: new Date()
+    const updatedStudent = await prisma.$transaction(async (prisma) => {
+      // Prepare main student record update data
+      const studentUpdateData = {};
+      
+      // Basic Information
+      if (studentData.fullName !== undefined) studentUpdateData.fullName = studentData.fullName;
+      if (studentData.admissionNo !== undefined) studentUpdateData.admissionNo = studentData.admissionNo;
+      if (studentData.penNo !== undefined) studentUpdateData.penNo = studentData.penNo;
+      if (studentData.apaarId !== undefined) studentUpdateData.apaarId = studentData.apaarId;
+      if (studentData.dateOfBirth !== undefined) {
+        studentUpdateData.dateOfBirth = studentData.dateOfBirth ? new Date(studentData.dateOfBirth) : null;
+      }
+      if (studentData.age !== undefined) studentUpdateData.age = studentData.age ? parseInt(studentData.age) : null;
+      if (studentData.gender !== undefined) studentUpdateData.gender = studentData.gender;
+      if (studentData.bloodGroup !== undefined) studentUpdateData.bloodGroup = studentData.bloodGroup;
+      if (studentData.nationality !== undefined) studentUpdateData.nationality = studentData.nationality;
+      if (studentData.religion !== undefined) studentUpdateData.religion = studentData.religion;
+      if (studentData.category !== undefined) studentUpdateData.category = studentData.category;
+      if (studentData.caste !== undefined) studentUpdateData.caste = studentData.caste;
+      if (studentData.aadhaarNumber !== undefined) studentUpdateData.aadhaarNumber = studentData.aadhaarNumber;
+      if (studentData.mobileNumber !== undefined) studentUpdateData.mobileNumber = studentData.mobileNumber;
+      
+      // Handle email carefully to avoid unique constraint issues
+      if (studentData.email !== undefined) {
+        // Only set email if it's not empty or null
+        if (studentData.email && studentData.email.trim() !== '') {
+          studentUpdateData.email = studentData.email.trim();
+        } else {
+          studentUpdateData.email = null;
         }
+      }
+      
+      if (studentData.emailPassword !== undefined) studentUpdateData.emailPassword = studentData.emailPassword;
+      if (studentData.emergencyContact !== undefined) studentUpdateData.emergencyContact = studentData.emergencyContact;
+      
+      // Address Information
+      if (studentData.address) {
+        if (studentData.address.houseNo !== undefined) studentUpdateData.houseNo = studentData.address.houseNo;
+        if (studentData.address.street !== undefined) studentUpdateData.street = studentData.address.street;
+        if (studentData.address.city !== undefined) studentUpdateData.city = studentData.address.city;
+        if (studentData.address.state !== undefined) studentUpdateData.state = studentData.address.state;
+        if (studentData.address.pinCode !== undefined) studentUpdateData.pinCode = studentData.address.pinCode;
+        if (studentData.address.permanentHouseNo !== undefined) studentUpdateData.permanentHouseNo = studentData.address.permanentHouseNo;
+        if (studentData.address.permanentStreet !== undefined) studentUpdateData.permanentStreet = studentData.address.permanentStreet;
+        if (studentData.address.permanentCity !== undefined) studentUpdateData.permanentCity = studentData.address.permanentCity;
+        if (studentData.address.permanentState !== undefined) studentUpdateData.permanentState = studentData.address.permanentState;
+        if (studentData.address.permanentPinCode !== undefined) studentUpdateData.permanentPinCode = studentData.address.permanentPinCode;
+        if (studentData.address.sameAsPresentAddress !== undefined) studentUpdateData.sameAsPresentAddress = studentData.address.sameAsPresentAddress;
+      }
+      
+      // Parent Information
+      if (studentData.father && studentData.father.name !== undefined) {
+        studentUpdateData.fatherName = studentData.father.name;
+      }
+      if (studentData.father && studentData.father.email !== undefined) {
+        // Handle father email carefully
+        if (studentData.father.email && studentData.father.email.trim() !== '') {
+          studentUpdateData.fatherEmail = studentData.father.email.trim();
+        } else {
+          studentUpdateData.fatherEmail = null;
+        }
+      }
+      if (studentData.father && studentData.father.emailPassword !== undefined) {
+        studentUpdateData.fatherEmailPassword = studentData.father.emailPassword;
+      }
+      if (studentData.mother && studentData.mother.name !== undefined) {
+        studentUpdateData.motherName = studentData.mother.name;
+      }
+      if (studentData.mother && studentData.mother.email !== undefined) {
+        // Handle mother email carefully
+        if (studentData.mother.email && studentData.mother.email.trim() !== '') {
+          studentUpdateData.motherEmail = studentData.mother.email.trim();
+        } else {
+          studentUpdateData.motherEmail = null;
+        }
+      }
+      if (studentData.mother && studentData.mother.emailPassword !== undefined) {
+        studentUpdateData.motherEmailPassword = studentData.mother.emailPassword;
+      }
+
+      // Handle document fields directly in Student model
+      const documentFields = [
+        'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+        'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+        'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+        'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+        'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+        'guardianSignaturePath'
+      ];
+      
+      
+      // Update document path fields
+      documentFields.forEach(field => {
+        if (studentData[field] !== undefined) {
+          studentUpdateData[field] = studentData[field];
+        }
+      });
+
+      console.log('Student update data:', Object.keys(studentUpdateData));
+
+      // Update main student record
+      const student = await prisma.student.update({
+        where: { id: id },
+        data: studentUpdateData,
       });
 
       // Update session information
       if (studentData.admitSession || studentData.currentSession) {
-        await prisma.sessionInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            // Admit Session
-            admitGroup: studentData.admitSession?.group,
-            admitStream: studentData.admitSession?.stream,
-            admitClass: studentData.admitSession?.class,
-            admitSection: studentData.admitSession?.section,
-            admitRollNo: studentData.admitSession?.rollNo,
-            admitSemester: studentData.admitSession?.semester,
-            admitFeeGroup: studentData.admitSession?.feeGroup,
-            admitHouse: studentData.admitSession?.house,
-            admitDate: studentData.admissionDate,
-            
-            // Current Session
-            currentGroup: studentData.currentSession?.group,
-            currentStream: studentData.currentSession?.stream,
-            currentClass: studentData.currentSession?.class,
-            currentSection: studentData.currentSession?.section,
-            currentRollNo: studentData.currentSession?.rollNo,
-            currentSemester: studentData.currentSession?.semester,
-            currentFeeGroup: studentData.currentSession?.feeGroup,
-            currentHouse: studentData.currentSession?.house,
-            
-            previousSchool: studentData.previousEducation?.school || studentData.previousSchool
-          },
-          create: {
-            // Admit Session
-            admitGroup: studentData.admitSession?.group || '',
-            admitStream: studentData.admitSession?.stream || '',
-            admitClass: studentData.admitSession?.class || '',
-            admitSection: studentData.admitSession?.section || '',
-            admitRollNo: studentData.admitSession?.rollNo || '',
-            admitSemester: studentData.admitSession?.semester || '',
-            admitFeeGroup: studentData.admitSession?.feeGroup || '',
-            admitHouse: studentData.admitSession?.house || '',
-            admitDate: studentData.admissionDate,
-            
-            // Current Session
-            currentGroup: studentData.currentSession?.group || '',
-            currentStream: studentData.currentSession?.stream || '',
-            currentClass: studentData.currentSession?.class || '',
-            currentSection: studentData.currentSession?.section || '',
-            currentRollNo: studentData.currentSession?.rollNo || '',
-            currentSemester: studentData.currentSession?.semester || '',
-            currentFeeGroup: studentData.currentSession?.feeGroup || '',
-            currentHouse: studentData.currentSession?.house || '',
-            
-            previousSchool: studentData.previousEducation?.school || studentData.previousSchool || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
-            }
-          }
-        });
-      }
-      
-      // Update parent information
-      if (studentData.parentInfo || 
-          studentData.father || 
-          studentData.mother || 
-          studentData.guardian ||
-          studentData.fatherDetails ||
-          studentData.motherDetails ||
-          studentData.guardianDetails) {
+        const sessionUpdateData = {};
         
-        await prisma.parentInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            // Father Information
-            fatherQualification: studentData['father.qualification'] || studentData.fatherDetails?.qualification,
-            fatherOccupation: studentData['father.occupation'] || studentData.fatherDetails?.occupation,
-            fatherContact: studentData['father.contactNumber'] || studentData.fatherDetails?.mobileNumber,
-            fatherEmail: studentData['father.email'] || studentData.fatherDetails?.email,
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherDetails?.aadhaarNumber,
-            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherDetails?.annualIncome,
-            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
-            
-            // Mother Information
-            motherQualification: studentData['mother.qualification'] || studentData.motherDetails?.qualification,
-            motherOccupation: studentData['mother.occupation'] || studentData.motherDetails?.occupation,
-            motherContact: studentData['mother.contactNumber'] || studentData.motherDetails?.contactNumber,
-            motherEmail: studentData['mother.email'] || studentData.motherDetails?.email,
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherDetails?.aadhaarNumber,
-            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherDetails?.annualIncome,
-            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
-            
-            // Guardian Information
-            guardianName: studentData['guardian.name'] || studentData.guardianDetails?.name,
-            guardianAddress: studentData['guardian.address'] || studentData.guardianDetails?.address,
-            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianDetails?.mobile,
-            guardianEmail: studentData['guardian.email'] || studentData.guardianDetails?.email,
-            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianDetails?.aadhaarNumber,
-            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianDetails?.occupation,
-            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianDetails?.annualIncome,
-          },
-          create: {
-            // Father Information
-            fatherQualification: studentData['father.qualification'] || studentData.fatherDetails?.qualification || '',
-            fatherOccupation: studentData['father.occupation'] || studentData.fatherDetails?.occupation || '',
-            fatherContact: studentData['father.contactNumber'] || studentData.fatherDetails?.mobileNumber || '',
-            fatherEmail: studentData['father.email'] || studentData.fatherDetails?.email || '',
-            fatherAadhaarNo: studentData['father.aadhaarNo'] || studentData.fatherDetails?.aadhaarNumber || '',
-            fatherAnnualIncome: studentData['father.annualIncome'] || studentData.fatherDetails?.annualIncome || '',
-            fatherIsCampusEmployee: studentData['father.isCampusEmployee'] || 'no',
-            
-            // Mother Information
-            motherQualification: studentData['mother.qualification'] || studentData.motherDetails?.qualification || '',
-            motherOccupation: studentData['mother.occupation'] || studentData.motherDetails?.occupation || '',
-            motherContact: studentData['mother.contactNumber'] || studentData.motherDetails?.contactNumber || '',
-            motherEmail: studentData['mother.email'] || studentData.motherDetails?.email || '',
-            motherAadhaarNo: studentData['mother.aadhaarNo'] || studentData.motherDetails?.aadhaarNumber || '',
-            motherAnnualIncome: studentData['mother.annualIncome'] || studentData.motherDetails?.annualIncome || '',
-            motherIsCampusEmployee: studentData['mother.isCampusEmployee'] || 'no',
-            
-            // Guardian Information
-            guardianName: studentData['guardian.name'] || studentData.guardianDetails?.name || '',
-            guardianAddress: studentData['guardian.address'] || studentData.guardianDetails?.address || '',
-            guardianContact: studentData['guardian.contactNumber'] || studentData.guardianDetails?.mobile || '',
-            guardianEmail: studentData['guardian.email'] || studentData.guardianDetails?.email || '',
-            guardianAadhaarNo: studentData['guardian.aadhaarNo'] || studentData.guardianDetails?.aadhaarNumber || '',
-            guardianOccupation: studentData['guardian.occupation'] || studentData.guardianDetails?.occupation || '',
-            guardianAnnualIncome: studentData['guardian.annualIncome'] || studentData.guardianDetails?.annualIncome || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
+        if (studentData.admitSession) {
+          if (studentData.admitSession.class !== undefined) sessionUpdateData.admitClass = studentData.admitSession.class;
+          if (studentData.admitSession.section !== undefined) sessionUpdateData.admitSection = studentData.admitSession.section;
+          if (studentData.admitSession.rollNo !== undefined) sessionUpdateData.admitRollNo = studentData.admitSession.rollNo;
+          if (studentData.admitSession.group !== undefined) sessionUpdateData.admitGroup = studentData.admitSession.group;
+          if (studentData.admitSession.stream !== undefined) sessionUpdateData.admitStream = studentData.admitSession.stream;
+          if (studentData.admitSession.semester !== undefined) sessionUpdateData.admitSemester = studentData.admitSession.semester;
+          if (studentData.admitSession.feeGroup !== undefined) sessionUpdateData.admitFeeGroup = studentData.admitSession.feeGroup;
+          if (studentData.admitSession.house !== undefined) sessionUpdateData.admitHouse = studentData.admitSession.house;
+        }
+        
+        if (studentData.currentSession) {
+          if (studentData.currentSession.class !== undefined) sessionUpdateData.currentClass = studentData.currentSession.class;
+          if (studentData.currentSession.section !== undefined) sessionUpdateData.currentSection = studentData.currentSession.section;
+          if (studentData.currentSession.rollNo !== undefined) sessionUpdateData.currentRollNo = studentData.currentSession.rollNo;
+          if (studentData.currentSession.group !== undefined) sessionUpdateData.currentGroup = studentData.currentSession.group;
+          if (studentData.currentSession.stream !== undefined) sessionUpdateData.currentStream = studentData.currentSession.stream;
+          if (studentData.currentSession.semester !== undefined) sessionUpdateData.currentSemester = studentData.currentSession.semester;
+          if (studentData.currentSession.feeGroup !== undefined) sessionUpdateData.currentFeeGroup = studentData.currentSession.feeGroup;
+          if (studentData.currentSession.house !== undefined) sessionUpdateData.currentHouse = studentData.currentSession.house;
+        }
+
+        if (Object.keys(sessionUpdateData).length > 0) {
+          await prisma.sessionInfo.upsert({
+            where: { studentId: id },
+            update: sessionUpdateData,
+            create: {
+              studentId: id,
+              ...sessionUpdateData
             }
-          }
-        });
+          });
+        }
       }
-      
-      // Update transport information
-      if (studentData.transportMode || studentData.transportArea || studentData.transportStand) {
-        await prisma.transportInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            transportMode: studentData.transportMode || 'Own Transport',
-            transportArea: studentData.transportArea || '',
-            transportStand: studentData.transportStand || '',
-            transportRoute: studentData.transportRoute || '',
-            transportDriver: studentData.transportDriver || '',
-            pickupLocation: studentData.pickupLocation || '',
-            dropLocation: studentData.dropLocation || ''
-          },
-          create: {
-            transportMode: studentData.transportMode || 'Own Transport',
-            transportArea: studentData.transportArea || '',
-            transportStand: studentData.transportStand || '',
-            transportRoute: studentData.transportRoute || '',
-            transportDriver: studentData.transportDriver || '',
-            pickupLocation: studentData.pickupLocation || '',
-            dropLocation: studentData.dropLocation || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
+
+      // Update parent information
+      if (studentData.father || studentData.mother || studentData.guardian) {
+        const parentUpdateData = {};
+        
+        if (studentData.father) {
+          if (studentData.father.qualification !== undefined) parentUpdateData.fatherQualification = studentData.father.qualification;
+          if (studentData.father.occupation !== undefined) parentUpdateData.fatherOccupation = studentData.father.occupation;
+          if (studentData.father.contactNumber !== undefined) parentUpdateData.fatherContact = studentData.father.contactNumber;
+          if (studentData.father.aadhaarNo !== undefined) parentUpdateData.fatherAadhaarNo = studentData.father.aadhaarNo;
+          if (studentData.father.annualIncome !== undefined) parentUpdateData.fatherAnnualIncome = studentData.father.annualIncome;
+          if (studentData.father.isCampusEmployee !== undefined) parentUpdateData.fatherIsCampusEmployee = studentData.father.isCampusEmployee ? 'yes' : 'no';
+        }
+        
+        if (studentData.mother) {
+          if (studentData.mother.qualification !== undefined) parentUpdateData.motherQualification = studentData.mother.qualification;
+          if (studentData.mother.occupation !== undefined) parentUpdateData.motherOccupation = studentData.mother.occupation;
+          if (studentData.mother.contactNumber !== undefined) parentUpdateData.motherContact = studentData.mother.contactNumber;
+          if (studentData.mother.aadhaarNo !== undefined) parentUpdateData.motherAadhaarNo = studentData.mother.aadhaarNo;
+          if (studentData.mother.annualIncome !== undefined) parentUpdateData.motherAnnualIncome = studentData.mother.annualIncome;
+          if (studentData.mother.isCampusEmployee !== undefined) parentUpdateData.motherIsCampusEmployee = studentData.mother.isCampusEmployee ? 'yes' : 'no';
+        }
+        
+        if (studentData.guardian) {
+          if (studentData.guardian.name !== undefined) parentUpdateData.guardianName = studentData.guardian.name;
+          if (studentData.guardian.address !== undefined) parentUpdateData.guardianAddress = studentData.guardian.address;
+          if (studentData.guardian.contactNumber !== undefined) parentUpdateData.guardianContact = studentData.guardian.contactNumber;
+          if (studentData.guardian.email !== undefined) parentUpdateData.guardianEmail = studentData.guardian.email;
+          if (studentData.guardian.aadhaarNo !== undefined) parentUpdateData.guardianAadhaarNo = studentData.guardian.aadhaarNo;
+          if (studentData.guardian.occupation !== undefined) parentUpdateData.guardianOccupation = studentData.guardian.occupation;
+          if (studentData.guardian.annualIncome !== undefined) parentUpdateData.guardianAnnualIncome = studentData.guardian.annualIncome;
+        }
+
+        if (Object.keys(parentUpdateData).length > 0) {
+          await prisma.parentInfo.upsert({
+            where: { studentId: id },
+            update: parentUpdateData,
+            create: {
+              studentId: id,
+              ...parentUpdateData
             }
-          }
-        });
+          });
+        }
+      }
+
+      // Update transport information
+      if (studentData.transport) {
+        const transportUpdateData = {};
+        
+        if (studentData.transport.mode !== undefined) transportUpdateData.transportMode = studentData.transport.mode;
+        if (studentData.transport.area !== undefined) transportUpdateData.transportArea = studentData.transport.area;
+        if (studentData.transport.stand !== undefined) transportUpdateData.transportStand = studentData.transport.stand;
+        if (studentData.transport.route !== undefined) transportUpdateData.transportRoute = studentData.transport.route;
+        if (studentData.transport.driver !== undefined) transportUpdateData.transportDriver = studentData.transport.driver;
+        if (studentData.transport.pickupLocation !== undefined) transportUpdateData.pickupLocation = studentData.transport.pickupLocation;
+        if (studentData.transport.dropLocation !== undefined) transportUpdateData.dropLocation = studentData.transport.dropLocation;
+
+        if (Object.keys(transportUpdateData).length > 0) {
+          await prisma.transportInfo.upsert({
+            where: { studentId: id },
+            update: transportUpdateData,
+            create: {
+              studentId: id,
+              ...transportUpdateData
+            }
+          });
+        }
       }
 
       // Update education information
-      if (studentData.previousEducation) {
-        await prisma.educationInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            lastSchool: studentData.previousEducation.school || '',
-            lastSchoolAddress: studentData.previousEducation.schoolAddress || '',
-            lastTcDate: studentData.previousEducation.tcDate ? new Date(studentData.previousEducation.tcDate) : null,
-            lastClass: studentData.previousEducation.previousClass || '',
-            lastPercentage: studentData.previousEducation.percentage || '',
-            lastAttendance: studentData.previousEducation.attendance || '',
-            lastExtraActivity: studentData.previousEducation.extraActivities || ''
-          },
-          create: {
-            lastSchool: studentData.previousEducation.school || '',
-            lastSchoolAddress: studentData.previousEducation.schoolAddress || '',
-            lastTcDate: studentData.previousEducation.tcDate ? new Date(studentData.previousEducation.tcDate) : null,
-            lastClass: studentData.previousEducation.previousClass || '',
-            lastPercentage: studentData.previousEducation.percentage || '',
-            lastAttendance: studentData.previousEducation.attendance || '',
-            lastExtraActivity: studentData.previousEducation.extraActivities || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
+      if (studentData.lastEducation) {
+        const educationUpdateData = {};
+        
+        if (studentData.lastEducation.school !== undefined) educationUpdateData.lastSchool = studentData.lastEducation.school;
+        if (studentData.lastEducation.address !== undefined) educationUpdateData.lastSchoolAddress = studentData.lastEducation.address;
+        if (studentData.lastEducation.tcDate !== undefined) {
+          educationUpdateData.lastTcDate = studentData.lastEducation.tcDate ? new Date(studentData.lastEducation.tcDate) : null;
+        }
+        if (studentData.lastEducation.prevClass !== undefined) educationUpdateData.lastClass = studentData.lastEducation.prevClass;
+        if (studentData.lastEducation.percentage !== undefined) educationUpdateData.lastPercentage = studentData.lastEducation.percentage;
+        if (studentData.lastEducation.attendance !== undefined) educationUpdateData.lastAttendance = studentData.lastEducation.attendance;
+        if (studentData.lastEducation.extraActivity !== undefined) educationUpdateData.lastExtraActivity = studentData.lastEducation.extraActivity;
+
+        if (Object.keys(educationUpdateData).length > 0) {
+          await prisma.educationInfo.upsert({
+            where: { studentId: id },
+            update: educationUpdateData,
+            create: {
+              studentId: id,
+              ...educationUpdateData
             }
-          }
-        });
+          });
+        }
       }
 
       // Update other information
       if (studentData.other) {
-        await prisma.otherInfo.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            belongToBPL: studentData.other.belongToBPL || 'no',
-            minority: studentData.other.minority || 'no',
-            disability: studentData.other.disability || '',
-            accountNo: studentData.other.accountNo || '',
-            bank: studentData.other.bank || '',
-            ifscCode: studentData.other.ifscCode || '',
-            medium: studentData.other.medium || '',
-            lastYearResult: studentData.other.lastYearResult || '',
-            singleParent: studentData.other.singleParent || 'no',
-            onlyChild: studentData.other.onlyChild || 'no',
-            onlyGirlChild: studentData.other.onlyGirlChild || 'no',
-            adoptedChild: studentData.other.adoptedChild || 'no',
-            siblingAdmissionNo: studentData.other.siblingAdmissionNo || '',
-            transferCase: studentData.other.transferCase || 'no',
-            livingWith: studentData.other.livingWith || '',
-            motherTongue: studentData.other.motherTongue || '',
-            admissionType: studentData.other.admissionType || 'new',
-            udiseNo: studentData.other.udiseNo || ''
-          },
-          create: {
-            belongToBPL: studentData.other.belongToBPL || 'no',
-            minority: studentData.other.minority || 'no',
-            disability: studentData.other.disability || '',
-            accountNo: studentData.other.accountNo || '',
-            bank: studentData.other.bank || '',
-            ifscCode: studentData.other.ifscCode || '',
-            medium: studentData.other.medium || '',
-            lastYearResult: studentData.other.lastYearResult || '',
-            singleParent: studentData.other.singleParent || 'no',
-            onlyChild: studentData.other.onlyChild || 'no',
-            onlyGirlChild: studentData.other.onlyGirlChild || 'no',
-            adoptedChild: studentData.other.adoptedChild || 'no',
-            siblingAdmissionNo: studentData.other.siblingAdmissionNo || '',
-            transferCase: studentData.other.transferCase || 'no',
-            livingWith: studentData.other.livingWith || '',
-            motherTongue: studentData.other.motherTongue || '',
-            admissionType: studentData.other.admissionType || 'new',
-            udiseNo: studentData.other.udiseNo || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
+        const otherUpdateData = {};
+        
+        if (studentData.other.belongToBPL !== undefined) otherUpdateData.belongToBPL = studentData.other.belongToBPL;
+        if (studentData.other.minority !== undefined) otherUpdateData.minority = studentData.other.minority;
+        if (studentData.other.disability !== undefined) otherUpdateData.disability = studentData.other.disability;
+        if (studentData.other.accountNo !== undefined) otherUpdateData.accountNo = studentData.other.accountNo;
+        if (studentData.other.bank !== undefined) otherUpdateData.bank = studentData.other.bank;
+        if (studentData.other.ifscCode !== undefined) otherUpdateData.ifscCode = studentData.other.ifscCode;
+        if (studentData.other.medium !== undefined) otherUpdateData.medium = studentData.other.medium;
+        if (studentData.other.lastYearResult !== undefined) otherUpdateData.lastYearResult = studentData.other.lastYearResult;
+        if (studentData.other.singleParent !== undefined) otherUpdateData.singleParent = studentData.other.singleParent;
+        if (studentData.other.onlyChild !== undefined) otherUpdateData.onlyChild = studentData.other.onlyChild;
+        if (studentData.other.onlyGirlChild !== undefined) otherUpdateData.onlyGirlChild = studentData.other.onlyGirlChild;
+        if (studentData.other.adoptedChild !== undefined) otherUpdateData.adoptedChild = studentData.other.adoptedChild;
+        if (studentData.other.siblingAdmissionNo !== undefined) otherUpdateData.siblingAdmissionNo = studentData.other.siblingAdmissionNo;
+        if (studentData.other.transferCase !== undefined) otherUpdateData.transferCase = studentData.other.transferCase;
+        if (studentData.other.livingWith !== undefined) otherUpdateData.livingWith = studentData.other.livingWith;
+        if (studentData.other.motherTongue !== undefined) otherUpdateData.motherTongue = studentData.other.motherTongue;
+        if (studentData.other.admissionType !== undefined) otherUpdateData.admissionType = studentData.other.admissionType;
+        if (studentData.other.udiseNo !== undefined) otherUpdateData.udiseNo = studentData.other.udiseNo;
+
+        if (Object.keys(otherUpdateData).length > 0) {
+          await prisma.otherInfo.upsert({
+            where: { studentId: id },
+            update: otherUpdateData,
+            create: {
+              studentId: id,
+              ...otherUpdateData
             }
-          }
-        });
+          });
+        }
       }
 
-      // Update document information if provided
-      if (studentData.documents) {
-        await prisma.documents.upsert({
-          where: {
-            studentId: parseInt(id)
-          },
-          update: {
-            studentImagePath: studentData.documents.studentImage,
-            fatherImagePath: studentData.documents.fatherImage,
-            motherImagePath: studentData.documents.motherImage,
-            guardianImagePath: studentData.documents.guardianImage,
-            signaturePath: studentData.documents.studentSignature,
-            parentSignaturePath: studentData.documents.parentSignature,
-            birthCertificatePath: studentData.documents.birthCertificate,
-            migrationCertificatePath: studentData.documents.transferCertificate,
-            aadhaarCardPath: studentData.documents.studentAadhaar,
-            fatherAadharPath: studentData.documents.fatherAadhaar,
-            motherAadharPath: studentData.documents.motherAadhaar,
-            // Add other document fields as needed
-          },
-          create: {
-            studentImagePath: studentData.documents.studentImage || '',
-            fatherImagePath: studentData.documents.fatherImage || '',
-            motherImagePath: studentData.documents.motherImage || '',
-            guardianImagePath: studentData.documents.guardianImage || '',
-            signaturePath: studentData.documents.studentSignature || '',
-            parentSignaturePath: studentData.documents.parentSignature || '',
-            birthCertificatePath: studentData.documents.birthCertificate || '',
-            migrationCertificatePath: studentData.documents.transferCertificate || '',
-            aadhaarCardPath: studentData.documents.studentAadhaar || '',
-            fatherAadharPath: studentData.documents.fatherAadhaar || '',
-            motherAadharPath: studentData.documents.motherAadhaar || '',
-            academicRegistrationNo: studentData.registrationNo || '',
-            
-            student: {
-              connect: {
-                id: parseInt(id)
-              }
-            }
-          }
-        });
-      }
+      return student;
     });
-    
-    // Fetch the updated student with all relations to return
-    const updatedStudent = await prisma.student.findUnique({
-      where: { id: parseInt(id) },
+
+    // Fetch the complete updated student data with all relations
+    const completeStudent = await prisma.student.findUnique({
+      where: { id: id },
       include: {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
-        otherInfo: true,
+        otherInfo: true
       }
     });
-    
-    return res.status(200).json({
+
+    console.log('Student updated successfully');
+
+    res.json({
       success: true,
-      message: 'Student information updated successfully',
-      student: updatedStudent
+      message: 'Student updated successfully',
+      data: completeStudent
     });
-    
+
   } catch (error) {
     console.error('Error updating student:', error);
     
-    if (error.code === 'P2025') {
-      return res.status(404).json({
+    // Handle unique constraint errors specifically
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'field';
+      return res.status(400).json({
         success: false,
-        message: 'Student not found'
+        message: `A student with this ${field} already exists`,
+        error: `Duplicate ${field}`
       });
     }
     
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-      message: 'Failed to update student information',
+      message: 'Error updating student',
       error: error.message
     });
   }
@@ -928,9 +980,21 @@ export const deleteStudent = async (req, res) => {
     const { id } = req.params;
     console.log(`Deleting student with ID: ${id}`);
     
+    // Validate ID format
+    if (!id || id.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID is required'
+      });
+    }
+    
+    // Build where clause with school isolation for security
+    const whereClause = addSchoolFilter(req, { id: id.toString() });
+    
     // Delete the student (cascading delete will handle related records)
+    // Students use string UUIDs, not integer IDs
     const student = await prisma.student.delete({
-      where: { id: parseInt(id) }
+      where: whereClause
     });
     
     return res.status(200).json({
@@ -945,7 +1009,7 @@ export const deleteStudent = async (req, res) => {
     if (error.code === 'P2025') {
       return res.status(404).json({
         success: false,
-        message: 'Student not found'
+        message: 'Student not found or you do not have permission to delete this student'
       });
     }
     
@@ -958,9 +1022,9 @@ export const deleteStudent = async (req, res) => {
 };
 
 /**
- * Get a student by admission number
+ * Get a student by admission number - WITH SCHOOL ISOLATION
  * @route GET /api/students/admission/:admissionNo
- * @access Public
+ * @access Protected - requires authentication and school isolation
  */
 export const getStudentByAdmissionNo = async (req, res) => {
   try {
@@ -975,32 +1039,46 @@ export const getStudentByAdmissionNo = async (req, res) => {
       });
     }
     
-    // Search for student by admission number
+    // Build where clause with school isolation
+    const whereClause = addSchoolFilter(req, { 
+      admissionNo: admissionNo.toString() 
+    });
+    
+    console.log('Applied where clause for student lookup by admission number:', whereClause);
+    
+    // Search for student by admission number with school isolation
     const student = await prisma.student.findFirst({
-      where: { 
-        admissionNo: admissionNo.toString() 
-      },
+      where: whereClause,
       include: {
         parentInfo: true,
         sessionInfo: true,
         transportInfo: true,
-        documents: true,
         educationInfo: true,
         otherInfo: true,
+        school: {
+          select: { id: true, schoolName: true, code: true }
+        }
       }
     });
     
     if (!student) {
-      console.log(`Student with admission number ${admissionNo} not found`);
+      console.log(`Student with admission number ${admissionNo} not found in school context: ${req.user?.schoolId || 'admin'}`);
       return res.status(404).json({
         success: false,
-        message: 'Student not found'
+        message: 'Student not found or you do not have permission to access this student'
       });
     }
     
+    console.log(`Student found: ${student.fullName} (ID: ${student.id}) from school: ${student.school?.schoolName}`);
+    
     return res.status(200).json({
       success: true,
-      student
+      data: student,
+      message: 'Student data retrieved successfully',
+      meta: {
+        schoolId: student.schoolId,
+        accessedBy: req.user?.role
+      }
     });
     
   } catch (error) {
@@ -1077,6 +1155,472 @@ export const getStudentsByCurrentClass = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve students',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Add or update a specific document for a student
+ * @route POST /api/students/:id/documents
+ * @access Public
+ */
+export const addStudentDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+    const { documentType, documentName } = req.body;
+    
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Validate document type
+    const validDocumentTypes = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+
+    if (!documentType || !validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type provided',
+        validTypes: validDocumentTypes
+      });
+    }
+    
+    // Get current student
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include all document path fields
+        ...validDocumentTypes.reduce((acc, field) => {
+          acc[field] = true;
+          return acc;
+        }, {}),
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      [documentType]: file.path
+    };
+
+    // Update document verification status based on document type
+    if (documentType === 'birthCertificatePath') {
+      updateData.birthCertificateSubmitted = true;
+    } else if (documentType === 'aadhaarCardPath') {
+      updateData.studentAadharSubmitted = true;
+    } else if (documentType === 'fatherAadharPath') {
+      updateData.fatherAadharSubmitted = true;
+    } else if (documentType === 'motherAadharPath') {
+      updateData.motherAadharSubmitted = true;
+    } else if (documentType === 'transferCertificatePath') {
+      updateData.tcSubmitted = true;
+    } else if (documentType === 'markSheetPath') {
+      updateData.marksheetSubmitted = true;
+    }
+
+    // Set overall documents verified to true
+    updateData.documentsVerified = true;
+    
+    // Update student record
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include all document path fields in response
+        ...validDocumentTypes.reduce((acc, field) => {
+          acc[field] = true;
+          return acc;
+        }, {}),
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: `${documentName || documentType} uploaded successfully`,
+      student: updatedStudent,
+      uploadedDocument: {
+        type: documentType,
+        name: documentName || documentType,
+        filePath: file.path,
+        originalName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error adding student document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to add document',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Delete a specific document from a student
+ * @route DELETE /api/students/:id/documents/:documentType
+ * @access Public
+ */
+export const deleteStudentDocument = async (req, res) => {
+  try {
+    const { id, documentType } = req.params;
+    
+    // Validate document type
+    const validDocumentTypes = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+
+    if (!validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type',
+        validTypes: validDocumentTypes
+      });
+    }
+    
+    // Get current student
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        [documentType]: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    const documentPath = student[documentType];
+    
+    if (!documentPath) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      [documentType]: null
+    };
+
+    // Update document verification status based on document type
+    if (documentType === 'birthCertificatePath') {
+      updateData.birthCertificateSubmitted = false;
+    } else if (documentType === 'aadhaarCardPath') {
+      updateData.studentAadharSubmitted = false;
+    } else if (documentType === 'fatherAadharPath') {
+      updateData.fatherAadharSubmitted = false;
+    } else if (documentType === 'motherAadharPath') {
+      updateData.motherAadharSubmitted = false;
+    } else if (documentType === 'transferCertificatePath') {
+      updateData.tcSubmitted = false;
+    } else if (documentType === 'markSheetPath') {
+      updateData.marksheetSubmitted = false;
+    }
+    
+    // Update student record
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    // Optional: Delete physical file (uncomment if needed)
+    // import fs from 'fs';
+    // try {
+    //   if (documentPath && fs.existsSync(documentPath)) {
+    //     fs.unlinkSync(documentPath);
+    //   }
+    // } catch (fileError) {
+    //   console.warn('Could not delete physical file:', fileError.message);
+    // }
+    
+    return res.status(200).json({
+      success: true,
+      message: `${documentType} deleted successfully`,
+      student: updatedStudent,
+      deletedDocument: {
+        type: documentType,
+        filePath: documentPath
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error deleting student document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete document',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get all documents for a student
+ * @route GET /api/students/:id/documents
+ * @access Public
+ */
+export const getStudentDocuments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Define all document path fields
+    const documentFields = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+    
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        // Include all document path fields
+        ...documentFields.reduce((acc, field) => {
+          acc[field] = true;
+          return acc;
+        }, {}),
+        // Include document verification status
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
+    // Convert document fields to a structured format
+    const documents = documentFields.map(field => ({
+      type: field,
+      name: field.replace('Path', '').replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+      filePath: student[field],
+      hasFile: !!student[field],
+      url: student[field] ? `/api/students/uploads/${student[field].split('/').pop()}` : null
+    })).filter(doc => doc.hasFile); // Only return documents that have files
+    
+    return res.status(200).json({
+      success: true,
+      student: {
+        id: student.id,
+        admissionNo: student.admissionNo,
+        fullName: student.fullName
+      },
+      documents: documents,
+      totalDocuments: documents.length,
+      documentStatus: {
+        documentsVerified: student.documentsVerified,
+        birthCertificateSubmitted: student.birthCertificateSubmitted,
+        studentAadharSubmitted: student.studentAadharSubmitted,
+        fatherAadharSubmitted: student.fatherAadharSubmitted,
+        motherAadharSubmitted: student.motherAadharSubmitted,
+        tcSubmitted: student.tcSubmitted,
+        marksheetSubmitted: student.marksheetSubmitted
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching student documents:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch documents',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update student document metadata or replace file
+ * @route PUT /api/students/:id/documents/:documentType
+ * @access Public
+ */
+export const updateStudentDocument = async (req, res) => {
+  try {
+    const { id, documentType } = req.params;
+    const file = req.file; // Optional - only if replacing file
+    const { documentName } = req.body;
+    
+    // Validate document type
+    const validDocumentTypes = [
+      'studentImagePath', 'fatherImagePath', 'motherImagePath', 'guardianImagePath',
+      'signaturePath', 'parentSignaturePath', 'fatherAadharPath', 'motherAadharPath',
+      'birthCertificatePath', 'migrationCertificatePath', 'aadhaarCardPath', 'familyIdPath',
+      'affidavitCertificatePath', 'incomeCertificatePath', 'addressProof1Path', 'addressProof2Path',
+      'transferCertificatePath', 'markSheetPath', 'fatherSignaturePath', 'motherSignaturePath',
+      'guardianSignaturePath'
+    ];
+
+    if (!validDocumentTypes.includes(documentType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type',
+        validTypes: validDocumentTypes
+      });
+    }
+    
+    // Get current student
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        [documentType]: true
+      }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {};
+    
+    // If new file is uploaded, update the path
+    if (file) {
+      updateData[documentType] = file.path;
+      
+      // Update document verification status based on document type
+      if (documentType === 'birthCertificatePath') {
+        updateData.birthCertificateSubmitted = true;
+      } else if (documentType === 'aadhaarCardPath') {
+        updateData.studentAadharSubmitted = true;
+      } else if (documentType === 'fatherAadharPath') {
+        updateData.fatherAadharSubmitted = true;
+      } else if (documentType === 'motherAadharPath') {
+        updateData.motherAadharSubmitted = true;
+      } else if (documentType === 'transferCertificatePath') {
+        updateData.tcSubmitted = true;
+      } else if (documentType === 'markSheetPath') {
+        updateData.marksheetSubmitted = true;
+      }
+
+      updateData.documentsVerified = true;
+    }
+    
+    // Update student record
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        admissionNo: true,
+        fullName: true,
+        [documentType]: true,
+        documentsVerified: true,
+        birthCertificateSubmitted: true,
+        studentAadharSubmitted: true,
+        fatherAadharSubmitted: true,
+        motherAadharSubmitted: true,
+        tcSubmitted: true,
+        marksheetSubmitted: true
+      }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: `${documentType} updated successfully`,
+      student: updatedStudent,
+      updatedDocument: {
+        type: documentType,
+        name: documentName || documentType,
+        filePath: file ? file.path : student[documentType],
+        ...(file && {
+          originalName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          updatedAt: new Date().toISOString()
+        })
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating student document:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update document',
       error: error.message
     });
   }

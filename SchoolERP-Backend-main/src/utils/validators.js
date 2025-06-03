@@ -18,9 +18,12 @@ export const validateFeeData = (data) => {
     feeCategory: Joi.string().optional().allow(null, ''),
     feeCategories: Joi.array().items(Joi.string()).optional(),
     discountType: Joi.string().optional().allow(null, ''),
-    discountAmount: Joi.number().min(0).optional().allow(null),
+    discountAmount: Joi.number().min(0).max(100).optional().allow(null),
+    discountValue: Joi.number().min(0).optional().allow(null),
+    amountAfterDiscount: Joi.number().min(0).optional().allow(null),
+    remarks: Joi.string().optional().allow(null, ''),
     schoolId: Joi.number().optional()
-  });
+  }).unknown(false);
 
   return schema.validate(data);
 };

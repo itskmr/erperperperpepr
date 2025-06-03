@@ -33,7 +33,7 @@ model School {
   schoolName  String       @default("Unknown")
   email       String       @unique
   password    String
-   username    String       @unique @default(cuid())
+  username    String       @unique @default(cuid())
   code        String       @unique @default("SC000")
   address     String       @default("Not Provided")
   contact     BigInt       @default(0)
@@ -41,6 +41,9 @@ model School {
   principal   String       @default("Unknown")
   image_url   String?      @db.Text
   established Int          @default(2000)
+  affiliate   String?      // For school affiliation information
+  affiliateNo String?      // New field for school affiliation number
+  website     String?      // For school website
   role        Role         @default(SCHOOL)
   status      String       @default("active")
   lastLogin   DateTime?
@@ -52,17 +55,22 @@ model School {
   drivers     Driver[]
   buses       Bus[]
   routes      Route[]
+  expenses    Expense[]
+  timetables  Timetable[]  // Added timetables relation
+  attendance  Attendance[] // Added attendance relation
+  teacherAttendance TeacherAttendance[] @relation("SchoolTeacherAttendance")
+  teacherDiaries TeacherDiary[] // Added teacher diaries relation
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
 
 model Teacher {
   id               Int       @id @default(autoincrement())
-  fullName         String
-  email            String    @unique
-  password         String
-  username         String    @unique @default(cuid())
-  phone            String    @default("0123456789") @db.VarChar(15)
+  fullName         String    // Required
+  email            String?   @unique // Made optional
+  password         String?   // Made optional
+  username         String?   @unique @default(cuid()) // Made optional
+  phone            String?   @db.VarChar(15) // Made optional
   gender           String    // Required field
   dateOfBirth      DateTime? // Added date of birth field
   age              Int?      // Added age field
@@ -73,8 +81,8 @@ model Teacher {
   address          String?   @db.Text
   
   // Teaching details
-  subjects         String    @db.Text  // JSON string of subjects taught
-  sections         String    @db.Text  // JSON string of class and section combinations
+  subjects         String?   @db.Text  // JSON string of subjects taught - made optional
+  sections         String?   @db.Text  // JSON string of class and section combinations - made optional
 
   // Class incharge details
   isClassIncharge  Boolean   @default(false)
@@ -115,6 +123,9 @@ model Teacher {
   schoolId         Int
   school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   attendance       Attendance[]
+  teacherAttendance TeacherAttendance[] @relation("TeacherAttendanceRecords")
+  timetables       Timetable[]
+  teacherDiaries   TeacherDiary[] // Added teacher diaries relation
   
   // Timestamps
   createdAt        DateTime  @default(now())
@@ -126,20 +137,19 @@ model Teacher {
 
 model Student {
   id               String   @id @default(uuid())
-  // Student Information
+  // Student Information - Only these 3 fields are required
   branchName       String?
-  fullName         String
-  admissionNo      String   @unique
-  email            String   @unique
-  studentPassword  String   // Password for student login
+  fullName         String   // Required - Student name
+  admissionNo      String   @unique // Required - Admission number
+  email            String?  @unique // Optional
   emailPassword    String?  // Password for student email
   penNo            String?  // PEN Number field
-  aadhaarNumber    String?  // Aadhaar number field
-  apaarId          String?  // Apaar ID field
+  aadhaarNumber    String?  @db.VarChar(12) // Aadhaar number field - exactly 12 digits
+  apaarId          String?  @db.VarChar(12) // Apaar ID field - exactly 12 digits
   studentId        String?
-  dateOfBirth      DateTime
+  dateOfBirth      DateTime? // Optional
   age              Int?     // Calculated age field
-  gender           String
+  gender           String?  // Optional
   bloodGroup       String?
   nationality      String?
   religion         String?
@@ -149,7 +159,7 @@ model Student {
   weight           Float?   // Weight in kg
   belongToBPL      Boolean  @default(false)
   disability       String?
-  mobileNumber     String
+  mobileNumber     String?  @db.VarChar(10) // Optional - exactly 10 digits
   emergencyContact String?
   loginEnabled     Boolean  @default(false)
   lastLogin        DateTime?
@@ -157,11 +167,11 @@ model Student {
   passwordResetToken String?
   passwordResetExpires DateTime?
 
-  // Parent Login Credentials
-  fatherLoginId    String?  @unique
-  fatherPassword   String?
-  motherLoginId    String?  @unique
-  motherPassword   String?
+  // // Parent Login Credentials
+  // fatherLoginId    String?  @unique
+  // fatherPassword   String?
+  // motherLoginId    String?  @unique
+  // motherPassword   String?
 
   // Document Verification Status
   documentsVerified Boolean @default(false)
@@ -172,18 +182,29 @@ model Student {
   tcSubmitted              Boolean @default(false)
   marksheetSubmitted       Boolean @default(false)
 
-  // Document URLs (stored in cloud storage)
-  studentImageUrl          String?
-  fatherImageUrl          String?
-  motherImageUrl          String?
-  guardianImageUrl        String?
-  signatureUrl            String?
-  parentSignatureUrl      String?
-  birthCertificateUrl     String?
-  transferCertificateUrl  String?
-  markSheetUrl            String?
-  aadhaarCardUrl          String?
-  familyIdUrl             String?
+  // Document Paths (moved from Documents model)
+  studentImagePath         String? @db.Text
+  fatherImagePath          String? @db.Text
+  motherImagePath          String? @db.Text
+  guardianImagePath        String? @db.Text
+  signaturePath            String? @db.Text
+  parentSignaturePath      String? @db.Text
+  fatherAadharPath         String? @db.Text
+  motherAadharPath         String? @db.Text
+  birthCertificatePath     String? @db.Text
+  migrationCertificatePath String? @db.Text
+  aadhaarCardPath          String? @db.Text
+  familyIdPath             String? @db.Text
+  affidavitCertificatePath String? @db.Text
+  incomeCertificatePath    String? @db.Text
+  addressProof1Path        String? @db.Text
+  addressProof2Path        String? @db.Text
+  academicRegistrationNo   String?
+  transferCertificatePath  String? @db.Text
+  markSheetPath            String? @db.Text
+  fatherSignaturePath      String? @db.Text
+  motherSignaturePath      String? @db.Text
+  guardianSignaturePath    String? @db.Text
 
   // Previous School Information
   previousSchool    PreviousSchool?
@@ -194,11 +215,11 @@ model Student {
   // Office Use Information
   officeDetails    OfficeDetails?
 
-  // Address fields
+  // Address fields - all optional
   houseNo        String?
   street         String? @db.Text
-  city           String
-  state          String
+  city           String? // Optional
+  state          String? // Optional
   pinCode        String?
 
   permanentHouseNo String?
@@ -208,13 +229,13 @@ model Student {
   permanentPinCode String?
   sameAsPresentAddress Boolean @default(false)
 
-  // Parent information
-  fatherName     String
-  fatherEmail    String   @unique
-  fatherEmailPassword String?   // Added password field for father email
-  motherName     String
-  motherEmail    String?  // Made optional
-  motherEmailPassword String?   // Made optional
+  // Parent information - Only father name is required
+  fatherName     String   // Required - Father name
+  fatherEmail    String?  @unique // Optional
+  fatherEmailPassword String?   // Optional
+  motherName     String?  // Optional
+  motherEmail    String?  // Optional
+  motherEmailPassword String?   // Optional
 
   // Relations
   schoolId      Int
@@ -222,7 +243,6 @@ model Student {
   parentInfo    ParentInfo?
   sessionInfo   SessionInfo?
   transportInfo TransportInfo?
-  documents     Documents?
   educationInfo EducationInfo?
   otherInfo     OtherInfo?
   studentTransport StudentTransport[]
@@ -238,8 +258,8 @@ model Student {
   @@index([email])
   @@index([mobileNumber])
   @@index([aadhaarNumber])
-  @@index([fatherLoginId])
-  @@index([motherLoginId])
+  // @@index([fatherLoginId])
+  // @@index([motherLoginId])
 }
 
 model PreviousSchool {
@@ -297,7 +317,7 @@ model ParentInfo {
   fatherQualification    String?
   fatherOccupation       String?
   fatherContact          String?
-  fatherEmail            String?
+  // fatherEmail            String?
   fatherAadhaarNo        String?
   fatherAnnualIncome     String?
   fatherIsCampusEmployee String? @default("no")
@@ -306,7 +326,7 @@ model ParentInfo {
   motherQualification    String?
   motherOccupation       String?
   motherContact          String?
-  motherEmail            String?
+  // motherEmail            String?
   motherAadhaarNo        String?
   motherAnnualIncome     String?
   motherIsCampusEmployee String? @default("no")
@@ -330,7 +350,7 @@ model SessionInfo {
   // Admit Session
   admitGroup    String?
   admitStream   String?
-  admitClass    String?
+  admitClass    String  // Required - Class is mandatory for admission
   admitSection  String?
   admitRollNo   String?
   admitSemester String?
@@ -365,31 +385,6 @@ model TransportInfo {
   transportDriver String?
   pickupLocation  String?
   dropLocation    String?
-
-  // Relation
-  studentId String   @unique
-  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-}
-
-model Documents {
-  id                       Int     @id @default(autoincrement())
-  studentImagePath         String? @db.Text
-  fatherImagePath          String? @db.Text
-  motherImagePath          String? @db.Text
-  guardianImagePath        String? @db.Text
-  signaturePath            String? @db.Text
-  parentSignaturePath      String? @db.Text
-  fatherAadharPath         String? @db.Text
-  motherAadharPath         String? @db.Text
-  birthCertificatePath     String? @db.Text
-  migrationCertificatePath String? @db.Text
-  aadhaarCardPath          String? @db.Text
-  familyIdPath            String? @db.Text  // New Family ID document field
-  affidavitCertificatePath String? @db.Text
-  incomeCertificatePath    String? @db.Text
-  addressProof1Path        String? @db.Text
-  addressProof2Path        String? @db.Text
-  academicRegistrationNo   String?
 
   // Relation
   studentId String   @unique
@@ -467,16 +462,16 @@ model Fee {
   feeCategories   String?  @db.Text // Store array as JSON string in Text field
 
   // Discount fields
-  discountType    String? // Type of discount (percentage, fixed, etc.)
-  discountAmount  Float?  @default(0) // Discount amount or percentage value
+  discountType    String? // Type of discount (sibling_discount, full_payment_discount, etc.)
+  discountAmount  Float?  @default(0) // Discount percentage value
+  discountValue   Float?  @default(0) // Calculated discount amount in currency
+  amountAfterDiscount Float? @default(0) // Amount to be paid after discount
   
-  // School relationship
-  schoolId Int?
+  // School reference
+  schoolId        Int?
 
-  // School relationship
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // Fee Structure models for managing class fee structures
@@ -656,7 +651,6 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
-  EXCUSED
 }
 
 // Add model for attendance tracking
@@ -669,68 +663,97 @@ model Attendance {
   student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacherId   Int
   teacher     Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    Int              // Added school ID for better data isolation
+  school      School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   className   String           // Storing the class name directly instead of using class ID
   section     String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  @@unique([date, studentId]) // Prevent duplicate attendance for same student on same date
   @@index([date, studentId])
   @@index([date, className])
   @@index([studentId, date])
+  @@index([schoolId, date])
+  @@index([schoolId, className, date])
+}
+
+// Teacher Attendance Model for tracking teacher daily attendance
+model TeacherAttendance {
+  id          Int              @id @default(autoincrement())
+  date        DateTime         @db.Date // Only store date, not time
+  status      AttendanceStatus // PRESENT, ABSENT, LATE
+  notes       String?          @db.Text
+  checkInTime DateTime?        // Optional check-in time
+  checkOutTime DateTime?       // Optional check-out time
+  workingHours Float?          // Calculated working hours
+  
+  // Relations
+  teacherId   Int
+  teacher     Teacher          @relation("TeacherAttendanceRecords", fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    Int              // Critical for multi-tenant isolation
+  school      School           @relation("SchoolTeacherAttendance", fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  // Audit fields
+  markedByUserId Int?          // Who marked the attendance
+  markedAt    DateTime         @default(now())
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Constraints
+  @@unique([date, teacherId]) // Prevent duplicate attendance for same teacher on same date
+  @@index([date, teacherId])
+  @@index([schoolId, date])
+  @@index([schoolId, teacherId])
+  @@index([teacherId, date])
 }
 
 model Registration {
-  // student information
+  // student information - Only these 3 fields are required now (testDate made optional, formNo made required)
   registrationId      String  @id @default(uuid())
-  fullName           String
-  gender              String
-  formNo              String  @unique
-  dob                 String
-  category            String
-  religion            String
-  // schoolId            Int
-  // school              School    @relation(fields: [schoolId], references: [id], onDelete: Cascade),
-  registerForClass    String
-  admissionCategory   String
-  bloodGroup          String
-  regnDate            String
-  testDate            String
-  transactionNo       String
-  singleParent        Boolean
-  contactNo           String
-  studentEmail        String
-  address             String
-  city                String
-  state               String
-  pincode             String
-  studentAadharCardNo String
-  regnCharge          String
-  examSubject         String
-  paymentStatus       String
+  fullName           String   // Required
+  formNo             String   @unique // Required - changed from optional to required
+  testDate           String?  // Optional - changed from required to optional
+  regnDate           String   // Required (registration date)
+  registerForClass   String   // Required
+  
+  // Optional student fields
+  branchName         String?
+  gender             String?
+  dob                String?
+  category           String?
+  religion           String?
+  admissionCategory  String?
+  bloodGroup         String?
+  transactionNo      String?
+  singleParent       Boolean  @default(false)
+  contactNo          String?
+  studentEmail       String?
+  address            String?
+  city               String?
+  state              String?
+  pincode            String?
+  studentAadharCardNo String?
+  regnCharge         String?
+  examSubject        String?
+  paymentStatus      String?
 
-  // father Details
-  fatherName             String
-  fatherMobileNo         String
-  smsAlert               Boolean
-  fatherEmail            String
-  fatherAadharCardNo     String
-  isFatherCampusEmployee Boolean
+  // Optional father Details
+  fatherName             String?
+  fatherMobileNo         String?
+  smsAlert               Boolean  @default(false)
+  fatherEmail            String?
+  fatherAadharCardNo     String?
+  isFatherCampusEmployee Boolean  @default(false)
 
-  // mother Details
-  motherName         String
-  motherMobileNo     String
-  motherAadharCardNo String
+  // Optional mother Details
+  motherName         String?
+  motherMobileNo     String?
+  motherAadharCardNo String?
 
-  // documents 
-  casteCertificate              String?
-  studentAadharCard             String?
-  fatherAadharCard              String?
-  motherAadharCard              String?
-  previousClassMarksheet        String?
-  transferCertificate           String?
-  studentDateOfBirthCertificate String?
-  School                        School? @relation(fields: [schoolId], references: [id])
-  schoolId                      Int?
+  // School Association
+  schoolId           Int?
+  school             School? @relation(fields: [schoolId], references: [id])
 }
 
 
@@ -788,7 +811,7 @@ model Maintenance {
 // Bus Model
 model Bus {
   id                  String        @id @default(uuid())
-  registrationNumber  String        @unique
+  registrationNumber  String?       @unique // Already optional, but ensuring consistency
   make                String
   model               String
   year                Int?
@@ -859,7 +882,7 @@ model Driver {
   experience       Int       @default(0)
   joiningDate      DateTime
   isActive         Boolean   @default(true)
-  photo            String?   
+  photo            String?   @db.Text  // Changed to TEXT to support larger images
   
   // Personal Information
   dateOfBirth      DateTime?
@@ -926,18 +949,147 @@ enum MaintenanceStatus {
 // Timetable Model
 model Timetable {
   id            String    @id @default(uuid())
-  classId       String
-  sectionId     String
-  subjectId     String
-  teacherId     String
-  day           String    // Monday, Tuesday, etc.
-  startTime     String
-  endTime       String
+  className     String    // Class 1, Class 2, etc.
+  section       String    // A, B, C, etc.
+  subjectName   String    // Mathematics, Science, etc.
+  teacherId     Int       // Changed to Int to match Teacher.id
+  day           String    // monday, tuesday, etc.
+  startTime     String    // 10:30, 17:27, etc.
+  endTime       String    // 11:30, 18:28, etc.
   roomNumber    String?
+  
+  // School Association
+  schoolId      Int       @default(1) // Added default value for existing data
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  teacher       Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  @@index([classId, sectionId])
+  @@index([className, section])
   @@index([teacherId])
   @@index([day])
+  @@index([schoolId])
 }
+
+// Expense Model for tracking school expenses
+model Expense {
+  id              String    @id @default(uuid())
+  title           String
+  description     String?   @db.Text
+  category        String    // e.g., "Stationery", "Utilities", "Transport", "Maintenance", "Salary", "Infrastructure"
+  subCategory     String?   // More specific categorization
+  amount          Float
+  expenseDate     DateTime
+  paymentMethod   String    @default("Cash") // Cash, Cheque, Bank Transfer, UPI, Credit Card
+  vendor          String?   // Name of vendor/supplier
+  vendorContact   String?   // Contact number/email of vendor
+  invoiceNumber   String?   // Invoice/Bill reference number
+  receiptNumber   String?   // Receipt reference number
+  taxAmount       Float?    @default(0) // Tax amount if applicable
+  discountAmount  Float?    @default(0) // Discount received
+  totalAmount     Float     // Final amount paid (amount + tax - discount)
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED, PAID
+  approvedBy      String?   // ID or name of person who approved
+  approvedAt      DateTime?
+  notes           String?   @db.Text
+  attachments     String?   @db.Text // JSON string of file URLs
+  
+  // School Association
+  schoolId        Int?
+  school          School?   @relation(fields: [schoolId], references: [id])
+  
+  // Budget tracking
+  budgetCategory  String?   // Link to budget category if applicable
+  isRecurring     Boolean   @default(false)
+  recurringType   String?   // MONTHLY, QUARTERLY, YEARLY
+  parentExpenseId String?   // For recurring expenses, link to parent
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([schoolId])
+  @@index([category])
+  @@index([expenseDate])
+  @@index([status])
+}
+
+// Teacher Diary Model for daily classroom entries
+model TeacherDiary {
+  id               Int       @id @default(autoincrement())
+  
+  // Core diary entry information
+  title            String    // Title of the diary entry
+  content          String    @db.LongText // Main content of the diary entry
+  date             DateTime  // Date of the entry
+  
+  // Class and subject information
+  className        String    // e.g., "Class 10", "Grade 5"
+  section          String    // e.g., "A", "B", "C"
+  subject          String    // Subject taught
+  period           String?   // Period number or time slot
+  
+  // Entry type and details
+  entryType        DiaryEntryType @default(GENERAL) // Type of entry
+  homework         String?   @db.Text // Homework assigned
+  classSummary     String?   @db.Text // Summary of what was taught
+  notices          String?   @db.Text // Important notices for students/parents
+  remarks          String?   @db.Text // Additional teacher remarks
+  
+  // Visibility and priority
+  isPublic         Boolean   @default(true) // Whether visible to students/parents
+  priority         DiaryPriority @default(NORMAL) // Priority level
+  
+  // Attachments and multimedia
+  attachments      String?   @db.Text // JSON array of file URLs
+  imageUrls        String?   @db.Text // JSON array of image URLs
+  
+  // School isolation and teacher relation
+  schoolId         Int
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  teacherId        Int
+  teacher          Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Indexes for performance
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([date])
+  @@index([className, section])
+  @@index([subject])
+  @@index([entryType])
+  @@unique([teacherId, date, className, section, subject, period]) // Prevent duplicate entries
+}
+
+// Enum for diary entry types
+enum DiaryEntryType {
+  GENERAL         // General class entry
+  HOMEWORK        // Homework assignment
+  ANNOUNCEMENT    // Important announcement
+  ASSESSMENT      // Assessment/test information
+  EVENT           // Class event or activity
+  NOTICE          // Official notice
+  REMINDER        // Reminder for students/parents
+}
+
+// Enum for diary entry priority
+enum DiaryPriority {
+  LOW             // Low priority
+  NORMAL          // Normal priority
+  HIGH            // High priority
+  URGENT          // Urgent priority
+}
+
+// Add relation to Teacher model
+// (This will be added to the existing Teacher model)
+// teacherDiaries   TeacherDiary[] @relation("TeacherDiaryEntries")
+
+// Add relation to School model  
+// (This will be added to the existing School model)
+// teacherDiaries   TeacherDiary[] @relation("SchoolTeacherDiaries")

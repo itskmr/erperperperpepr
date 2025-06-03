@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Download, FileText, Route } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import axios from 'axios';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
 import { TransportRoute, AddTransportRouteFormData } from './types';
 import TransportRouteTable from './TransportRouteTable';
 import TransportRouteSearchFilter from './TransportRouteSearchFilter';
 import TransportRoutePagination from './TransportRoutePagination';
 import TransportRouteFormModal from './TransportRouteFormModal';
 import TransportRouteProfileModal from './TransportRouteProfileModal';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const TransportRoutes: React.FC = () => {
   // State management
@@ -45,31 +43,40 @@ const TransportRoutes: React.FC = () => {
   const fetchRoutes = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/transport/routes`);
+      const data = await apiGet('/transport/routes');
       
-      if (response.data && response.data.success) {
-        // The backend now returns properly formatted data with vehicle and driver info
-        const transformedRoutes = (response.data.data || []).map((route: any) => {
-          return {
-            ...route,
-            fromLocation: route.startLocation || route.fromLocation,
-            toLocation: route.endLocation || route.toLocation,
-            vehicleId: route.busId || route.vehicleId,
-            // The vehicle and driver info is now provided directly by the backend
-            vehicle: route.vehicle || null,
-            driver: route.driver || null,
-            isActive: route.isActive !== undefined ? route.isActive : true
-          };
-        });
-        
+      if (Array.isArray(data)) {
+        // Handle direct array response
+        const transformedRoutes = data.map((route: any) => ({
+          ...route,
+          fromLocation: route.startLocation || route.fromLocation,
+          toLocation: route.endLocation || route.toLocation,
+          vehicleId: route.busId || route.vehicleId,
+          vehicle: route.vehicle || null,
+          driver: route.driver || null,
+          isActive: route.isActive !== undefined ? route.isActive : true
+        }));
         setRoutes(transformedRoutes);
-        setError(null);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        // Handle wrapped response
+        const transformedRoutes = (data.data || []).map((route: any) => ({
+          ...route,
+          fromLocation: route.startLocation || route.fromLocation,
+          toLocation: route.endLocation || route.toLocation,
+          vehicleId: route.busId || route.vehicleId,
+          vehicle: route.vehicle || null,
+          driver: route.driver || null,
+          isActive: route.isActive !== undefined ? route.isActive : true
+        }));
+        setRoutes(transformedRoutes);
       } else {
-        setError('Failed to fetch transport routes');
+        setRoutes([]);
       }
+      setError(null);
     } catch (error: unknown) {
       console.error('Error fetching routes:', error);
-      setError(`Failed to fetch routes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const apiErr = error as ApiError;
+      setError(`Failed to fetch routes: ${apiErr.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -78,11 +85,18 @@ const TransportRoutes: React.FC = () => {
   // Fetch vehicles for dropdown
   const fetchVehicles = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/transport/buses`);
+      const data = await apiGet('/transport/buses');
       
-      if (response.data && response.data.success) {
-        // Transform backend data to frontend format
-        const transformedVehicles = (response.data.data || []).map((vehicle: any) => ({
+      if (Array.isArray(data)) {
+        const transformedVehicles = data.map((vehicle: any) => ({
+          id: vehicle.id,
+          vehicleName: vehicle.make || vehicle.vehicleName,
+          registrationNumber: vehicle.registrationNumber,
+          ...vehicle
+        }));
+        setVehicles(transformedVehicles);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        const transformedVehicles = (data.data || []).map((vehicle: any) => ({
           id: vehicle.id,
           vehicleName: vehicle.make || vehicle.vehicleName,
           registrationNumber: vehicle.registrationNumber,
@@ -98,10 +112,12 @@ const TransportRoutes: React.FC = () => {
   // Fetch drivers for dropdown
   const fetchDrivers = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/transport/drivers`);
+      const data = await apiGet('/transport/drivers');
       
-      if (response.data && response.data.success) {
-        setDrivers(response.data.data || []);
+      if (Array.isArray(data)) {
+        setDrivers(data);
+      } else if (data && typeof data === 'object' && 'data' in data) {
+        setDrivers(data.data || []);
       }
     } catch (error) {
       console.error('Error fetching drivers:', error);
@@ -156,18 +172,17 @@ const TransportRoutes: React.FC = () => {
   // Handle viewing a route's profile
   const handleViewProfile = async (route: TransportRoute) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/routes/${route.id}`);
+      const data = await apiGet(`/transport/routes/${route.id}`);
       
-      if (response.data.success) {
-        // The backend now returns properly formatted data with vehicle and driver info
+      if (data) {
+        // The authenticated API returns data directly
         const transformedRoute = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation || response.data.data.fromLocation,
-          toLocation: response.data.data.endLocation || response.data.data.toLocation,
-          vehicleId: response.data.data.busId || response.data.data.vehicleId,
-          // Vehicle and driver info is now provided directly by the backend
-          vehicle: response.data.data.vehicle || null,
-          driver: response.data.data.driver || null
+          ...data,
+          fromLocation: data.startLocation || data.fromLocation,
+          toLocation: data.endLocation || data.toLocation,
+          vehicleId: data.busId || data.vehicleId,
+          vehicle: data.vehicle || null,
+          driver: data.driver || null
         };
         
         setSelectedRoute(transformedRoute);
@@ -177,25 +192,25 @@ const TransportRoutes: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching route details:', error);
-      showToast('error', 'Failed to fetch route details');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to fetch route details');
     }
   };
 
   // Handle editing a route
   const handleEditRoute = async (route: TransportRoute) => {
     try {
-      const response = await axios.get(`${API_URL}/transport/routes/${route.id}`);
+      const data = await apiGet(`/transport/routes/${route.id}`);
       
-      if (response.data.success) {
-        // The backend now returns properly formatted data with vehicle and driver info
+      if (data) {
+        // The authenticated API returns data directly
         const transformedRoute = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation || response.data.data.fromLocation,
-          toLocation: response.data.data.endLocation || response.data.data.toLocation,
-          vehicleId: response.data.data.busId || response.data.data.vehicleId,
-          // Vehicle and driver info is now provided directly by the backend
-          vehicle: response.data.data.vehicle || null,
-          driver: response.data.data.driver || null
+          ...data,
+          fromLocation: data.startLocation || data.fromLocation,
+          toLocation: data.endLocation || data.toLocation,
+          vehicleId: data.busId || data.vehicleId,
+          vehicle: data.vehicle || null,
+          driver: data.driver || null
         };
         
         setEditRoute(transformedRoute);
@@ -205,7 +220,8 @@ const TransportRoutes: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching route details:', error);
-      showToast('error', 'Failed to fetch route details');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to fetch route details');
     }
   };
 
@@ -220,17 +236,15 @@ const TransportRoutes: React.FC = () => {
     if (!routeToDelete) return;
 
     try {
-      const response = await axios.delete(`${API_URL}/transport/routes/${routeToDelete.id}`);
+      await apiDelete(`/transport/routes/${routeToDelete.id}`);
       
-      if (response.data.success) {
-        setRoutes(routes.filter(r => r.id !== routeToDelete.id));
-        showToast('success', 'Route deleted successfully');
-      } else {
-        showToast('error', 'Failed to delete route');
-      }
+      // If we get here, deletion was successful (apiDelete would throw on error)
+      setRoutes(routes.filter(r => r.id !== routeToDelete.id));
+      showToast('success', 'Route deleted successfully');
     } catch (error) {
       console.error('Error deleting route:', error);
-      showToast('error', 'Failed to delete route');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to delete route');
     } finally {
       setIsDeleteModalOpen(false);
       setRouteToDelete(null);
@@ -254,37 +268,35 @@ const TransportRoutes: React.FC = () => {
         driverId: newRoute.driverId
       };
 
-      const response = await axios.post(`${API_URL}/transport/routes`, routeDataForAPI);
+      const data = await apiPost('/transport/routes', routeDataForAPI);
       
-      if (response.data.success) {
-        // Transform response back to frontend format for state
-        const newRouteData = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation,
-          toLocation: response.data.data.endLocation,
-          vehicleId: response.data.data.busId
-        };
-        
-        setRoutes([newRouteData, ...routes]);
-        setNewRoute({
-          name: '',
-          fromLocation: '',
-          toLocation: '',
-          description: '',
-          distance: 0,
-          estimatedTime: 0,
-          vehicleId: '',
-          driverId: '',
-          isActive: true
-        });
-        setIsAddFormOpen(false);
-        showToast('success', 'Route added successfully');
-      } else {
-        showToast('error', response.data.message || 'Failed to add route');
-      }
+      // If we get here, route was added successfully (apiPost would throw on error)
+      // Transform response back to frontend format for state
+      const newRouteData = {
+        ...data,
+        fromLocation: data.startLocation,
+        toLocation: data.endLocation,
+        vehicleId: data.busId
+      };
+      
+      setRoutes([newRouteData, ...routes]);
+      setNewRoute({
+        name: '',
+        fromLocation: '',
+        toLocation: '',
+        description: '',
+        distance: 0,
+        estimatedTime: 0,
+        vehicleId: '',
+        driverId: '',
+        isActive: true
+      });
+      setIsAddFormOpen(false);
+      showToast('success', 'Route added successfully');
     } catch (error) {
       console.error('Error adding route:', error);
-      showToast('error', 'Failed to add route');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to add route');
     }
   };
 
@@ -305,27 +317,25 @@ const TransportRoutes: React.FC = () => {
         driverId: editRoute.driverId
       };
 
-      const response = await axios.put(`${API_URL}/transport/routes/${editRoute.id}`, routeDataForAPI);
+      const data = await apiPut(`/transport/routes/${editRoute.id}`, routeDataForAPI);
       
-      if (response.data.success) {
-        // Transform response back to frontend format for state
-        const updatedRouteData = {
-          ...response.data.data,
-          fromLocation: response.data.data.startLocation,
-          toLocation: response.data.data.endLocation,
-          vehicleId: response.data.data.busId
-        };
-        
-        setRoutes(routes.map(r => r.id === editRoute.id ? updatedRouteData : r));
-        setEditRoute({});
-        setIsEditModalOpen(false);
-        showToast('success', 'Route updated successfully');
-      } else {
-        showToast('error', response.data.message || 'Failed to update route');
-      }
+      // If we get here, route was updated successfully (apiPut would throw on error)
+      // Transform response back to frontend format for state
+      const updatedRouteData = {
+        ...data,
+        fromLocation: data.startLocation,
+        toLocation: data.endLocation,
+        vehicleId: data.busId
+      };
+      
+      setRoutes(routes.map(r => r.id === editRoute.id ? updatedRouteData : r));
+      setEditRoute({});
+      setIsEditModalOpen(false);
+      showToast('success', 'Route updated successfully');
     } catch (error) {
       console.error('Error updating route:', error);
-      showToast('error', 'Failed to update route');
+      const apiErr = error as ApiError;
+      showToast('error', apiErr.message || 'Failed to update route');
     }
   };
 
@@ -380,29 +390,66 @@ const TransportRoutes: React.FC = () => {
 
       {/* Statistics Section */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Total Routes</h3>
-          <p className="text-2xl font-semibold text-blue-600">{routes.length}</p>
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Routes</p>
+              <p className="text-2xl font-bold">{routes.length}</p>
+            </div>
+            <div className="bg-blue-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Active Routes</h3>
-          <p className="text-2xl font-semibold text-green-600">
-            {routes.filter(route => route.isActive).length}
-          </p>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Active Routes</p>
+              <p className="text-2xl font-bold">
+                {routes.filter(route => route.isActive).length}
+              </p>
+            </div>
+            <div className="bg-green-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Inactive Routes</h3>
-          <p className="text-2xl font-semibold text-red-600">
-            {routes.filter(route => !route.isActive).length}
-          </p>
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">Inactive Routes</p>
+              <p className="text-2xl font-bold">
+                {routes.filter(route => !route.isActive).length}
+              </p>
+            </div>
+            <div className="bg-yellow-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-sm font-medium text-gray-500">Avg Distance</h3>
-          <p className="text-2xl font-semibold text-purple-600">
-            {routes.length > 0 && routes.some(r => r.distance) 
-              ? Math.round(routes.filter(r => r.distance).reduce((sum, route) => sum + (route.distance || 0), 0) / routes.filter(r => r.distance).length) 
-              : 0} km
-          </p>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Avg Distance</p>
+              <p className="text-2xl font-bold">
+                {routes.length > 0 && routes.some(r => r.distance) 
+                  ? Math.round(routes.filter(r => r.distance).reduce((sum, route) => sum + (route.distance || 0), 0) / routes.filter(r => r.distance).length) 
+                  : 0} km
+              </p>
+            </div>
+            <div className="bg-purple-400 p-3 rounded-full">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -3,6 +3,135 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// School information interface
+interface SchoolInfo {
+  schoolName: string;
+  address: string;
+  phone: string;
+  email: string;
+  principal?: string;
+  established?: number;
+  image_url?: string | null;
+}
+
+interface StudentData {
+  fullName?: string;
+  admissionNo?: string;
+  admissionDate?: string;
+  dateOfBirth?: string;
+  age?: number;
+  gender?: string;
+  category?: string;
+  religion?: string;
+  bloodGroup?: string;
+  aadhaarNumber?: string;
+  mobileNumber?: string;
+  email?: string;
+  fatherName?: string;
+  motherName?: string;
+  address?: {
+    houseNo?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    pinCode?: string;
+    permanentHouseNo?: string;
+    permanentStreet?: string;
+    permanentCity?: string;
+    permanentState?: string;
+    permanentPinCode?: string;
+  };
+  admitSession?: {
+    class?: string;
+    section?: string;
+    rollNo?: string;
+    group?: string;
+    stream?: string;
+  };
+  currentSession?: {
+    class?: string;
+    section?: string;
+    rollNo?: string;
+    group?: string;
+    stream?: string;
+  };
+  father?: {
+    name?: string;
+    qualification?: string;
+    occupation?: string;
+    contactNumber?: string;
+    email?: string;
+    aadhaarNo?: string;
+    annualIncome?: string;
+  };
+  mother?: {
+    name?: string;
+    qualification?: string;
+    occupation?: string;
+    contactNumber?: string;
+    email?: string;
+    aadhaarNo?: string;
+    annualIncome?: string;
+  };
+  guardian?: {
+    name?: string;
+    address?: string;
+    contactNumber?: string;
+    email?: string;
+    aadhaarNo?: string;
+    occupation?: string;
+    annualIncome?: string;
+  };
+  transport?: {
+    mode?: string;
+    area?: string;
+    route?: string;
+    driver?: string;
+    pickupLocation?: string;
+    dropLocation?: string;
+  };
+  lastEducation?: {
+    school?: string;
+    address?: string;
+    tcDate?: string;
+    prevClass?: string;
+    percentage?: string;
+    attendance?: string;
+    extraActivity?: string;
+  };
+  other?: {
+    belongToBPL?: string;
+    minority?: string;
+    disability?: string;
+    accountNo?: string;
+    bank?: string;
+    ifscCode?: string;
+    medium?: string;
+    lastYearResult?: string;
+    singleParent?: string;
+    onlyChild?: string;
+    onlyGirlChild?: string;
+    adoptedChild?: string;
+    siblingAdmissionNo?: string;
+    transferCase?: string;
+    livingWith?: string;
+    motherTongue?: string;
+    admissionType?: string;
+    udiseNo?: string;
+  };
+  studentImageUrl?: string;
+  fatherImageUrl?: string;
+  motherImageUrl?: string;
+  guardianImageUrl?: string;
+  signatureUrl?: string;
+  parentSignatureUrl?: string;
+  birthCertificateUrl?: string;
+  transferCertificateUrl?: string;
+  markSheetUrl?: string;
+  aadhaarCardUrl?: string;
+  familyIdUrl?: string;
+}
+
 export interface Driver {
   id: string;
   name: string;
@@ -67,34 +196,36 @@ export interface TransportRoute {
   };
 }
 
-export interface SchoolInfo {
-  schoolName: string;
-  address: string;
-  phone: string;
-  email: string;
-  principal?: string;
-  established?: number;
-}
-
 // Helper function to fetch school information
 const fetchSchoolInfo = async (): Promise<SchoolInfo> => {
   try {
-    const response = await axios.get(`${API_URL}/transport/school-info`);
-    if (response.data.success) {
-      return response.data.data;
+    const response = await axios.get(`${API_URL}/school/info`);
+    
+    if (response.data.success && response.data.data) {
+      return {
+        schoolName: response.data.data.schoolName || 'School Name',
+        address: response.data.data.address || 'School Address',
+        phone: response.data.data.phone || 'Phone Number',
+        email: response.data.data.email || 'Email Address',
+        principal: response.data.data.principal || 'Principal Name',
+        established: response.data.data.established || new Date().getFullYear(),
+        image_url: response.data.data.image_url || null
+      };
     }
-  } catch (error) {
-    console.error('Error fetching school info:', error);
+  } catch (error: unknown) {
+    console.error('Error fetching school info from API:', error);
   }
   
-  // Fallback to default values
+  // Return fallback school info if API fails
+  console.log('Using fallback school information');
   return {
     schoolName: 'Excellence School System',
     address: '123 Education Street, Learning City, State 12345',
     phone: '+1 (555) 123-4567',
     email: 'info@excellenceschool.edu',
     principal: 'Dr. John Smith',
-    established: 2000
+    established: 2000,
+    image_url: null
   };
 };
 
@@ -452,4 +583,389 @@ export const generateTransportRoutePDF = async (route: TransportRoute): Promise<
   const pdfBlob = doc.output('blob');
   const url = URL.createObjectURL(pdfBlob);
   window.open(url, '_blank');
+};
+
+// Function to generate admission form print layout
+export const generateAdmissionFormPrint = async (studentData: StudentData) => {
+  const schoolInfo = await fetchSchoolInfo();
+  
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Admission Form - ${studentData.fullName}</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background: white;
+        }
+        .admission-form {
+          max-width: 800px;
+          margin: 0 auto;
+          border: 2px solid #000;
+          padding: 20px;
+        }
+        .header {
+          text-align: center;
+          border-bottom: 2px solid #000;
+          padding-bottom: 15px;
+          margin-bottom: 20px;
+        }
+        .school-logo {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          margin: 0 auto 10px;
+          display: block;
+        }
+        .school-name {
+          font-size: 24px;
+          font-weight: bold;
+          margin: 10px 0 5px;
+          text-transform: uppercase;
+        }
+        .school-details {
+          font-size: 12px;
+          margin: 5px 0;
+        }
+        .form-title {
+          background: #000;
+          color: white;
+          padding: 8px;
+          text-align: center;
+          font-weight: bold;
+          margin: 20px 0;
+        }
+        .form-section {
+          margin: 15px 0;
+        }
+        .section-title {
+          background: #f0f0f0;
+          padding: 5px 10px;
+          font-weight: bold;
+          border: 1px solid #000;
+          margin: 10px 0 5px;
+        }
+        .form-row {
+          display: flex;
+          margin: 8px 0;
+          align-items: center;
+        }
+        .form-field {
+          flex: 1;
+          margin: 0 10px;
+        }
+        .field-label {
+          font-weight: bold;
+          margin-right: 5px;
+        }
+        .field-value {
+          border-bottom: 1px solid #000;
+          min-height: 20px;
+          padding: 2px 5px;
+        }
+        .photo-box {
+          width: 120px;
+          height: 150px;
+          border: 2px solid #000;
+          margin: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          text-align: center;
+        }
+        .signature-box {
+          width: 150px;
+          height: 50px;
+          border: 1px solid #000;
+          margin: 10px 0;
+          display: inline-block;
+          text-align: center;
+          padding-top: 30px;
+          font-size: 12px;
+        }
+        .declaration {
+          border: 1px solid #000;
+          padding: 10px;
+          margin: 20px 0;
+          font-size: 11px;
+          text-align: justify;
+        }
+        @media print {
+          body { margin: 0; }
+          .admission-form { border: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="admission-form">
+        <!-- Header -->
+        <div class="header">
+          ${schoolInfo.image_url ? `<img src="${schoolInfo.image_url}" alt="School Logo" class="school-logo" />` : ''}
+          <div class="school-name">${schoolInfo.schoolName}</div>
+          <div class="school-details">${schoolInfo.address}</div>
+          <div class="school-details">Phone: ${schoolInfo.phone} | Email: ${schoolInfo.email}</div>
+          ${schoolInfo.principal ? `<div class="school-details">Principal: ${schoolInfo.principal}</div>` : ''}
+        </div>
+
+        <div class="form-title">ADMISSION FORM</div>
+
+        <!-- Student Information -->
+        <div class="form-section">
+          <div class="section-title">1. STUDENT INFORMATION</div>
+          <div style="display: flex;">
+            <div style="flex: 1;">
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Admission No.:</span>
+                  <span class="field-value">${studentData.admissionNo || ''}</span>
+                </div>
+                <div class="form-field">
+                  <span class="field-label">Admission Date:</span>
+                  <span class="field-value">${studentData.admissionDate ? new Date(studentData.admissionDate).toLocaleDateString() : ''}</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Name (In Block Letters):</span>
+                  <span class="field-value">${studentData.fullName || ''}</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Class for admission:</span>
+                  <span class="field-value">${studentData.admitSession?.class || studentData.currentSession?.class || ''}</span>
+                </div>
+                <div class="form-field">
+                  <span class="field-label">Section:</span>
+                  <span class="field-value">${studentData.admitSession?.section || studentData.currentSession?.section || ''}</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Date of Birth:</span>
+                  <span class="field-value">${studentData.dateOfBirth ? new Date(studentData.dateOfBirth).toLocaleDateString() : ''}</span>
+                </div>
+                <div class="form-field">
+                  <span class="field-label">Age:</span>
+                  <span class="field-value">${studentData.age || ''}</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Gender:</span>
+                  <span class="field-value">${studentData.gender || ''}</span>
+                </div>
+                <div class="form-field">
+                  <span class="field-label">Category:</span>
+                  <span class="field-value">${studentData.category || ''}</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Religion:</span>
+                  <span class="field-value">${studentData.religion || ''}</span>
+                </div>
+                <div class="form-field">
+                  <span class="field-label">Blood Group:</span>
+                  <span class="field-value">${studentData.bloodGroup || ''}</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <span class="field-label">Aadhaar Number:</span>
+                  <span class="field-value">${studentData.aadhaarNumber || ''}</span>
+                </div>
+              </div>
+            </div>
+            <div class="photo-box">
+              ${studentData.studentImageUrl ? `<img src="${studentData.studentImageUrl}" style="max-width: 100%; max-height: 100%;" />` : 'Student Photo'}
+            </div>
+          </div>
+        </div>
+
+        <!-- Father's Information -->
+        <div class="form-section">
+          <div class="section-title">2. FATHER'S INFORMATION</div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Father's Name:</span>
+              <span class="field-value">${studentData.father?.name || studentData.fatherName || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Qualification:</span>
+              <span class="field-value">${studentData.father?.qualification || ''}</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Occupation:</span>
+              <span class="field-value">${studentData.father?.occupation || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Mobile No.:</span>
+              <span class="field-value">${studentData.father?.contactNumber || ''}</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Email:</span>
+              <span class="field-value">${studentData.father?.email || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Annual Income:</span>
+              <span class="field-value">${studentData.father?.annualIncome || ''}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mother's Information -->
+        <div class="form-section">
+          <div class="section-title">3. MOTHER'S INFORMATION</div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Mother's Name:</span>
+              <span class="field-value">${studentData.mother?.name || studentData.motherName || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Qualification:</span>
+              <span class="field-value">${studentData.mother?.qualification || ''}</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Occupation:</span>
+              <span class="field-value">${studentData.mother?.occupation || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Mobile No.:</span>
+              <span class="field-value">${studentData.mother?.contactNumber || ''}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Address Information -->
+        <div class="form-section">
+          <div class="section-title">4. ADDRESS INFORMATION</div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Present Address:</span>
+              <span class="field-value">${studentData.address?.houseNo || ''} ${studentData.address?.street || ''}, ${studentData.address?.city || ''}, ${studentData.address?.state || ''} - ${studentData.address?.pinCode || ''}</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Permanent Address:</span>
+              <span class="field-value">${studentData.address?.permanentHouseNo || ''} ${studentData.address?.permanentStreet || ''}, ${studentData.address?.permanentCity || ''}, ${studentData.address?.permanentState || ''} - ${studentData.address?.permanentPinCode || ''}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Previous School Information -->
+        <div class="form-section">
+          <div class="section-title">5. PREVIOUS SCHOOL DETAILS</div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">School Name:</span>
+              <span class="field-value">${studentData.lastEducation?.school || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Class:</span>
+              <span class="field-value">${studentData.lastEducation?.prevClass || ''}</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Result:</span>
+              <span class="field-value">${studentData.lastEducation?.percentage || ''}</span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">TC Date:</span>
+              <span class="field-value">${studentData.lastEducation?.tcDate ? new Date(studentData.lastEducation.tcDate).toLocaleDateString() : ''}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Declaration -->
+        <div class="declaration">
+          <strong>Declaration:</strong> I hereby declare that the above information including Name of the Candidate, Father's, Guardian's, Mother's and Date of Birth furnished by me is correct to the best of my knowledge and belief. I shall abide by the rules of the school.
+        </div>
+
+        <!-- Signatures -->
+        <div style="display: flex; justify-content: space-between; margin-top: 30px;">
+          <div style="text-align: center;">
+            <div class="signature-box">Father's Signature</div>
+          </div>
+          <div style="text-align: center;">
+            <div class="signature-box">Mother's Signature</div>
+          </div>
+          <div style="text-align: center;">
+            <div class="signature-box">Guardian's Signature</div>
+          </div>
+        </div>
+
+        <!-- Office Use -->
+        <div class="form-section" style="margin-top: 30px;">
+          <div class="section-title">FOR OFFICE USE ONLY</div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Admission No.:</span>
+              <span class="field-value"></span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Receipt No.:</span>
+              <span class="field-value"></span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Admission Date:</span>
+              <span class="field-value"></span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Payment Mode:</span>
+              <span class="field-value"></span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <span class="field-label">Admitted Class:</span>
+              <span class="field-value"></span>
+            </div>
+            <div class="form-field">
+              <span class="field-label">Paid Amount:</span>
+              <span class="field-value"></span>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <div style="text-align: center;">
+              <div style="border-bottom: 1px solid #000; width: 150px; margin: 0 auto 5px;">Checked By</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="border-bottom: 1px solid #000; width: 150px; margin: 0 auto 5px;">Verified By</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="border-bottom: 1px solid #000; width: 150px; margin: 0 auto 5px;">Approved By</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.focus();
+  
+  // Wait for images to load then print
+  setTimeout(() => {
+    printWindow.print();
+  }, 1000);
 }; 

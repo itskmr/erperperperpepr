@@ -20,6 +20,11 @@ import transportRoutes from "./routes/transportRoutes.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
 import schoolRoutes from "./routes/schoolRoutes.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
+import expenseRoutes from "./routes/expenseRoutes.js";
+import teacherAttendanceRoutes from "./routes/teacherAttendanceRoutes.js";
+import teacherDiaryRoutes from "./routes/teacherDiaryRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import schoolProfileRoutes from "./routes/schoolProfileRoutes.js";
 
 // Initialize environment variables
 dotenv.config();
@@ -171,7 +176,7 @@ app.use("/api/fees", feeRoutes);
 app.use("/fees", feeRoutes);
 
 // Fee Structure routes
-app.use("/api", feeStructureRoutes);
+app.use("/api/fee-structure", feeStructureRoutes);
 
 // Add TC form routes to the API
 app.use("/api", tcformRoutes);
@@ -193,6 +198,53 @@ app.use("/teachers", teacherRoutes);
 
 // Add school routes
 app.use("/api/schools", schoolRoutes);
+
+// Add expense routes
+app.use("/api/expenses", expenseRoutes);
+app.use("/expenses", expenseRoutes);
+
+// Add teacher attendance routes
+app.use("/api/teacher-attendance", teacherAttendanceRoutes);
+app.use("/teacher-attendance", teacherAttendanceRoutes);
+
+// Add teacher diary routes
+app.use("/api/teacher-diary", teacherDiaryRoutes);
+app.use("/teacher-diary", teacherDiaryRoutes);
+
+// Add dashboard routes
+app.use("/api/dashboard", dashboardRoutes);
+
+// Add school profile routes
+app.use("/api/school/profile", schoolProfileRoutes);
+
+// Direct route mappings for school endpoints
+app.post("/api/schools/student/login", (req, res) => {
+  console.log("School student login (admission) attempt received");
+  // Forward to schoolRoutes
+  req.url = '/student/login';
+  schoolRoutes(req, res);
+});
+
+app.post("/api/schools/student/email-login", (req, res) => {
+  console.log("School student email login attempt received");
+  // Forward to schoolRoutes
+  req.url = '/student/email-login';
+  schoolRoutes(req, res);
+});
+
+app.post("/api/schools/parent/email-login", (req, res) => {
+  console.log("School parent email login attempt received");
+  // Forward to schoolRoutes
+  req.url = '/parent/email-login';
+  schoolRoutes(req, res);
+});
+
+app.get("/api/schools/info", (req, res) => {
+  console.log("School info request received");
+  // Forward to schoolRoutes
+  req.url = '/info';
+  schoolRoutes(req, res);
+});
 
 // Add this before your admin routes registration:
 

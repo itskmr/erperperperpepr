@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StudentFormData } from '../StudentForm/StudentFormTypes';
+import { Users, Search } from 'lucide-react';
 
 interface StudentTableProps {
   students: StudentFormData[];
@@ -64,19 +65,54 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   };
 
   return (
-    <div className="overflow-hidden bg-white shadow-md rounded-lg">
+    <div className="bg-white shadow-lg rounded-lg border border-gray-200">
+      {/* Header Section with Title and Statistics */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-lg">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center space-x-3 mb-3 md:mb-0">
+            <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">
+                All Registered Students
+              </h1>
+              <p className="text-blue-100 text-sm">
+                Manage and view all student records in your institution
+              </p>
+            </div>
+          </div>
+          
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg px-3 py-2 text-center">
+              <div className="text-lg font-bold text-white">{students.length}</div>
+              <div className="text-xs text-blue-100">Total Students</div>
+            </div>
+            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg px-3 py-2 text-center">
+              <div className="text-lg font-bold text-white">{filteredStudents.length}</div>
+              <div className="text-xs text-blue-100">Filtered Results</div>
+            </div>
+            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg px-3 py-2 text-center md:col-span-1 col-span-2">
+              <div className="text-lg font-bold text-white">
+                {new Set(students.map(s => s.currentSession?.class).filter(Boolean)).size}
+              </div>
+              <div className="text-xs text-blue-100">Active Classes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Search and filter */}
-      <div className="p-4 border-b">
-        <div className="relative">
+      <div className="p-4 border-b bg-gray-50">
+        <div className="relative max-w-md">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"></path>
-            </svg>
+            <Search className="w-5 h-5 text-gray-400" />
           </div>
           <input
             type="text"
-            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5"
-            placeholder="Search students by name, ID, class..."
+            className="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-3 shadow-sm transition-colors duration-200"
+            placeholder="Search students by name, ID, class, or contact..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -110,13 +146,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               </th>
               <th
                 scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                onClick={() => handleSort('className')}
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 Class
-                {sortField === 'className' && (
-                  <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                )}
               </th>
               <th
                 scope="col"

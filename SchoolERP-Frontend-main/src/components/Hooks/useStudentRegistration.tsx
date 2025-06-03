@@ -1,17 +1,28 @@
 import { useState, ChangeEvent, FormEvent } from 'react';
 
-// Define Documents type
+// Define Documents type based on schema document path fields
 export type Documents = {
   studentImage: File | null;
   fatherImage: File | null;
   motherImage: File | null;
   guardianImage: File | null;
   signature: File | null;
+  parentSignature: File | null;
   fatherAadhar: File | null;
   motherAadhar: File | null;
   birthCertificate: File | null;
   migrationCertificate: File | null;
   aadhaarCard: File | null;
+  familyId: File | null;
+  affidavitCertificate: File | null;
+  incomeCertificate: File | null;
+  addressProof1: File | null;
+  addressProof2: File | null;
+  transferCertificate: File | null;
+  markSheet: File | null;
+  fatherSignature: File | null;
+  motherSignature: File | null;
+  guardianSignature: File | null;
 };
 
 // Define validation patterns
@@ -272,11 +283,22 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       motherImage: null,
       guardianImage: null,
       signature: null,
+      parentSignature: null,
       fatherAadhar: null,
       motherAadhar: null,
       birthCertificate: null,
       migrationCertificate: null,
       aadhaarCard: null,
+      familyId: null,
+      affidavitCertificate: null,
+      incomeCertificate: null,
+      addressProof1: null,
+      addressProof2: null,
+      transferCertificate: null,
+      markSheet: null,
+      fatherSignature: null,
+      motherSignature: null,
+      guardianSignature: null,
     },
     
     // Other details
@@ -332,7 +354,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
       // Skip validation for document fields
-      if (parent === 'documents') {
+      if (parent === 'documents' || child === 'documents') {
         return null;
       }
     }
@@ -450,7 +472,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
 
   // Validate current step
   const validateStep = (): boolean => {
-    let errors: Record<string, string> = {};
+    const errors: Record<string, string> = {};
     let isValid = true;
 
     // Fields to validate based on current step
@@ -527,7 +549,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       
       setSuccess(true);
       // Reset form or redirect user as needed
-    } catch (err) {
+    } catch {
       setError('Failed to submit the form. Please try again later.');
     } finally {
       setIsSubmitting(false);

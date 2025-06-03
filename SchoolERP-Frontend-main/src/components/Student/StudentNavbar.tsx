@@ -6,7 +6,9 @@ import {
   User, 
   Home, 
   HelpCircle,
-  MessageSquare
+  MessageSquare,
+  BookOpen,
+  GraduationCap
 } from "lucide-react";
 
 interface StudentNavbarProps {
@@ -108,6 +110,44 @@ const StudentNavbar = {
     return (
       <div className="flex-1 overflow-y-auto pt-5 pb-4">
         <nav className="flex-1 px-2 space-y-0">
+          {/* Dashboard Section */}
+          <NavLink 
+            to="/student/dashboard" 
+            icon={<Home className="h-5 w-5 text-blue-600" />} 
+            label="Dashboard" 
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Academics Section */}
+          <NavDropdown 
+            title="Academics" 
+            icon={<GraduationCap className="h-5 w-5 text-blue-600" />}
+            isOpen={activeDropdown === "academics"} 
+            onClick={() => toggleDropdown("academics")}
+          >
+            <NavLink 
+              to="/student/academics/diary" 
+              icon={<BookOpen className="h-4 w-4 text-blue-600" />}
+              label="Class Diary" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            />
+            <NavLink 
+              to="/student/academics/schedule" 
+              label="Class Schedule" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            />
+            <NavLink 
+              to="/student/academics/assignments" 
+              label="Assignments" 
+                onClick={() => setIsMobileSidebarOpen(false)}
+            />
+            <NavLink 
+              to="/student/academics/grades" 
+              label="Grades & Reports" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+            />
+          </NavDropdown>
+
           {/* Profile Section */}
           <NavDropdown 
             title="Profile" 
@@ -132,22 +172,14 @@ const StudentNavbar = {
             />
           </NavDropdown>
 
-          {/* Dashboard Section */}
-{/*           <NavLink 
-            to="/student/dashboard" 
-            icon={<Home className="h-5 w-5 text-blue-600" />} 
-            label="Dashboard" 
-            onClick={() => setIsMobileSidebarOpen(false)}
-          />
-
-          
+          {/* Chat Section */}
           <NavLink 
             to="/student/chat" 
             icon={<MessageSquare className="h-5 w-5 text-blue-600" />} 
             label="Chat" 
             onClick={() => setIsMobileSidebarOpen(false)}
             badge={2}
-          /> */}
+          />
 
           {/* Help & Support */}
           <NavDropdown 

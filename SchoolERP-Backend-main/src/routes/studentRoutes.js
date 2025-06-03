@@ -12,8 +12,13 @@ import {
   getStudentById, 
   updateStudent, 
   deleteStudent, 
-  getStudentByAdmissionNo 
+  getStudentByAdmissionNo,
+  addStudentDocument,
+  deleteStudentDocument,
+  getStudentDocuments,
+  updateStudentDocument
 } from '../controllers/studentFun/studentController.js';
+import { protect, authorize, enforceSchoolIsolation, validateSchoolOwnership } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -22,8 +27,30 @@ const prisma = new PrismaClient();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Array of document fields to handle uploads
+// Array of document fields to handle uploads based on schema
 const documentFields = [
+  { name: 'documents.studentImage', maxCount: 1 },
+  { name: 'documents.fatherImage', maxCount: 1 },
+  { name: 'documents.motherImage', maxCount: 1 },
+  { name: 'documents.guardianImage', maxCount: 1 },
+  { name: 'documents.signature', maxCount: 1 },
+  { name: 'documents.parentSignature', maxCount: 1 },
+  { name: 'documents.birthCertificate', maxCount: 1 },
+  { name: 'documents.transferCertificate', maxCount: 1 },
+  { name: 'documents.markSheet', maxCount: 1 },
+  { name: 'documents.aadhaarCard', maxCount: 1 },
+  { name: 'documents.fatherAadhar', maxCount: 1 },
+  { name: 'documents.motherAadhar', maxCount: 1 },
+  { name: 'documents.familyId', maxCount: 1 },
+  { name: 'documents.fatherSignature', maxCount: 1 },
+  { name: 'documents.motherSignature', maxCount: 1 },
+  { name: 'documents.guardianSignature', maxCount: 1 },
+  { name: 'documents.migrationCertificate', maxCount: 1 },
+  { name: 'documents.affidavitCertificate', maxCount: 1 },
+  { name: 'documents.incomeCertificate', maxCount: 1 },
+  { name: 'documents.addressProof1', maxCount: 1 },
+  { name: 'documents.addressProof2', maxCount: 1 },
+  // Also support direct field names for backward compatibility
   { name: 'studentImage', maxCount: 1 },
   { name: 'fatherImage', maxCount: 1 },
   { name: 'motherImage', maxCount: 1 },
@@ -39,13 +66,19 @@ const documentFields = [
   { name: 'familyId', maxCount: 1 },
   { name: 'fatherSignature', maxCount: 1 },
   { name: 'motherSignature', maxCount: 1 },
-  { name: 'guardianSignature', maxCount: 1 }
+  { name: 'guardianSignature', maxCount: 1 },
+  { name: 'migrationCertificate', maxCount: 1 },
+  { name: 'affidavitCertificate', maxCount: 1 },
+  { name: 'incomeCertificate', maxCount: 1 },
+  { name: 'addressProof1', maxCount: 1 },
+  { name: 'addressProof2', maxCount: 1 }
 ];
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'students');
+    // Use a visible uploads directory in the project root
+    const uploadDir = path.join(process.cwd(), 'uploads', 'students');
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
@@ -56,8 +89,8 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     // Use admission number + field name + timestamp + original extension
-    const admissionNo = req.body.admissionNo || 'unknown';
-    const fieldName = file.fieldname;
+    const admissionNo = req.body.admissionNo || req.body['admissionNo'] || 'unknown';
+    const fieldName = file.fieldname.replace('documents.', ''); // Remove documents prefix if present
     const timestamp = Date.now();
     const ext = path.extname(file.originalname);
     
@@ -69,51 +102,191 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    // Allow images and PDFs
-    if (/^image\/(jpeg|png|jpg|gif)$/.test(file.mimetype) || file.mimetype === 'application/pdf') {
+    // Check file type
+    const allowedMimes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+      'application/pdf', 'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only images and PDF files are allowed'), false);
+      cb(new Error('Invalid file type. Only images, PDF, and Word documents are allowed.'));
     }
   }
-}).fields(documentFields);
+});
+
+// Configure multer for single document upload
+const singleDocumentUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+      'application/pdf', 'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images, PDF, and Word documents are allowed.'));
+    }
+  }
+}).single('document');
 
 // Error handling middleware for multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    console.error('Multer error:', err);
-    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: `Unexpected field: ${err.field}. Please check the file upload fields.`
-      });
-    } else if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        success: false,
-        message: 'File size too large. Maximum size is 5MB.'
+        message: 'File too large. Maximum size allowed is 5MB.'
       });
     }
     return res.status(400).json({
       success: false,
-      message: `File upload error: ${err.message}`
-    });
-  } else if (err) {
-    console.error('Non-multer error:', err);
-    return res.status(500).json({
-      success: false,
-      message: err.message || 'An error occurred during file upload'
+      message: err.message
     });
   }
+  
+  if (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+  
   next();
 };
 
-// Get all students with filters
-router.get('/', async (req, res) => {
+// ==================== PROTECTED ROUTES WITH SCHOOL ISOLATION ====================
+
+// Get all students with filters - PROTECTED WITH SCHOOL ISOLATION
+router.get('/', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getAllStudents
+);
+
+// Get student by ID - PROTECTED WITH SCHOOL ISOLATION
+router.get('/:id', 
+  protect, 
+  authorize('admin', 'school', 'teacher', 'student', 'parent'), 
+  validateSchoolOwnership('student', 'id'),
+  getStudentById
+);
+
+// Create new student - PROTECTED WITH SCHOOL ISOLATION
+router.post('/', 
+  protect, 
+  authorize('admin', 'school'), 
+  enforceSchoolIsolation,
+  upload.fields(documentFields), 
+  handleMulterError, 
+  createStudent
+);
+
+// Update student - PROTECTED WITH SCHOOL ISOLATION
+router.put('/:id', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  updateStudent
+);
+
+// Delete student - PROTECTED WITH SCHOOL ISOLATION
+router.delete('/:id', 
+  protect, 
+  authorize('admin', 'school'), 
+  validateSchoolOwnership('student', 'id'),
+  deleteStudent
+);
+
+// Get student by admission number - PROTECTED WITH SCHOOL ISOLATION
+router.get('/admission/:admissionNo', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentByAdmissionNo
+);
+
+// Get students by class and section - PROTECTED WITH SCHOOL ISOLATION
+router.get('/class/:className/section/:section', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentsByCurrentClass
+);
+
+// ==================== DOCUMENT MANAGEMENT ROUTES - PROTECTED ====================
+
+// Get all documents for a student - PROTECTED
+router.get('/:id/documents', 
+  protect, 
+  authorize('admin', 'school', 'teacher', 'student', 'parent'), 
+  validateSchoolOwnership('student', 'id'),
+  getStudentDocuments
+);
+
+// Add document to student - PROTECTED
+router.post('/:id/documents', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  singleDocumentUpload, 
+  handleMulterError, 
+  addStudentDocument
+);
+
+// Update document for student - PROTECTED
+router.put('/:id/documents/:documentType', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  singleDocumentUpload, 
+  handleMulterError, 
+  updateStudentDocument
+);
+
+// Delete document from student - PROTECTED
+router.delete('/:id/documents/:documentType', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  validateSchoolOwnership('student', 'id'),
+  deleteStudentDocument
+);
+
+// ==================== TC FORM RELATED ROUTES - PROTECTED ====================
+
+// Get student by admission number for TC form - PROTECTED
+router.get('/lookup/:admissionNumber', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentByAdmissionNumber
+);
+
+// Fetch student details for TC form - PROTECTED
+router.get('/details/:admissionNumber', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  fetchStudentDetails
+);
+
+// ==================== LEGACY ROUTES (DEPRECATED - TO BE REMOVED) ====================
+// These routes are kept for backward compatibility but should be migrated to use protected routes
+
+// DEPRECATED: Get all students with filters (without authentication)
+router.get('/legacy/all', async (req, res) => {
   try {
     const { 
       page = 1, 
       limit = 10, 
-      schoolId = 1,
+      schoolId,
       class: className,
       section,
       category
@@ -178,525 +351,5 @@ router.get('/', async (req, res) => {
     });
   }
 });
-
-// Add route to get student by admission number
-router.get('/admission/:admissionNo', async (req, res) => {
-  try {
-    const { admissionNo } = req.params;
-    console.log(`Route: Searching for student with admission number: ${admissionNo}`);
-    
-    // Search for student by admission number
-    const student = await prisma.student.findFirst({
-      where: { 
-        admissionNo: admissionNo.toString() 
-      },
-      include: {
-        parentInfo: true,
-        sessionInfo: true,
-        transportInfo: true,
-        documents: true,
-        educationInfo: true,
-        otherInfo: true,
-      }
-    });
-    
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      data: student
-    });
-  } catch (error) {
-    console.error('Error finding student by admission number:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error retrieving student',
-      error: error.message
-    });
-  }
-});
-
-// Create a new student with all related information
-router.post('/', upload, handleMulterError, async (req, res) => {
-  try {
-    const data = req.body;
-    const files = req.files || {};
-    
-    console.log('Student registration data received:', Object.keys(data));
-    
-    // Validate required fields
-    const requiredFields = [
-      'fullName', 
-      'admissionNo', 
-      'gender', 
-      'mobileNumber', 
-      'address.city', 
-      'address.state', 
-      'father.name', 
-      'mother.name',
-      'admitSession.class',
-      'admitSession.section'
-    ];
-    const missingFields = requiredFields.filter(field => {
-      if (field.includes('.')) {
-        const [parent, child] = field.split('.');
-        return !data[`${parent}.${child}`];
-      }
-      return !data[field];
-    });
-    
-    if (missingFields.length > 0) {
-      console.error('Missing required fields:', missingFields);
-      // Map nested field names to their readable format for error messages
-      const fieldDisplayNames = {
-        'address.city': 'City',
-        'address.state': 'State',
-        'father.name': 'Father\'s Name',
-        'mother.name': 'Mother\'s Name',
-        'admitSession.class': 'Admission Class',
-        'admitSession.section': 'Admission Section'
-      };
-      
-      const readableMissingFields = missingFields.map(field => 
-        fieldDisplayNames[field] || field.charAt(0).toUpperCase() + field.slice(1)
-      );
-      
-      return res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${readableMissingFields.join(', ')}`,
-      });
-    }
-
-    // Remove any current session fields if they were sent
-    delete data.currentSession;
-    
-    // Format date fields - with extra error handling
-    let dateOfBirth = null;
-    let lastTcDate = null;
-    
-    try {
-      if (data.dateOfBirth) {
-        // Ensure the date is in YYYY-MM-DD format
-        const [year, month, day] = data.dateOfBirth.split('-').map(Number);
-        dateOfBirth = new Date(year, month - 1, day);
-        if (isNaN(dateOfBirth.getTime())) {
-          throw new Error(`Invalid date format for dateOfBirth: ${data.dateOfBirth}`);
-        }
-      }
-      
-      if (data['lastEducation.tcDate']) {
-        const [year, month, day] = data['lastEducation.tcDate'].split('-').map(Number);
-        lastTcDate = new Date(year, month - 1, day);
-        if (isNaN(lastTcDate.getTime())) {
-          throw new Error(`Invalid date format for lastEducation.tcDate: ${data['lastEducation.tcDate']}`);
-        }
-      }
-    } catch (dateError) {
-      console.error('Date conversion error:', dateError);
-      return res.status(400).json({
-        success: false,
-        message: dateError.message
-      });
-    }
-    
-    // Create document paths object
-    const documentPaths = {};
-    if (Object.keys(files).length > 0) {
-      Object.keys(files).forEach(fieldName => {
-        const file = files[fieldName][0];
-        const normalizedFieldName = fieldName.replace('documents.', '') + 'Path';
-        // Store relative path
-        documentPaths[normalizedFieldName] = `/uploads/students/${file.filename}`;
-      });
-    }
-    
-    // Initialize schoolId with a default value
-    let schoolId = 1;
-    try {
-      if (data.schoolId) {
-        schoolId = parseInt(data.schoolId);
-        if (isNaN(schoolId)) {
-          schoolId = 1;
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing schoolId:', error);
-      schoolId = 1;
-    }
-
-    // First check if the school exists
-    const existingSchool = await prisma.school.findUnique({
-      where: { id: schoolId }
-    });
-
-    if (!existingSchool) {
-      // Create a default school if it doesn't exist
-      const defaultSchool = await prisma.school.create({
-        data: {
-          schoolName: "Default School",
-          email: "default@school.com",
-          password: "default123",
-          code: "SC001",
-          address: "Default Address",
-          phone: "1234567890",
-          principal: "Default Principal",
-          established: 2000,
-          role: "SCHOOL",
-          status: "active",
-          username: "default_school",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      });
-      schoolId = defaultSchool.id;
-    }
-
-    // Create the student record with session info
-    const student = await prisma.student.create({
-      data: {
-        // Basic information
-        fullName: data.fullName,
-        admissionNo: data.admissionNo,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-        age: data.age ? parseInt(data.age) : 0,
-        gender: data.gender,
-        bloodGroup: data.bloodGroup || null,
-        nationality: data.nationality || 'Indian',
-        religion: data.religion || null,
-        category: data.category || null,
-        caste: data.caste || null,
-        aadhaarNumber: data.aadhaarNumber,
-        mobileNumber: data.mobileNumber,
-        email: data.email,
-        emailPassword: data.emailPassword || null,
-        emergencyContact: data.emergencyContact || null,
-        branchName: data.branchName || null,
-        studentPassword: data.emailPassword || '123456', // Default password if not provided
-        
-        // Address information
-        houseNo: data['address.houseNo'] || null,
-        street: data['address.street'] || null,
-        city: data['address.city'] || null,
-        state: data['address.state'] || null,
-        pinCode: data['address.pinCode'] || null,
-        permanentHouseNo: data['address.permanentHouseNo'] || null,
-        permanentStreet: data['address.permanentStreet'] || null,
-        permanentCity: data['address.permanentCity'] || null,
-        permanentState: data['address.permanentState'] || null,
-        permanentPinCode: data['address.permanentPinCode'] || null,
-        sameAsPresentAddress: data['address.sameAsPresentAddress'] === 'true',
-        
-        // Parent information
-        fatherName: data['father.name'] || null,
-        fatherEmail: data['father.email'] || null,
-        fatherEmailPassword: data['father.emailPassword'] || null,
-        motherName: data['mother.name'] || null,
-        motherEmail: data['mother.email'] || null,
-        motherEmailPassword: data['mother.emailPassword'] || null,
-        
-        // Connect to school
-        schoolId: schoolId,
-        
-        // Session information
-        sessionInfo: {
-          create: {
-            // Admit Session fields
-            admitGroup: data['admitSession.group'] || null,
-            admitStream: data['admitSession.stream'] || null,
-            admitClass: data['admitSession.class'] || null,
-            admitSection: data['admitSession.section'] || null,
-            admitRollNo: data['admitSession.rollNo'] || null,
-            admitSemester: data['admitSession.semester'] || null,
-            admitFeeGroup: data['admitSession.feeGroup'] || null,
-            admitHouse: data['admitSession.house'] || null,
-            admitDate: new Date(),
-            
-            // Current session fields
-            currentGroup: data['currentSession.group'] || null,
-            currentStream: data['currentSession.stream'] || null,
-            currentClass: data['currentSession.class'] || null,
-            currentSection: data['currentSession.section'] || null,
-            currentRollNo: data['currentSession.rollNo'] || null,
-            currentSemester: data['currentSession.semester'] || null,
-            currentFeeGroup: data['currentSession.feeGroup'] || null,
-            currentHouse: data['currentSession.house'] || null,
-            
-            // Previous school information
-            previousSchool: data.previousSchool || null
-          }
-        },
-        
-        // Parent information
-        parentInfo: {
-          create: {
-            // Father details
-            fatherQualification: data['father.qualification'] || null,
-            fatherOccupation: data['father.occupation'] || null,
-            fatherContact: data['father.contactNumber'] || null,
-            fatherEmail: data['father.email'] || null,
-            fatherAadhaarNo: data['father.aadhaarNo'] || null,
-            fatherAnnualIncome: data['father.annualIncome'] || null,
-            fatherIsCampusEmployee: data['father.isCampusEmployee'] === 'true' ? 'yes' : 'no',
-            
-            // Mother details
-            motherQualification: data['mother.qualification'] || null,
-            motherOccupation: data['mother.occupation'] || null,
-            motherContact: data['mother.contactNumber'] || null,
-            motherEmail: data['mother.email'] || null,
-            motherAadhaarNo: data['mother.aadhaarNo'] || null,
-            motherAnnualIncome: data['mother.annualIncome'] || null,
-            motherIsCampusEmployee: data['mother.isCampusEmployee'] === 'true' ? 'yes' : 'no',
-            
-            // Guardian details
-            guardianName: data['guardian.name'] || null,
-            guardianAddress: data['guardian.address'] || null,
-            guardianContact: data['guardian.contactNumber'] || null,
-            guardianEmail: data['guardian.email'] || null,
-            guardianAadhaarNo: data['guardian.aadhaarNo'] || null,
-            guardianOccupation: data['guardian.occupation'] || null,
-            guardianAnnualIncome: data['guardian.annualIncome'] || null
-          }
-        },
-        
-        // Transport information
-        transportInfo: {
-          create: {
-            transportMode: data['transport.mode'] || null,
-            transportArea: data['transport.area'] || null,
-            transportStand: data['transport.stand'] || null,
-            transportRoute: data['transport.route'] || null,
-            transportDriver: data['transport.driver'] || null,
-            pickupLocation: data['transport.pickupLocation'] || null,
-            dropLocation: data['transport.dropLocation'] || null
-          }
-        },
-        
-        // Documents
-        documents: {
-          create: {
-            ...documentPaths,
-            academicRegistrationNo: data['academic.registrationNo'] || null
-          }
-        },
-        
-        // Education information
-        educationInfo: {
-          create: {
-            lastSchool: data['lastEducation.school'] || null,
-            lastSchoolAddress: data['lastEducation.address'] || null,
-            lastTcDate: data['lastEducation.tcDate'] ? new Date(data['lastEducation.tcDate']) : null,
-            lastClass: data['lastEducation.prevClass'] || null,
-            lastPercentage: data['lastEducation.percentage'] || null,
-            lastAttendance: data['lastEducation.attendance'] || null,
-            lastExtraActivity: data['lastEducation.extraActivity'] || null
-          }
-        },
-        
-        // Other information
-        otherInfo: {
-          create: {
-            belongToBPL: data['other.belongToBPL'] === 'true' ? 'yes' : 'no',
-            minority: data['other.minority'] === 'true' ? 'yes' : 'no',
-            disability: data['other.disability'] || null,
-            accountNo: data['other.accountNo'] || null,
-            bank: data['other.bank'] || null,
-            ifscCode: data['other.ifscCode'] || null,
-            medium: data['other.medium'] || null,
-            lastYearResult: data['other.lastYearResult'] || null,
-            singleParent: data['other.singleParent'] === 'true' ? 'yes' : 'no',
-            onlyChild: data['other.onlyChild'] === 'true' ? 'yes' : 'no',
-            onlyGirlChild: data['other.onlyGirlChild'] === 'true' ? 'yes' : 'no',
-            adoptedChild: data['other.adoptedChild'] === 'true' ? 'yes' : 'no',
-            siblingAdmissionNo: data['other.siblingAdmissionNo'] || null,
-            transferCase: data['other.transferCase'] === 'true' ? 'yes' : 'no',
-            livingWith: data['other.livingWith'] || null,
-            motherTongue: data['other.motherTongue'] || null,
-            admissionType: data['other.admissionType'] || 'new',
-            udiseNo: data['other.udiseNo'] || null
-          }
-        }
-      },
-      include: {
-        parentInfo: true,
-        sessionInfo: true,
-        transportInfo: true,
-        documents: true,
-        educationInfo: true,
-        otherInfo: true
-      }
-    });
-    
-    res.status(201).json({
-      success: true,
-      message: 'Student registered successfully',
-      data: student
-    });
-    
-  } catch (error) {
-    console.error('Error creating student:', error);
-    
-    // Provide more detailed error message based on error type
-    let errorMessage = 'Failed to register student';
-    
-    if (error.code) {
-      // Handle Prisma database errors
-      switch (error.code) {
-        case 'P2002': // Unique constraint violation
-          errorMessage = `A student with this ${error.meta?.target?.[0] || 'field'} already exists`;
-          break;
-        case 'P2003': // Foreign key constraint failed
-          errorMessage = 'Invalid relation reference';
-          break;
-        case 'P2025': // Record not found
-          errorMessage = 'Referenced record not found';
-          break;
-        default:
-          errorMessage = `Database error: ${error.code}`;
-      }
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: errorMessage,
-      error: error.message
-    });
-  }
-});
-
-// Get a student by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const student = await prisma.student.findUnique({
-      where: { id: id.toString() }, // Keep ID as string
-      include: {
-        parentInfo: true,
-        sessionInfo: true,
-        transportInfo: true,
-        documents: true,
-        educationInfo: true,
-        otherInfo: true
-      }
-    });
-    
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    res.json({ success: true, data: student });
-  } catch (error) {
-    console.error('Error fetching student:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching student',
-      error: error.message
-    });
-  }
-});
-
-// Delete a student by ID
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Delete the student (cascading delete will handle related records)
-    const student = await prisma.student.delete({
-      where: { id: parseInt(id) }
-    });
-    
-    return res.status(200).json({
-      success: true,
-      message: `Student with ID ${id} has been deleted successfully`,
-      student
-    });
-    
-  } catch (error) {
-    console.error('Error deleting student:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to delete student',
-      error: error.message
-    });
-  }
-});
-
-// Update a student by ID
-router.put('/:id', updateStudent);
-
-// Add a new route to update student session information
-router.put('/:id/session', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      currentClass,
-      currentSection,
-      currentRollNo,
-      stream,
-      semester,
-      feeGroup,
-      house
-    } = req.body;
-
-    // Validate required fields
-    if (!currentClass || !currentSection) {
-      return res.status(400).json({
-        success: false,
-        message: 'Current class and section are required'
-      });
-    }
-
-    // Update the session information
-    const updatedSession = await prisma.sessionInfo.update({
-      where: {
-        studentId: parseInt(id)
-      },
-      data: {
-        currentClass,
-        currentSection,
-        currentRollNo,
-        stream,
-        semester,
-        feeGroup,
-        house
-      }
-    });
-
-    res.json({
-      success: true,
-      message: 'Student session information updated successfully',
-      data: updatedSession
-    });
-  } catch (error) {
-    console.error('Error updating student session:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating student session',
-      error: error.message
-    });
-  }
-});
-
-// Student lookup endpoints for TC generation
-router.get('/lookup/:admissionNumber', getStudentByAdmissionNumber);
-router.get('/details/:admissionNumber', fetchStudentDetails);
-
-// Add new route for getting students by current class and section
-router.get('/class/:className/section/:section', getStudentsByCurrentClass);
 
 export default router;
