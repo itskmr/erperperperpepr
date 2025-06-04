@@ -70,7 +70,6 @@ import TeacherDiary from './components/Teacher/TeacherDiary';
 import DiaryViewer from './components/common/DiaryViewer';
 import SchoolDiaryView from './components/Schools/SchoolDiaryView';
 import TeacherAttendanceManagement from "./components/School/TeacherAttendanceManagement";
-import TeacherTimetable from './components/Teacher/TeacherTimetable';
 import StudentTimetable from './components/Student/StudentTimetable';
 
 // Parent components
@@ -598,12 +597,12 @@ function AppContent({
           }
         />
 
-        <Route
+<Route
           path="/teacher/timetable"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <TeacherTimetable />
+                <Timetable />
               </Layout>
             </ProtectedRoute>
           }
