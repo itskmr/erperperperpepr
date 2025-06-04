@@ -3,6 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import UpdateFeeRecord from './UpdateFeeRecord';
 import { getFeeStructureByClassName, getFeeCategories } from '../../services/feeStructureService';
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../utils/authApi';
+import { 
+  exportData, 
+  getFeeCollectionExportConfig
+} from '../../utils/exportUtils';
 
 // Types
 interface FeeCategoryType {
@@ -108,91 +112,25 @@ const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 // Export functions
 const exportToCSV = (data: FeeRecord[]) => {
-  const headers = [
-    'Date',
-    'Admission Number',
-    'Student Name',
-    'Father Name',
-    'Class',
-    'Section',
-    'Fee Categories',
-    'Total Fees',
-    'Amount Paid',
-    'Fee Amount',
-    'Payment Mode',
-    'Receipt Number',
-    'Status',
-    'Discount Type',
-    'Discount Amount',
-    'Amount After Discount'
-  ];
-
-  const csvContent = [
-    headers.join(','),
-    ...data.map(record => [
-      new Date(record.paymentDate).toLocaleDateString(),
-      `"${record.admissionNumber || ''}"`,
-      `"${record.studentName || ''}"`,
-      `"${record.fatherName || ''}"`,
-      `"${record.class || ''}"`,
-      `"${record.section || ''}"`,
-      `"${record.feeCategory || ''}"`,
-      record.totalFees || 0,
-      record.amountPaid || 0,
-      record.feeAmount || 0,
-      record.paymentMode || '',
-      `"${record.receiptNumber || ''}"`,
-      record.status || '',
-      `"${record.discountType || ''}"`,
-      record.discountAmount || 0,
-      record.amountAfterDiscount || 0,
-    ].join(','))
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `fee_records_${new Date().toISOString().split('T')[0]}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  try {
+    const config = getFeeCollectionExportConfig(data);
+    exportData('csv', config);
+    showNotification('Fee records exported to CSV successfully', 'success');
+  } catch (error) {
+    console.error('Error exporting fee records to CSV:', error);
+    showNotification('Failed to export fee records to CSV', 'error');
+  }
 };
 
 const exportToPDF = async (data: FeeRecord[]) => {
-  const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF();
-  
-  // Add title
-  doc.setFontSize(20);
-  doc.text('Fee Collection Report', 20, 20);
-  
-  // Add date
-  doc.setFontSize(12);
-  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 35);
-  
-  // Add records
-  let yPosition = 50;
-  doc.setFontSize(10);
-  
-  data.forEach((record, index) => {
-    if (yPosition > 280) {
-      doc.addPage();
-      yPosition = 20;
-    }
-    
-    doc.text(`${index + 1}. ${record.studentName} (${record.admissionNumber})`, 20, yPosition);
-    doc.text(`Class: ${record.class}-${record.section}`, 30, yPosition + 8);
-    doc.text(`Fee Amount: ₹${record.feeAmount}`, 30, yPosition + 16);
-    doc.text(`Amount Paid: ₹${record.amountPaid}`, 30, yPosition + 24);
-    doc.text(`Status: ${record.status}`, 30, yPosition + 32);
-    doc.text(`Date: ${new Date(record.paymentDate).toLocaleDateString()}`, 30, yPosition + 40);
-    
-    yPosition += 55;
-  });
-  
-  doc.save(`fee_records_${new Date().toISOString().split('T')[0]}.pdf`);
+  try {
+    const config = getFeeCollectionExportConfig(data);
+    exportData('pdf', config);
+    showNotification('Fee records exported to PDF successfully', 'success');
+  } catch (error) {
+    console.error('Error exporting fee records to PDF:', error);
+    showNotification('Failed to export fee records to PDF', 'error');
+  }
 };
 
 const FeeCollectionApp: React.FC = () => {
@@ -1100,7 +1038,7 @@ const FeeCollectionApp: React.FC = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
+            </svg>
             Export PDF
           </button>
           <button

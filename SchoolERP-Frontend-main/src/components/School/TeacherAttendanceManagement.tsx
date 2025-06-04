@@ -330,42 +330,61 @@ const TeacherAttendanceManagement: React.FC = () => {
     }
   };
 
-  // Export data
-  const handleExportData = async () => {
-    if (!reportStartDate || !reportEndDate) {
-      setReportError('Please select start and end dates for export');
-      return;
-    }
-
+  // Export current attendance data
+  const handleExportCurrentData = () => {
     try {
       setIsSubmitting(true);
       
-      const teacherId = reportTeacherId ? parseInt(reportTeacherId) : undefined;
-      const blob = await teacherAttendanceService.exportTeacherAttendanceData(
-        reportStartDate,
-        reportEndDate,
-        teacherId,
-        reportDepartment || undefined
-      );
+      // Generate CSV content from current table data
+      const csvContent = generateTeacherAttendanceCSV(teachers, selectedDate);
+      downloadTeacherCSV(csvContent, `teacher_attendance_${format(selectedDate, 'yyyy-MM-dd')}.csv`);
       
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `teacher_attendance_${reportStartDate}_to_${reportEndDate}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Clean up
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
     } catch (err: unknown) {
       console.error('Failed to export data:', err);
       const error = err as ErrorWithMessage;
-      setReportError(error.message || 'Failed to export data');
+      setError(error.message || 'Failed to export data');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Generate CSV content for teacher attendance
+  const generateTeacherAttendanceCSV = (teacherData: Teacher[], date: Date) => {
+    const header = `Teacher Attendance Report\nDate: ${format(date, 'MMMM d, yyyy')}\nGenerated on: ${new Date().toLocaleDateString()}\n\nSummary:\nTotal Teachers: ${stats.total}\nPresent: ${stats.present}\nAbsent: ${stats.absent}\nLate: ${stats.late}\nNot Marked: ${stats.notMarked}\nAttendance Rate: ${stats.attendanceRate}%\n\nTeacher Details:\n`;
+    
+    const csvHeader = 'Teacher Name,Email,Designation,Department,Status,Check In,Check Out,Working Hours,Notes\n';
+    const csvRows = teacherData.map((teacher) => {
+      const name = `"${(teacher.fullName || '').replace(/"/g, '""')}"`;
+      const email = teacher.email || '';
+      const designation = teacher.designation || '';
+      const department = teacher.subjects || '';
+      const status = teacher.attendance?.status || 'Not Marked';
+      const checkIn = teacher.attendance?.checkInTime 
+        ? new Date(teacher.attendance.checkInTime).toLocaleTimeString() 
+        : '';
+      const checkOut = teacher.attendance?.checkOutTime 
+        ? new Date(teacher.attendance.checkOutTime).toLocaleTimeString() 
+        : '';
+      const workingHours = teacher.attendance?.workingHours || '';
+      const notes = teacher.attendance?.notes ? `"${teacher.attendance.notes.replace(/"/g, '""')}"` : '';
+      
+      return `${name},${email},${designation},${department},${status},${checkIn},${checkOut},${workingHours},${notes}`;
+    }).join('\n');
+
+    return header + csvHeader + csvRows;
+  };
+
+  // Helper function to download teacher CSV
+  const downloadTeacherCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   if (isLoading && teachers.length === 0) {
@@ -740,6 +759,15 @@ const TeacherAttendanceManagement: React.FC = () => {
                 </div>
                 <div className="flex space-x-2">
                   <button 
+                    onClick={handleExportCurrentData}
+                    disabled={isSubmitting || teachers.length === 0}
+                    className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium 
+                      ${isSubmitting ? 'text-gray-400 bg-gray-100' : 'text-gray-700 bg-white hover:bg-gray-50'}`}
+                  >
+                    <Download className="mr-2" />
+                    {isSubmitting ? 'Exporting...' : 'Export CSV'}
+                  </button>
+                  <button 
                     onClick={handleSaveAttendance}
                     disabled={isSubmitting || teachers.length === 0}
                     className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
@@ -768,7 +796,6 @@ const TeacherAttendanceManagement: React.FC = () => {
                         className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                       >
                         <option value="summary">Summary Report</option>
-                        <option value="detailed">Detailed Report</option>
                       </select>
                     </div>
                     
@@ -843,12 +870,11 @@ const TeacherAttendanceManagement: React.FC = () => {
                     </button>
                     
                     <button 
-                      onClick={handleExportData}
-                      disabled={!reportStartDate || !reportEndDate}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
+                      onClick={handleExportCurrentData}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
                     >
                       <Download className="mr-2" />
-                      Export CSV
+                      Export Current Data
                     </button>
                   </div>
                 </div>

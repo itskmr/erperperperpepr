@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useStudentRegistration } from '../components/StudentForm/useStudentRegistration';
 import StudentFormSections from '../components/StudentForm/StudentFormSections';
 import StudentFormProgress from '../components/StudentForm/StudentFormProgress';
-import { generateAdmissionFormPrint } from '../utils/printUtils';
+import { generateJPAdmissionFormPrint } from '../utils/jpAdmissionPrint';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -40,12 +40,95 @@ const StudentRegistrationForm: React.FC = () => {
 
   const handlePrint = async () => {
     try {
-      // Convert string age to number for printing
+      // Transform StudentFormData to StudentDataForPrint
       const printData = {
-        ...formData,
-        age: formData.age ? parseInt(formData.age as string) : undefined
+        admissionNo: formData.admissionNo,
+        fullName: formData.fullName,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        category: formData.category,
+        religion: formData.religion,
+        nationality: formData.nationality,
+        bloodGroup: '', // Will need to add bloodGroup to Other interface or get from elsewhere
+        aadhaarNumber: formData.aadhaarNumber,
+        mobileNumber: formData.mobileNumber,
+        email: formData.email,
+        fatherName: formData.father?.name,
+        motherName: formData.mother?.name,
+        guardianName: formData.guardian?.name,
+        guardianRelation: '',
+        guardianMobile: formData.guardian?.contactNumber,
+        presentAddress: `${formData.address?.houseNo || ''} ${formData.address?.street || ''}, ${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.pinCode || ''}`.trim(),
+        permanentAddress: `${formData.address?.permanentHouseNo || ''} ${formData.address?.permanentStreet || ''}, ${formData.address?.permanentCity || ''}, ${formData.address?.permanentState || ''} ${formData.address?.permanentPinCode || ''}`.trim(),
+        currentSession: {
+          class: formData.currentSession?.class || formData.admitSession?.class,
+          section: formData.currentSession?.section || formData.admitSession?.section,
+          rollNo: formData.currentSession?.rollNo || formData.admitSession?.rollNo,
+        },
+        father: {
+          name: formData.father?.name,
+          qualification: formData.father?.qualification,
+          occupation: formData.father?.occupation,
+          organization: '',
+          designation: '',
+          contactNumber: formData.father?.contactNumber,
+          email: formData.father?.email,
+          aadhaarNo: formData.father?.aadhaarNo,
+          annualIncome: formData.father?.annualIncome,
+          officePhone: '',
+        },
+        mother: {
+          name: formData.mother?.name,
+          qualification: formData.mother?.qualification,
+          occupation: formData.mother?.occupation,
+          organization: '',
+          designation: '',
+          contactNumber: formData.mother?.contactNumber,
+          email: formData.mother?.email,
+          aadhaarNo: formData.mother?.aadhaarNo,
+          annualIncome: formData.mother?.annualIncome,
+          officePhone: '',
+        },
+        guardian: {
+          name: formData.guardian?.name,
+          qualification: '',
+          occupation: formData.guardian?.occupation,
+          organization: '',
+          designation: '',
+          contactNumber: formData.guardian?.contactNumber,
+          email: formData.guardian?.email,
+          aadhaarNo: formData.guardian?.aadhaarNo,
+          annualIncome: formData.guardian?.annualIncome,
+          officePhone: '',
+        },
+        lastEducation: {
+          school: formData.lastEducation?.school,
+          class: formData.lastEducation?.prevClass,
+          year: '',
+          percentage: formData.lastEducation?.percentage,
+        },
+        emergencyContact: formData.emergencyContact,
+        smsPhone: formData.mobileNumber,
+        transport: {
+          required: formData.transport?.mode !== 'Walking',
+          from: formData.transport?.pickupLocation,
+          to: formData.transport?.dropLocation,
+        },
+        motherTongue: formData.other?.motherTongue,
+        identificationMarks: [],
+        birthPlace: '',
+        state: formData.address?.state,
+        pinCode: formData.address?.pinCode,
+        caste: formData.caste,
+        admissionDate: new Date().toISOString(),
+        session: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+        studentImageUrl: formData.documentPaths?.studentImagePath || undefined,
+        fatherImageUrl: formData.documentPaths?.fatherImagePath || undefined,
+        motherImageUrl: formData.documentPaths?.motherImagePath || undefined,
+        guardianImageUrl: formData.documentPaths?.guardianImagePath || undefined,
       };
-      await generateAdmissionFormPrint(printData);
+      
+      await generateJPAdmissionFormPrint(printData);
     } catch (error) {
       console.error('Error printing admission form:', error);
     }
