@@ -5,6 +5,11 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { apiGet, apiDelete, ApiError, apiGetWithMeta } from '../utils/authApi';
 import { debugAuth, clearAuthData, simulateLogin, testAuthentication, attemptSchoolLogin } from '../utils/authDebug';
+import { 
+  exportData, 
+  getStudentExportConfig,
+  ExportFormat 
+} from '../utils/exportUtils';
 
 // Define Student type
 interface Student {
@@ -266,92 +271,77 @@ const StudentManagement: React.FC = () => {
     }
   };
 
-  // Export to CSV
-  const exportToCSV = () => {
-    const csvContent = [
-      ['Full Name', 'Admission No', 'Class', 'Section', 'Gender', 'Father Name', 'Contact', 'Email'].join(','),
-      ...students.map(student => [
-        student.fullName,
-        student.admissionNo,
-        student.sessionInfo?.currentClass || student.className || '',
-        student.sessionInfo?.currentSection || student.section || '',
-        student.gender,
-        student.fatherName || '',
-        student.contactNumber || '',
-        student.email || ''
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'students.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-    showToast('success', 'CSV export completed!');
+  // Enhanced Export to CSV with complete data
+  const exportToCSV = async () => {
+    try {
+      // Fetch complete student data with all form fields
+      const completeStudentData = await Promise.all(
+        students.map(async (student) => {
+          try {
+            // Try to fetch complete student data from the backend
+            const response = await fetch(`http://localhost:5000/api/students/${student.id}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.ok) {
+              const completeData = await response.json();
+              return { ...student, ...completeData };
+            }
+          } catch (error) {
+            console.log('Could not fetch complete data for student:', student.id);
+          }
+          
+          // Return basic student data if complete data fetch fails
+          return student;
+        })
+      );
+
+      const config = getStudentExportConfig(completeStudentData);
+      exportData('csv', config);
+      showToast('success', 'CSV export completed successfully!');
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      showToast('error', 'Failed to export CSV');
+    }
   };
 
-  // Export to PDF
-  const exportToPDF = () => {
+  // Enhanced Export to PDF with complete data
+  const exportToPDF = async () => {
     try {
-      const doc = new jsPDF();
-      
-      // Header
-      doc.setFontSize(18);
-      doc.setTextColor(37, 99, 235);
-      doc.text('Student Management Report', 20, 20);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(75, 85, 99);
-      doc.text('Generated on: ' + new Date().toLocaleDateString(), 20, 30);
-      
-      // Add line separator
-      doc.setDrawColor(229, 231, 235);
-      doc.line(20, 35, 190, 35);
-      
-      // Table headers
-      let yPosition = 45;
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.text('Name', 20, yPosition);
-      doc.text('Admission No', 70, yPosition);
-      doc.text('Class', 120, yPosition);
-      doc.text('Gender', 150, yPosition);
-      
-      yPosition += 5;
-      doc.line(20, yPosition, 190, yPosition);
-      yPosition += 10;
-      
-      // Student data
-      students.forEach((student) => {
-        if (yPosition > 250) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        doc.setFontSize(10);
-        doc.text(student.fullName || 'N/A', 20, yPosition);
-        doc.text(student.admissionNo || 'N/A', 70, yPosition);
-        doc.text(student.sessionInfo?.currentClass || student.className || 'N/A', 120, yPosition);
-        doc.text(student.gender || 'N/A', 150, yPosition);
-        yPosition += 8;
-      });
-      
-      // Footer
-      doc.setFontSize(8);
-      doc.setTextColor(128, 128, 128);
-      doc.text(`Total Students: ${students.length}`, 20, 280);
-      
-      // Open in new tab
-      const pdfBlob = doc.output('blob');
-      const url = URL.createObjectURL(pdfBlob);
-      window.open(url, '_blank');
-      
-      showToast('success', 'PDF export completed!');
+      // Fetch complete student data with all form fields
+      const completeStudentData = await Promise.all(
+        students.map(async (student) => {
+          try {
+            // Try to fetch complete student data from the backend
+            const response = await fetch(`http://localhost:5000/api/students/${student.id}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.ok) {
+              const completeData = await response.json();
+              return { ...student, ...completeData };
+            }
+          } catch (error) {
+            console.log('Could not fetch complete data for student:', student.id);
+          }
+          
+          // Return basic student data if complete data fetch fails
+          return student;
+        })
+      );
+
+      const config = getStudentExportConfig(completeStudentData);
+      exportData('pdf', config);
+      showToast('success', 'PDF export completed successfully!');
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      showToast('error', 'Failed to generate PDF');
+      console.error('Error exporting to PDF:', error);
+      showToast('error', 'Failed to export PDF');
     }
   };
 

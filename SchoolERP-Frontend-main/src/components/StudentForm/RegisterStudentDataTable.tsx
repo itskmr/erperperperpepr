@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Eye, Edit, Trash2, Search, Download, X } from "lucide-react";
 import { toast } from 'react-hot-toast';
+import { 
+  exportData, 
+  getStudentExportConfig,
+  ExportFormat,
+  ExportColumn,
+  getGenericTableExportConfig
+} from '../../utils/exportUtils';
 
 type Student = {
   // Required fields
@@ -673,66 +680,86 @@ const RegisterStudentDataTable: React.FC = () => {
     return 0;
   });
 
+  // Enhanced export functions for complete registration data
   const exportToCSV = () => {
-    const headers = ['Form No', 'Full Name', 'Gender', 'Class', 'Registration Date', 'Payment Status', 'Contact', 'Email'];
-    const csvData = sortedStudents.map(student => [
-      student.formNo,
-      student.fullName,
-      student.gender,
-      student.className || '',
-      student.regnDate,
-      student.paymentStatus,
-      student.mobileNumber || '',
-      student.email || ''
-    ]);
+    try {
+      // Create comprehensive registration export config
+      const registrationColumns: ExportColumn[] = [
+        { key: 'formNo', label: 'Form Number' },
+        { key: 'fullName', label: 'Full Name' },
+        { key: 'regnDate', label: 'Registration Date' },
+        { key: 'registerForClass', label: 'Register For Class' },
+        { key: 'testDate', label: 'Test Date' },
+        { key: 'branchName', label: 'Branch Name' },
+        { key: 'gender', label: 'Gender' },
+        { key: 'dob', label: 'Date of Birth' },
+        { key: 'category', label: 'Category' },
+        { key: 'religion', label: 'Religion' },
+        { key: 'admissionCategory', label: 'Admission Category' },
+        { key: 'bloodGroup', label: 'Blood Group' },
+        { key: 'transactionNo', label: 'Transaction Number' },
+        { key: 'singleParent', label: 'Single Parent' },
+        { key: 'contactNo', label: 'Contact Number' },
+        { key: 'studentEmail', label: 'Student Email' },
+        { key: 'address', label: 'Address' },
+        { key: 'city', label: 'City' },
+        { key: 'state', label: 'State' },
+        { key: 'pincode', label: 'Pin Code' },
+        { key: 'studentAadharCardNo', label: 'Student Aadhaar Number' },
+        { key: 'regnCharge', label: 'Registration Charge' },
+        { key: 'examSubject', label: 'Exam Subject' },
+        { key: 'paymentStatus', label: 'Payment Status' },
+        { key: 'fatherName', label: 'Father Name' },
+        { key: 'fatherMobileNo', label: 'Father Mobile Number' },
+        { key: 'smsAlert', label: 'SMS Alert' },
+        { key: 'fatherEmail', label: 'Father Email' },
+        { key: 'fatherAadharCardNo', label: 'Father Aadhaar Number' },
+        { key: 'isFatherCampusEmployee', label: 'Father Campus Employee' },
+        { key: 'motherName', label: 'Mother Name' },
+        { key: 'motherMobileNo', label: 'Mother Mobile Number' },
+        { key: 'motherAadharCardNo', label: 'Mother Aadhaar Number' }
+      ];
 
-    const csvContent = [
-      headers.join(','),
-      ...csvData.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'students.csv';
-    link.click();
+      const config = getGenericTableExportConfig(
+        sortedStudents,
+        'Student Registration Data',
+        registrationColumns
+      );
+      
+      exportData('csv', config);
+      toast.success('Complete registration data exported to CSV successfully!');
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      toast.error('Failed to export CSV');
+    }
   };
 
   const exportToPDF = async () => {
     try {
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF();
+      // Create comprehensive registration export config with limited columns for PDF
+      const pdfColumns: ExportColumn[] = [
+        { key: 'formNo', label: 'Form No' },
+        { key: 'fullName', label: 'Full Name' },
+        { key: 'gender', label: 'Gender' },
+        { key: 'registerForClass', label: 'Class' },
+        { key: 'regnDate', label: 'Reg. Date' },
+        { key: 'paymentStatus', label: 'Payment' },
+        { key: 'fatherName', label: 'Father Name' },
+        { key: 'contactNo', label: 'Contact' },
+        { key: 'studentEmail', label: 'Email' }
+      ];
+
+      const config = getGenericTableExportConfig(
+        sortedStudents,
+        'Student Registration Report',
+        pdfColumns
+      );
       
-      // Add title
-      doc.setFontSize(20);
-      doc.text('Registered Students Report', 20, 20);
-      
-      // Add date
-      doc.setFontSize(12);
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 35);
-      
-      // Add student records
-      let yPosition = 50;
-      doc.setFontSize(10);
-      
-      sortedStudents.forEach((student, index) => {
-        if (yPosition > 280) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        doc.text(`${index + 1}. ${student.fullName} (${student.formNo})`, 20, yPosition);
-        doc.text(`Class: ${student.className || 'N/A'}`, 30, yPosition + 8);
-        doc.text(`Contact: ${student.mobileNumber || 'N/A'}`, 30, yPosition + 16);
-        doc.text(`Status: ${student.paymentStatus}`, 30, yPosition + 24);
-        doc.text(`Registration Date: ${new Date(student.regnDate).toLocaleDateString()}`, 30, yPosition + 32);
-        
-        yPosition += 45;
-      });
-      
-      doc.save(`registered_students_${new Date().toISOString().split('T')[0]}.pdf`);
+      exportData('pdf', config);
+      toast.success('Complete registration data exported to PDF successfully!');
     } catch (error) {
       console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF');
     }
   };
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { FaCalendarAlt, FaSearch, FaDownload, FaFilter, FaEdit, FaExclamationTriangle, FaFileAlt } from 'react-icons/fa';
+import { FaCalendarAlt, FaSearch, FaDownload, FaFilter, FaEdit, FaExclamationTriangle, FaFileAlt, FaPrint } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { toast } from 'react-toastify'; // Assuming react-toastify is used in your project
+import { toast } from 'react-toastify';
 
 // Import attendance service
 import attendanceService, { 
@@ -646,36 +646,275 @@ const AttendanceManagement: React.FC = () => {
 
   // Handle report export
   const handleExportReport = async () => {
-    if (!reportData) {
+    if (reportType === 'daily' && reportData) {
+      await handleExportDailyReport();
+    } else if (reportType === 'monthly' && monthlyReportData) {
+      await handleExportMonthlyReport();
+    } else {
       setReportError('No report data to export');
-      return;
     }
+  };
+
+  // Export daily report as CSV
+  const handleExportDailyReport = async () => {
+    if (!reportData) return;
 
     try {
       setIsSubmitting(true);
-      const formattedDate = reportDate;
-      const blob = await attendanceService.exportReportData(
-        reportClass,
-        reportSection,
-        formattedDate,
-        reportData.students,
-        reportData.stats
-      );
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attendance_report_${reportClass}_${formattedDate}.csv`;
-      document.body.appendChild(a);
-      a.click();
-
-      window.URL.revokeObjectURL(url);
-      toast.success('Report exported successfully!');
+      const csvContent = generateDailyReportCSV(reportData, reportClass, reportSection, reportDate);
+      downloadCSV(csvContent, `daily_attendance_report_${reportClass}_${reportDate}.csv`);
+      toast.success('Daily report exported successfully!');
     } catch (error) {
-      console.error('Error exporting report:', error);
-      setReportError('An error occurred while exporting the report');
+      console.error('Error exporting daily report:', error);
+      setReportError('An error occurred while exporting the daily report');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Export monthly report as CSV
+  const handleExportMonthlyReport = async () => {
+    if (!monthlyReportData) return;
+
+    try {
+      setIsSubmitting(true);
+      const csvContent = generateMonthlyReportCSV(monthlyReportData);
+      downloadCSV(csvContent, `monthly_attendance_report_${reportClass}_${reportMonth}_${reportYear}.csv`);
+      toast.success('Monthly report exported successfully!');
+    } catch (error) {
+      console.error('Error exporting monthly report:', error);
+      setReportError('An error occurred while exporting the monthly report');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Generate CSV content for daily report
+  const generateDailyReportCSV = (data: any, className: string, section: string, date: string) => {
+    const header = `Daily Attendance Report\nClass: ${className}\nSection: ${section || 'All Sections'}\nDate: ${date}\nGenerated on: ${new Date().toLocaleDateString()}\n\nSummary:\nTotal Students: ${data.stats?.total || 0}\nPresent: ${data.stats?.present || 0}\nAbsent: ${data.stats?.absent || 0}\nLate: ${data.stats?.late || 0}\n\nStudent Details:\n`;
+    
+    const csvHeader = 'Student Name,Roll Number,Admission Number,Status,Notes\n';
+    const csvRows = data.students.map((student: any) => {
+      const name = `"${(student.name || '').replace(/"/g, '""')}"`;
+      const rollNumber = student.rollNumber || '';
+      const admissionNo = student.admissionNo || '';
+      const status = student.status || 'Not Marked';
+      const notes = student.notes ? `"${student.notes.replace(/"/g, '""')}"` : '';
+      return `${name},${rollNumber},${admissionNo},${status},${notes}`;
+    }).join('\n');
+
+    return header + csvHeader + csvRows;
+  };
+
+  // Generate CSV content for monthly report
+  const generateMonthlyReportCSV = (data: any) => {
+    const header = `Monthly Attendance Report\nClass: ${data.reportInfo?.className}\nSection: ${data.reportInfo?.section || 'All Sections'}\nMonth: ${data.reportInfo?.monthName} ${data.reportInfo?.year}\nGenerated on: ${new Date().toLocaleDateString()}\n\nSummary:\nTotal Students: ${data.classStats?.totalStudents || 0}\nTotal Working Days: ${data.classStats?.totalWorkingDays || 0}\nAverage Attendance: ${data.classStats?.averageAttendance || '0'}%\n\nStudent Details:\n`;
+    
+    const csvHeader = 'Student Name,Roll Number,Admission Number,Total Days,Present Days,Absent Days,Late Days,Attendance Percentage\n';
+    const csvRows = data.studentReports.map((studentReport: any) => {
+      const name = `"${(studentReport.student?.name || '').replace(/"/g, '""')}"`;
+      const rollNumber = studentReport.student?.rollNumber || '';
+      const admissionNo = studentReport.student?.admissionNo || '';
+      const totalDays = studentReport.attendance?.totalDays || 0;
+      const presentDays = studentReport.attendance?.presentDays || 0;
+      const absentDays = studentReport.attendance?.absentDays || 0;
+      const lateDays = studentReport.attendance?.lateDays || 0;
+      const percentage = studentReport.attendance?.attendancePercentage || '0';
+      return `${name},${rollNumber},${admissionNo},${totalDays},${presentDays},${absentDays},${lateDays},${percentage}%`;
+    }).join('\n');
+
+    return header + csvHeader + csvRows;
+  };
+
+  // Helper function to download CSV
+  const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  // Print report functionality
+  const handlePrintReport = () => {
+    if (reportType === 'daily' && reportData) {
+      printDailyReport();
+    } else if (reportType === 'monthly' && monthlyReportData) {
+      printMonthlyReport();
+    } else {
+      setReportError('No report data to print');
+    }
+  };
+
+  // Print daily report
+  const printDailyReport = () => {
+    if (!reportData) return;
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Daily Attendance Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+          .header h1 { margin: 0; font-size: 24px; color: #333; }
+          .header h2 { margin: 5px 0; font-size: 18px; color: #666; }
+          .header h3 { margin: 5px 0; font-size: 16px; color: #888; }
+          .stats { margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #007bff; }
+          .stats h4 { margin: 0 0 10px 0; font-size: 16px; color: #333; }
+          .stats-line { margin: 5px 0; font-size: 14px; color: #555; }
+          .stats-line strong { color: #333; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .footer { margin-top: 30px; text-align: center; color: #666; border-top: 1px solid #ddd; padding-top: 15px; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Daily Attendance Report</h1>
+          <h2>${reportClass} ${reportSection ? `- Section ${reportSection}` : ''}</h2>
+          <h3>Date: ${reportDate}</h3>
+        </div>
+        
+        <div class="stats">
+          <h4>Attendance Summary</h4>
+          <div class="stats-line"><strong>Total Students:</strong> ${reportData.stats?.total || 0}</div>
+          <div class="stats-line"><strong>Present:</strong> ${reportData.stats?.present || 0}</div>
+          <div class="stats-line"><strong>Absent:</strong> ${reportData.stats?.absent || 0}</div>
+          <div class="stats-line"><strong>Late:</strong> ${reportData.stats?.late || 0}</div>
+          <div class="stats-line"><strong>Attendance Rate:</strong> ${reportData.stats?.total > 0 ? (((reportData.stats?.present || 0) + (reportData.stats?.late || 0)) / reportData.stats.total * 100).toFixed(1) : 0}%</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Student Name</th>
+              <th>Roll Number</th>
+              <th>Admission Number</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${reportData.students.map((student: any) => `
+              <tr>
+                <td>${student.name || ''}</td>
+                <td>${student.rollNumber || ''}</td>
+                <td>${student.admissionNo || ''}</td>
+                <td>${student.status || 'Not Marked'}</td>
+                <td>${student.notes || ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+    }
+  };
+
+  // Print monthly report
+  const printMonthlyReport = () => {
+    if (!monthlyReportData) return;
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Monthly Attendance Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+          .header h1 { margin: 0; font-size: 24px; color: #333; }
+          .header h2 { margin: 5px 0; font-size: 18px; color: #666; }
+          .header h3 { margin: 5px 0; font-size: 16px; color: #888; }
+          .stats { margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #28a745; }
+          .stats h4 { margin: 0 0 10px 0; font-size: 16px; color: #333; }
+          .stats-line { margin: 5px 0; font-size: 14px; color: #555; }
+          .stats-line strong { color: #333; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .footer { margin-top: 30px; text-align: center; color: #666; border-top: 1px solid #ddd; padding-top: 15px; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Monthly Attendance Report</h1>
+          <h2>${monthlyReportData.reportInfo?.className} ${monthlyReportData.reportInfo?.section ? `- Section ${monthlyReportData.reportInfo?.section}` : ''}</h2>
+          <h3>${monthlyReportData.reportInfo?.monthName} ${monthlyReportData.reportInfo?.year}</h3>
+        </div>
+        
+        <div class="stats">
+          <h4>Monthly Summary</h4>
+          <div class="stats-line"><strong>Total Students:</strong> ${monthlyReportData.classStats?.totalStudents || 0}</div>
+          <div class="stats-line"><strong>Total Working Days:</strong> ${monthlyReportData.classStats?.totalWorkingDays || 0}</div>
+          <div class="stats-line"><strong>Average Attendance:</strong> ${monthlyReportData.classStats?.averageAttendance || '0'}%</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Student Name</th>
+              <th>Roll Number</th>
+              <th>Total Days</th>
+              <th>Present</th>
+              <th>Absent</th>
+              <th>Late</th>
+              <th>Attendance %</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${monthlyReportData.studentReports.map((studentReport: any) => `
+              <tr>
+                <td>${studentReport.student?.name || ''}</td>
+                <td>${studentReport.student?.rollNumber || ''}</td>
+                <td>${studentReport.attendance?.totalDays || 0}</td>
+                <td>${studentReport.attendance?.presentDays || 0}</td>
+                <td>${studentReport.attendance?.absentDays || 0}</td>
+                <td>${studentReport.attendance?.lateDays || 0}</td>
+                <td>${studentReport.attendance?.attendancePercentage || '0'}%</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
     }
   };
 
@@ -975,7 +1214,8 @@ const AttendanceManagement: React.FC = () => {
                                   type="text"
                                   defaultValue={student.notes || ''}
                                   onBlur={(e) => {
-                                    handleAddNotes(student.id, e.target.value);
+                                    const studentIdNumber = typeof student.id === 'string' ? parseInt(student.id) : student.id;
+                                    handleAddNotes(studentIdNumber, e.target.value);
                                     setIsEditing(false);
                                     setEditingStudentId(null);
                                   }}
@@ -991,7 +1231,10 @@ const AttendanceManagement: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <button
-                                onClick={() => handleEditNotes(student.id)}
+                                onClick={() => {
+                                  const studentIdNumber = typeof student.id === 'string' ? parseInt(student.id) : student.id;
+                                  handleEditNotes(studentIdNumber);
+                                }}
                                 className="text-blue-600 hover:text-blue-900 mr-3"
                               >
                                 <FaEdit />
@@ -1043,12 +1286,11 @@ const AttendanceManagement: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
                       <select 
                         value={reportType}
-                        onChange={(e) => setReportType(e.target.value as 'monthly' | 'daily' | 'student')}
+                        onChange={(e) => setReportType(e.target.value as 'monthly' | 'daily')}
                         className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="daily">Daily Report</option>
                         <option value="monthly">Monthly Report</option>
-                        <option value="student">Student Report</option>
                       </select>
                     </div>
                     
@@ -1157,14 +1399,25 @@ const AttendanceManagement: React.FC = () => {
                       )}
                     </button>
                     
-                    {reportData && (
-                      <button 
-                        onClick={handleExportReport}
-                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
-                      >
-                        <FaDownload className="mr-2" />
-                        Export CSV
-                      </button>
+                    {(reportData || monthlyReportData) && (
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={handleExportReport}
+                          disabled={isSubmitting}
+                          className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm font-medium"
+                        >
+                          <FaDownload className="mr-2" />
+                          {isSubmitting ? 'Exporting...' : 'Export CSV'}
+                        </button>
+                        
+                        <button 
+                          onClick={handlePrintReport}
+                          className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
+                        >
+                          <FaPrint className="mr-2" />
+                          Print Report
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1244,13 +1497,13 @@ const AttendanceManagement: React.FC = () => {
                                 {reportData.students.map((student, index) => (
                                   <tr key={student.id || index} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {student.name}
+                                      {student.name || ''}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                      {student.rollNumber || 'N/A'}
+                                      {student.rollNumber || ''}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                      {student.admissionNo}
+                                      {student.admissionNo || ''}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1324,24 +1577,10 @@ const AttendanceManagement: React.FC = () => {
                                 </tr>
                               </thead>
                               <tbody className="bg-white divide-y divide-gray-200">
-                                {monthlyReportData.studentReports.map((studentReport: {
-                                  student: {
-                                    id: string;
-                                    name: string;
-                                    admissionNo: string;
-                                    rollNumber: string;
-                                  };
-                                  attendance: {
-                                    totalDays: number;
-                                    presentDays: number;
-                                    absentDays: number;
-                                    lateDays: number;
-                                    attendancePercentage: string;
-                                  };
-                                }, index: number) => (
+                                {monthlyReportData.studentReports.map((studentReport: any, index: number) => (
                                   <tr key={studentReport.student?.id || index} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {studentReport.student?.name || 'N/A'}
+                                      {studentReport.student?.name || ''}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                       {studentReport.attendance?.totalDays || 0}
@@ -1356,7 +1595,7 @@ const AttendanceManagement: React.FC = () => {
                                       {studentReport.attendance?.lateDays || 0}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                      {studentReport.attendance?.attendancePercentage || '0.0'}%
+                                      {studentReport.attendance?.attendancePercentage || '0'}%
                                     </td>
                                   </tr>
                                 ))}
