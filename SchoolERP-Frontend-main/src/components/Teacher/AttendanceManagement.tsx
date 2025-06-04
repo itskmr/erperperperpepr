@@ -729,13 +729,13 @@ const AttendanceManagement: React.FC = () => {
   // Helper function to download CSV
   const downloadCSV = (content: string, filename: string) => {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
     a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   };
 
@@ -1401,14 +1401,14 @@ const AttendanceManagement: React.FC = () => {
                     
                     {(reportData || monthlyReportData) && (
                       <div className="flex space-x-2">
-                        <button 
-                          onClick={handleExportReport}
+                      <button 
+                        onClick={handleExportReport}
                           disabled={isSubmitting}
                           className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm font-medium"
-                        >
-                          <FaDownload className="mr-2" />
+                      >
+                        <FaDownload className="mr-2" />
                           {isSubmitting ? 'Exporting...' : 'Export CSV'}
-                        </button>
+                      </button>
                         
                         <button 
                           onClick={handlePrintReport}

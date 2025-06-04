@@ -440,14 +440,15 @@ const StudentManagement: React.FC = () => {
               <Download className="h-4 w-4 mr-2" />
               Export CSV
             </button>
-            <button
+            {/* PDF export button hidden as requested by user */}
+            {/* <button
               onClick={exportToPDF}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
               title="Export to PDF"
             >
               <FileText className="h-4 w-4 mr-2" />
               Export PDF
-            </button>
+            </button> */}
             
           </div>
           <button
