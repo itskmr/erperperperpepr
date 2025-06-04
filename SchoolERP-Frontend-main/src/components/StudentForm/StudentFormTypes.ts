@@ -144,6 +144,8 @@ export interface Transport {
   driver: string;
   pickupLocation: string;
   dropLocation: string;
+  busId?: string;
+  pickupPoint?: string;
 }
 
 // Define Academic type
@@ -341,14 +343,14 @@ export interface UseStudentRegistrationReturn {
   isSubmitting: boolean;
   error: string;
   success: boolean;
-  steps: Array<Step>;
+  steps: Step[];
   validationErrors: Record<string, string>;
-  transportRoutes: Array<{ id: string; name: string; fromLocation: string; toLocation: string; }>;
-  drivers: Array<{ id: string; name: string; contactNumber: string; }>;
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>, documentType: keyof Documents) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   nextStep: () => void;
   prevStep: () => void;
-  calculateAge: () => void;
+  transportRoutes: Array<{ id: string; name: string; fromLocation: string; toLocation: string; }>;
+  drivers: Array<{ id: string; name: string; contactNumber: string; }>;
+  buses: Array<{ id: string; registrationNumber: string; make: string; model: string; capacity: number; }>;
 } 

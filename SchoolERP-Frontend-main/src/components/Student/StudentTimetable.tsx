@@ -248,39 +248,50 @@ const StudentTimetable: React.FC<StudentTimetableProps> = ({
     
     if (entries.length === 0) {
       return (
-        <div className="h-20 border border-gray-200 bg-gray-50 flex items-center justify-center">
-          <span className="text-gray-400 text-xs">Free Period</span>
+        <div className="h-14 border border-gray-200 bg-gray-50 flex items-center justify-center">
+          <span className="text-gray-400 text-xs font-medium">Free</span>
         </div>
       );
     }
 
     return (
-      <div className="h-20 border border-gray-200">
-        {entries.map((entry, index) => (
+      <div className="h-14 border border-gray-200 overflow-hidden">
+        {entries.slice(0, 1).map((entry, index) => (
           <div
             key={index}
-            className="h-full p-2 text-xs bg-blue-50 hover:bg-blue-100 transition-colors duration-200 border-l-4 border-blue-500"
+            className="h-full p-1 text-xs bg-gradient-to-br from-blue-50 to-indigo-100 hover:from-blue-100 hover:to-indigo-200 transition-colors duration-200 border-l-3 border-blue-500"
           >
-            <div className="flex flex-col h-full justify-between">
-              <div>
-                <div className="font-medium text-blue-900 truncate">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <div className="font-semibold text-blue-900 truncate text-xs">
                   {entry.subjectName}
                 </div>
-                {entry.teacherName && (
-                  <div className="text-blue-700 truncate">
-                    {entry.teacherName}
-                  </div>
-                )}
-              </div>
-              {entry.roomNumber && (
-                <div className="text-blue-600 truncate flex items-center">
-                  <MapPin className="h-2 w-2 mr-1" />
-                  {entry.roomNumber}
+                <div className="flex items-center space-x-1">
+                  {entry.teacherName && (
+                    <span className="text-blue-700 truncate text-xs">
+                      {entry.teacherName.split(' ')[0]}
+                    </span>
+                  )}
+                  {entry.roomNumber && entry.teacherName && (
+                    <span className="text-blue-400">•</span>
+                  )}
+                  {entry.roomNumber && (
+                    <div className="text-blue-600 flex items-center text-xs">
+                      <MapPin className="h-2 w-2 mr-0.5 flex-shrink-0" />
+                      <span>{entry.roomNumber}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         ))}
+        
+        {entries.length > 1 && (
+          <div className="absolute bottom-0 right-0 bg-blue-600 text-white text-xs px-1 rounded-tl">
+            +{entries.length - 1}
+          </div>
+        )}
       </div>
     );
   };
@@ -408,21 +419,27 @@ const StudentTimetable: React.FC<StudentTimetableProps> = ({
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                  <th className="w-28 px-2 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-slate-600 to-slate-700">
+                    <Clock className="h-3 w-3 inline mr-1" />
                     Time
                   </th>
-                  {DAYS.map((day) => (
+                  {DAYS.map((day, index) => (
                     <th
                       key={day}
-                      className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${
+                      className={`px-2 py-2 text-center text-xs font-medium uppercase tracking-wider ${
                         day === getCurrentDay()
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-50 text-gray-500'
+                          ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
+                          : index === 0 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                            index === 1 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
+                            index === 2 ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' :
+                            index === 3 ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white' :
+                            index === 4 ? 'bg-gradient-to-r from-pink-500 to-pink-600 text-white' :
+                            'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white'
                       }`}
                     >
-                      {day}
+                      {day.substring(0, 3)}
                       {day === getCurrentDay() && (
-                        <div className="text-xs font-normal lowercase text-blue-600">(Today)</div>
+                        <div className="text-xs font-normal lowercase text-emerald-100">(Today)</div>
                       )}
                     </th>
                   ))}
@@ -431,10 +448,10 @@ const StudentTimetable: React.FC<StudentTimetableProps> = ({
               <tbody>
                 {timeSlots.map((timeSlot) => (
                   <tr key={timeSlot.id}>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-gray-50 font-medium">
+                    <td className="px-2 py-2 whitespace-nowrap text-sm text-white bg-gradient-to-r from-slate-600 to-slate-700 font-medium">
                       <div className="flex flex-col">
-                        <span>{formatTime(timeSlot.startTime)}</span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs font-medium">{formatTime(timeSlot.startTime)}</span>
+                        <span className="text-xs opacity-75">
                           {formatTime(timeSlot.endTime)}
                         </span>
                       </div>

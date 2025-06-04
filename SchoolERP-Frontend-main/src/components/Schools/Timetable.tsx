@@ -615,12 +615,12 @@ const Timetable: React.FC = () => {
     return (
       <div 
         onClick={() => handleCellClick(timeSlotId, day)}
-        className="min-h-[120px] bg-gray-50 border-2 border-gray-200 cursor-pointer relative overflow-hidden rounded-lg transition-all duration-300 hover:bg-blue-50 hover:border-blue-400 hover:shadow-md"
+        className="min-h-[100px] bg-gray-50 border border-gray-300 cursor-pointer relative overflow-hidden rounded-md transition-all duration-200 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
       >
         {entryCount > 0 && (
-          <div className="absolute top-2 right-2 z-10">
-            <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full shadow">
-              {entryCount > 99 ? '99+' : entryCount}
+          <div className="absolute top-1 right-1 z-10">
+            <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-semibold text-white bg-red-500 rounded-full">
+              {entryCount > 9 ? '9+' : entryCount}
             </span>
           </div>
         )}
@@ -633,12 +633,16 @@ const Timetable: React.FC = () => {
             </span>
           </div>
         ) : (
-          <div className="p-2">
-            {entries.slice(0, 2).map((entry) => (
+          <div className="p-1.5 space-y-1">
+            {entries.slice(0, 3).map((entry, index) => (
               <div 
                 key={entry.id} 
                 onClick={(e) => handleEntryClick(entry, e)}
-                className="p-3 m-1 rounded-lg cursor-pointer transition-all duration-300 bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg"
+                className={`p-2 rounded-md cursor-pointer transition-all duration-200 text-white text-xs ${
+                  index === 0 ? 'bg-indigo-500 hover:bg-indigo-600' : 
+                  index === 1 ? 'bg-emerald-500 hover:bg-emerald-600' : 
+                  'bg-purple-500 hover:bg-purple-600'
+                }`}
               >
                 <div className="text-xs font-semibold mb-1">
                   {entry.subjectName}
@@ -648,6 +652,10 @@ const Timetable: React.FC = () => {
                   <span className="text-white text-xs">
                     {entry.teacher?.fullName || entry.teacherName || 'Unknown Teacher'}
                   </span>
+                </div>
+                
+                <div className="text-xs opacity-90 truncate mb-1">
+                  Subject: {entry.subjectName}
                 </div>
                 
                 {entry.roomNumber && (
@@ -1040,16 +1048,6 @@ const Timetable: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center space-y-2">
-          <p className="text-gray-600">
-            Powered by Gyansetu.ai
-          </p>
-          <p className="text-gray-500">
-            Developed By Ruhil Future Technologies (2025)
-          </p>
         </div>
       </div>
       

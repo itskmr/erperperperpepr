@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, Calendar, CheckCircle, XCircle, Clock, User, Book, BookOpen,
-  Bell, Activity, GraduationCap, BarChart3, MessageSquare, FileText,
-  Eye, UserCheck, Home, ChevronRight, Target, AlertCircle, RefreshCw,
-  Phone, Mail, MapPin, Calendar as CalendarIcon, School, UserIcon,
-  Contact, Info, Edit, Settings
+  Users, Calendar, Clock, User, Book, BookOpen,
+  GraduationCap, BarChart3, FileText,
+  AlertCircle, RefreshCw,
+  Phone, School, UserIcon,
+  Contact, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import BusAttendanceWidget from './BusAttendanceWidget';
 
 // Types
 interface StudentInfo {
@@ -364,12 +364,6 @@ const StudentDashboard: React.FC = () => {
     };
   };
 
-  // Get today's timetable
-  const getTodayTimetable = () => {
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
-    return timetable.filter(entry => entry.day === today);
-  };
-
   // Get attendance status color
   const getAttendanceColor = (status: string) => {
     switch (status) {
@@ -430,7 +424,6 @@ const StudentDashboard: React.FC = () => {
   }
 
   const dateInfo = getCurrentDateInfo();
-  const todayTimetable = getTodayTimetable();
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -573,6 +566,20 @@ const StudentDashboard: React.FC = () => {
           </motion.div>
         </div>
 
+        {/* Bus Attendance Widget */}
+        <motion.div
+          className="mb-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+        >
+          <BusAttendanceWidget 
+            studentId={studentInfo?.id?.toString()}
+            showHistory={true}
+            compact={false}
+          />
+        </motion.div>
+
         {/* Tab Navigation */}
         <div className="bg-white rounded-lg shadow-md mb-6">
           <div className="border-b border-gray-200">
@@ -585,7 +592,7 @@ const StudentDashboard: React.FC = () => {
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as 'timetable' | 'attendance' | 'diary' | 'profile')}
                   className={`py-4 px-2 border-b-2 font-medium text-sm flex items-center space-x-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
@@ -614,42 +621,45 @@ const StudentDashboard: React.FC = () => {
                   {timetable.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                        <thead>
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-slate-600 to-slate-700">
                               Day
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-blue-500 to-blue-600">
                               Time
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-green-500 to-green-600">
                               Subject
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-purple-500 to-purple-600">
                               Teacher
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-orange-500 to-orange-600">
                               Room
                             </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {timetable.map((entry, index) => (
-                            <tr key={`${entry.id}-${index}`} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {entry.day}
+                          {timetable.map((item, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {item.day}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
+                              <td className="px-3 py-2 text-sm text-gray-600">
+                                <div className="space-y-0.5">
+                                  <div className="font-medium text-xs">{formatTime(item.startTime)}</div>
+                                  <div className="text-xs opacity-75">{formatTime(item.endTime)}</div>
+                                </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {entry.subjectName}
+                              <td className="px-3 py-2 text-sm text-gray-900 font-medium truncate max-w-24">
+                                {item.subjectName}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {entry.teacherName || 'TBA'}
+                              <td className="px-3 py-2 text-sm text-gray-600 truncate max-w-20">
+                                {item.teacherName || 'TBA'}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {entry.roomNumber || '-'}
+                              <td className="px-3 py-2 text-sm text-gray-600">
+                                {item.roomNumber || '-'}
                               </td>
                             </tr>
                           ))}

@@ -25,7 +25,8 @@ const StudentRegistrationForm: React.FC = () => {
     nextStep,
     prevStep,
     transportRoutes,
-    drivers
+    drivers,
+    buses
   } = useStudentRegistration();
 
   // Show modal when registration is successful
@@ -194,7 +195,7 @@ const StudentRegistrationForm: React.FC = () => {
           isLastStep={currentStep === steps.length}
           onNext={nextStep}
           onPrev={prevStep}
-          onSubmit={(e) => {
+          onSubmit={() => {
             console.log("Submitting form from progress component");
             // Submit the form programmatically
             const form = document.getElementById('studentRegistrationForm') as HTMLFormElement;
@@ -222,6 +223,7 @@ const StudentRegistrationForm: React.FC = () => {
             validationErrors={validationErrors}
             transportRoutes={transportRoutes}
             drivers={drivers}
+            buses={buses}
             handleChange={handleChange}
             handleFileChange={handleFileChange}
           />

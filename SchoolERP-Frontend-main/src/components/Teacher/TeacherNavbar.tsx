@@ -1,5 +1,5 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { 
   Book, 
   Settings, 
@@ -11,17 +11,20 @@ import {
   Calendar,
   GraduationCap,
   UserCheck,
-  MessageCircle
+  MessageCircle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface TeacherNavbarProps {
   activeDropdown: string | null;
   toggleDropdown: (menu: string) => void;
   setIsMobileSidebarOpen: (isOpen: boolean) => void;
-  onLogout: () => void;
-  isProfileDropdownOpen: boolean;
-  setIsProfileDropdownOpen: (isOpen: boolean) => void;
-  profileDropdownRef: React.RefObject<HTMLDivElement>;
+  onLogout?: () => void;
+  isProfileDropdownOpen?: boolean;
+  setIsProfileDropdownOpen?: (isOpen: boolean) => void;
+  profileDropdownRef?: React.RefObject<HTMLDivElement>;
+  onSidebarCollapse?: (isCollapsed: boolean) => void;
 }
 
 interface NavDropdownProps {
@@ -30,6 +33,7 @@ interface NavDropdownProps {
   isOpen: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  isCollapsed?: boolean;
 }
 
 interface NavLinkProps {
@@ -38,6 +42,8 @@ interface NavLinkProps {
   label: string;
   onClick?: () => void;
   badge?: number;
+  isCollapsed?: boolean;
+  isActive?: boolean;
 }
 
 // Navigation dropdown component
@@ -46,39 +52,61 @@ const NavDropdown: React.FC<NavDropdownProps> = ({
   icon, 
   isOpen, 
   onClick, 
-  children 
+  children,
+  isCollapsed
 }) => {
   return (
-    <li className="relative">
+    <li className="relative group">
       <button
         onClick={onClick}
-        className={`w-full text-left px-4 py-3 text-sm font-medium flex items-center justify-between rounded-md transition-colors
+        className={`w-full text-left px-4 py-3 text-sm font-medium flex items-center justify-between rounded-lg transition-all duration-200
           ${isOpen 
-            ? "text-emerald-700 bg-emerald-50" 
+            ? "text-white bg-emerald-600 shadow-md" 
             : "text-gray-700 hover:text-emerald-600 hover:bg-emerald-50"
           }`}
+        aria-expanded={isOpen}
       >
         <div className="flex items-center">
-          {icon && <span className="mr-3">{icon}</span>}
-          <span>{title}</span>
+          {icon && (
+            <span className={`${isCollapsed ? 'flex justify-center w-full' : 'mr-3'} text-opacity-90`}>
+              {icon}
+            </span>
+          )}
+          {!isCollapsed && <span>{title}</span>}
         </div>
-        <svg 
-          className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'transform rotate-180' : ''}`}
-          xmlns="http://www.w3.org/2000/svg" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        >
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        {!isCollapsed && (
+          <svg 
+            className={`h-4 w-4 transition-transform duration-300 ${isOpen ? 'transform rotate-180' : ''}`}
+            xmlns="http://www.w3.org/2000/svg" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        )}
       </button>
       
-      {isOpen && (
-        <div className="pl-4 pr-2 py-2 space-y-1">
-          {children}
+      {isCollapsed && !isOpen && (
+        <div className="absolute left-full top-0 ml-2 w-56 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+          <div className="py-2 px-3">
+            <div className="font-medium text-gray-800 pb-2 border-b border-gray-100">{title}</div>
+            <div className="pt-2">
+              {children}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {((isOpen && !isCollapsed) || (isCollapsed && isOpen)) && (
+        <div className={`${isCollapsed ? 'absolute left-full top-0 ml-2 w-56 bg-white rounded-lg shadow-lg z-50' : 'pl-4 pr-2 py-2 bg-emerald-50 rounded-b-lg mt-1'} space-y-1 py-2`}>
+          {isCollapsed && <div className="font-medium text-gray-800 px-3 pb-2 border-b border-gray-100">{title}</div>}
+          <div className={isCollapsed ? 'pt-2 px-2' : ''}>
+            {children}
+          </div>
         </div>
       )}
     </li>
@@ -86,88 +114,155 @@ const NavDropdown: React.FC<NavDropdownProps> = ({
 };
 
 // Navigation link component
-const NavLink: React.FC<NavLinkProps> = ({ to, icon, label, onClick, badge }) => {
+const NavLink: React.FC<NavLinkProps> = ({ to, icon, label, onClick, badge, isCollapsed, isActive }) => {
   return (
     <Link
       to={to}
-      className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 rounded-md hover:bg-emerald-50 hover:text-emerald-700 transition-colors duration-200"
+      className={`
+        ${isCollapsed ? 'justify-center tooltip-trigger' : 'justify-between'} 
+        flex items-center px-4 py-2.5 text-sm rounded-lg transition-all duration-200 group relative
+        ${isActive 
+          ? `${isCollapsed ? 'bg-emerald-600 text-white shadow-md' : 'bg-emerald-100 text-emerald-700'} font-medium` 
+          : 'text-gray-700 hover:text-emerald-600 hover:bg-emerald-50'
+        }
+        ${isCollapsed && isActive ? 'scale-110' : ''}
+      `}
       onClick={onClick}
     >
       <div className="flex items-center">
-        {icon && <span className="mr-3 flex-shrink-0">{icon}</span>}
-        <span>{label}</span>
+        {icon && (
+          <span className={`${isCollapsed ? 'flex justify-center w-full' : 'mr-3'} flex-shrink-0`}>
+            {icon}
+          </span>
+        )}
+        {!isCollapsed && <span className="font-medium">{label}</span>}
       </div>
-      {badge !== undefined && (
-        <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 rounded-full ml-2">
+      {!isCollapsed && badge !== undefined && (
+        <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
           {badge}
         </span>
+      )}
+      
+      {isCollapsed && (
+        <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 shadow-md">
+          {label}
+          {badge !== undefined && <span className="ml-1.5 bg-emerald-500 text-white px-1.5 py-0.5 rounded-full text-xs">{badge}</span>}
+        </div>
       )}
     </Link>
   );
 };
 
-const TeacherNavbar = {
-  renderSidebar: (props: TeacherNavbarProps) => {
-    const { activeDropdown, toggleDropdown, setIsMobileSidebarOpen } = props;
-    
-    return (
-      <div className="flex-1 overflow-y-auto pt-5 pb-4">
-        <nav className="flex-1 px-2 space-y-1">
+// TeacherSidebar component with collapsing functionality
+const TeacherSidebar: React.FC<TeacherNavbarProps> = (props) => {
+  const { activeDropdown, toggleDropdown, setIsMobileSidebarOpen, onSidebarCollapse } = props;
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const location = useLocation();
+  
+  // Function to check if a path is active based on current location
+  const isPathActive = (path: string) => {
+    if (path === "/teacher/dashboard") {
+      return location.pathname === "/teacher/dashboard";
+    }
+    return location.pathname.startsWith(path);
+  };
+
+  // Handle collapse toggle and notify parent
+  const handleCollapseToggle = () => {
+    const newCollapsedState = !isCollapsed;
+    setIsCollapsed(newCollapsedState);
+    if (onSidebarCollapse) {
+      onSidebarCollapse(newCollapsedState);
+    }
+  };
+  
+  return (
+    <div className={`flex flex-col h-full bg-white shadow-md transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        {!isCollapsed && (
+          <div className="flex items-center">
+            <GraduationCap className="h-7 w-7 text-emerald-600" />
+            <span className="ml-2 text-lg font-semibold text-gray-800">Teacher Portal</span>
+          </div>
+        )}
+        
+        <button 
+          onClick={handleCollapseToggle}
+          className={`p-1.5 rounded-md text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors duration-200 ${isCollapsed ? 'mx-auto' : ''}`}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        </button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto py-4 bg-white">
+        <nav className={`space-y-2 ${isCollapsed ? 'px-2' : 'px-3'}`}>
           {/* Teacher Dashboard */}
           <NavLink 
             to="/teacher/dashboard" 
-            icon={<Home className="h-5 w-5 text-emerald-600" />} 
+            icon={<Home className="h-5 w-5" />} 
             label="Teacher Dashboard" 
             onClick={() => setIsMobileSidebarOpen(false)}
+            isCollapsed={isCollapsed}
+            isActive={isPathActive("/teacher/dashboard")}
           />
 
           {/* My Classes - Primary teaching tools */}
           <NavDropdown 
             title="My Classes" 
-            icon={<Book className="h-5 w-5 text-blue-600" />}
+            icon={<Book className="h-5 w-5" />}
             isOpen={activeDropdown === "classes"} 
             onClick={() => toggleDropdown("classes")}
+            isCollapsed={isCollapsed}
           >
             <NavLink 
               to="/teacher/timetable" 
-              icon={<Calendar className="h-4 w-4 text-blue-500" />}
+              icon={<Calendar className="h-4 w-4" />}
               label="My Timetable" 
               onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/teacher/timetable")}
             />
             <NavLink 
               to="/teacher/diary" 
-              icon={<BookOpen className="h-4 w-4 text-indigo-500" />}
+              icon={<BookOpen className="h-4 w-4" />}
               label="Teacher Diary" 
               onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/teacher/diary")}
             />
-            
           </NavDropdown>
 
           {/* My Students - Student management and interaction */}
           <NavDropdown 
             title="My Students" 
-            icon={<Users className="h-5 w-5 text-indigo-600" />}
+            icon={<Users className="h-5 w-5" />}
             isOpen={activeDropdown === "students"} 
             onClick={() => toggleDropdown("students")}
+            isCollapsed={isCollapsed}
           >
             <NavLink 
               to="/teacher/students" 
-              icon={<User className="h-4 w-4 text-indigo-500" />}
+              icon={<User className="h-4 w-4" />}
               label="Student Directory" 
               onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/teacher/students")}
             />
             <NavLink 
               to="/teacher/students-attendance" 
-              icon={<UserCheck className="h-4 w-4 text-green-500" />}
+              icon={<UserCheck className="h-4 w-4" />}
               label="Student Attendance" 
               onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/teacher/students-attendance")}
             />
           </NavDropdown>
-
-
         </nav>
       </div>
-    );
+    </div>
+  );
+};
+
+const TeacherNavbar = {
+  renderSidebar: (props: TeacherNavbarProps) => {
+    return <TeacherSidebar {...props} />;
   },
 
   renderProfileDropdown: (props: TeacherNavbarProps) => {
@@ -252,6 +347,8 @@ const TeacherNavbar = {
 
   renderProfileButton: (props: TeacherNavbarProps) => {
     const { isProfileDropdownOpen, setIsProfileDropdownOpen, profileDropdownRef } = props;
+    
+    if (!setIsProfileDropdownOpen) return null;
     
     // Get teacher info for profile display
     const getTeacherInfo = () => {

@@ -5,8 +5,6 @@ import {
   LogOut, 
   User, 
   Home, 
-  HelpCircle,
-  MessageSquare,
   BookOpen,
   GraduationCap
 } from "lucide-react";
@@ -19,6 +17,7 @@ interface StudentNavbarProps {
   isProfileDropdownOpen: boolean;
   setIsProfileDropdownOpen: (isOpen: boolean) => void;
   profileDropdownRef: React.RefObject<HTMLDivElement>;
+  onSidebarCollapse?: (isCollapsed: boolean) => void;
 }
 
 interface NavDropdownProps {

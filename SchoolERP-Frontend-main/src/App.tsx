@@ -53,6 +53,7 @@ import TeacherDirectory from './components/Schools/TeacherDirectory/TeacherDirec
 import DriverDirectory from './components/Schools/DriverDirectory/DriverDirectory';
 import VehicleManagement from './components/Schools/VehicleManagement/VehicleManagement';
 import TransportRoutes from './components/Schools/TransportRoutes/TransportRoutes';
+import BusAttendance from './components/Transportation/BusAttendance';
 import ExamSchedule from './components/Teacher/ExamSchedule';
 import FeeCollectionApp from "./components/Schools/FeesCollection";
 import  AttendanceManagement from "./components/Teacher/AttendanceManagement";
@@ -507,6 +508,17 @@ function AppContent({
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/school/transport-management/bus-attendance"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <BusAttendance />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         
         <Route
           path="/school/students/register/allStudents"

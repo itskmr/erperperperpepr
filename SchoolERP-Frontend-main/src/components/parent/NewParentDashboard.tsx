@@ -19,7 +19,9 @@ import {
   // XCircle,
   RefreshCw,
   // Eye,
-  Settings
+  Settings,
+  Calendar,
+  MapPin
 } from 'lucide-react';
 import {
   // LineChart,
@@ -670,34 +672,54 @@ const TimetableView: React.FC<{ student: Student }> = ({ student }) => {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold">
-        Class Timetable - {timetableData?.student?.class}-{timetableData?.student?.section}
-      </h3>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 rounded-lg">
+        <h3 className="text-lg font-semibold text-white">
+          Class Timetable - {timetableData?.student?.class}-{timetableData?.student?.section}
+        </h3>
+      </div>
 
-      <div className="grid gap-6">
-        {days.map((day) => (
-          <div key={day} className="bg-white border rounded-lg p-4">
-            <h4 className="text-md font-semibold text-gray-900 mb-3 capitalize">
-              {day.toLowerCase()}
-            </h4>
-            <div className="space-y-2">
+      <div className="grid gap-4">
+        {days.map((day, dayIndex) => (
+          <div key={day} className="bg-white border rounded-lg overflow-hidden shadow-sm">
+            <div className={`px-4 py-2 text-white font-semibold text-sm ${
+              dayIndex === 0 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+              dayIndex === 1 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+              dayIndex === 2 ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
+              dayIndex === 3 ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+              dayIndex === 4 ? 'bg-gradient-to-r from-pink-500 to-pink-600' :
+              'bg-gradient-to-r from-cyan-500 to-cyan-600'
+            }`}>
+              {day.charAt(0).toUpperCase() + day.slice(1, 3).toLowerCase()}
+            </div>
+            <div className="space-y-2 p-3">
               {timetableData?.timetable?.[day]?.length > 0 ? (
                 timetableData.timetable[day].map((entry: any, index: number) => (
-                  <div key={index} className="flex items-center space-x-4 p-3 bg-gray-50 rounded">
-                    <div className="text-sm font-medium text-gray-600 w-20">
-                      {entry.startTime} - {entry.endTime}
+                  <div key={index} className="flex items-center space-x-2 p-2 bg-gradient-to-r from-blue-50 to-indigo-100 rounded border-l-3 border-blue-500">
+                    <div className="text-xs font-semibold text-blue-900 w-14 text-center bg-white rounded px-1 py-0.5 flex-shrink-0">
+                      <div className="leading-tight">{entry.startTime}</div>
+                      <div className="text-blue-600 leading-tight">{entry.endTime}</div>
                     </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{entry.subject}</div>
-                      <div className="text-sm text-gray-600">{entry.teacher?.fullName}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900 text-sm truncate">{entry.subject}</div>
+                      <div className="flex items-center space-x-1 text-xs text-gray-600">
+                        <User className="h-2 w-2" />
+                        <span className="truncate">{entry.teacher?.fullName}</span>
+                        {entry.room && (
+                          <>
+                            <span>•</span>
+                            <MapPin className="h-2 w-2" />
+                            <span>{entry.room}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    {entry.room && (
-                      <div className="text-sm text-gray-500">Room: {entry.room}</div>
-                    )}
                   </div>
                 ))
               ) : (
-                <p className="text-gray-500 text-center py-2">No classes scheduled</p>
+                <div className="text-center py-4 text-gray-500">
+                  <Calendar className="h-6 w-6 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">No classes</p>
+                </div>
               )}
             </div>
           </div>
