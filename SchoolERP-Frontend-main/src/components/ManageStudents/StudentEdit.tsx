@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Save, X, Printer } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { generateAdmissionFormPrint } from '../../utils/printUtils';
+import { generateJPAdmissionFormPrint } from '../../utils/jpAdmissionPrint';
 import { ApiError } from '../../utils/authApi';
 
 // Student interface
@@ -614,7 +615,97 @@ const StudentEdit: React.FC = () => {
   // Print function
   const handlePrint = async () => {
     try {
-      await generateAdmissionFormPrint(formData);
+      // Transform the student data to match StudentDataForPrint interface
+      const printData = {
+        admissionNo: formData.admissionNo,
+        fullName: formData.fullName,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        category: formData.category,
+        religion: formData.religion,
+        nationality: formData.nationality,
+        bloodGroup: formData.bloodGroup,
+        aadhaarNumber: formData.aadhaarNumber,
+        mobileNumber: formData.mobileNumber,
+        email: formData.email,
+        fatherName: formData.father?.name,
+        motherName: formData.mother?.name,
+        guardianName: formData.guardian?.name,
+        guardianRelation: '', // Not available in current interface
+        guardianMobile: formData.guardian?.contactNumber,
+        presentAddress: `${formData.address?.houseNo || ''} ${formData.address?.street || ''}, ${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.pinCode || ''}`.trim(),
+        permanentAddress: formData.address?.sameAsPresentAddress 
+          ? `${formData.address?.houseNo || ''} ${formData.address?.street || ''}, ${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.pinCode || ''}`.trim()
+          : `${formData.address?.permanentHouseNo || ''} ${formData.address?.permanentStreet || ''}, ${formData.address?.permanentCity || ''}, ${formData.address?.permanentState || ''} ${formData.address?.permanentPinCode || ''}`.trim(),
+        currentSession: {
+          class: formData.currentSession?.class,
+          section: formData.currentSession?.section,
+          rollNo: formData.currentSession?.rollNo,
+        },
+        father: {
+          name: formData.father?.name,
+          qualification: formData.father?.qualification || '',
+          occupation: formData.father?.occupation || '',
+          organization: '', // Not available in current interface
+          designation: '', // Not available in current interface
+          contactNumber: formData.father?.contactNumber || '',
+          email: formData.father?.email || '',
+          aadhaarNo: formData.father?.aadhaarNo || '',
+          annualIncome: formData.father?.annualIncome || '',
+          officePhone: '', // Not available in current interface
+        },
+        mother: {
+          name: formData.mother?.name,
+          qualification: formData.mother?.qualification || '',
+          occupation: formData.mother?.occupation || '',
+          organization: '', // Not available in current interface
+          designation: '', // Not available in current interface
+          contactNumber: formData.mother?.contactNumber || '',
+          email: formData.mother?.email || '',
+          aadhaarNo: formData.mother?.aadhaarNo || '',
+          annualIncome: formData.mother?.annualIncome || '',
+          officePhone: '', // Not available in current interface
+        },
+        guardian: {
+          name: formData.guardian?.name,
+          qualification: '', // Not available in current interface
+          occupation: formData.guardian?.occupation || '',
+          organization: '', // Not available in current interface
+          designation: '', // Not available in current interface
+          contactNumber: formData.guardian?.contactNumber,
+          email: formData.guardian?.email || '',
+          aadhaarNo: formData.guardian?.aadhaarNo || '',
+          annualIncome: formData.guardian?.annualIncome || '',
+          officePhone: '', // Not available in current interface
+        },
+        lastEducation: {
+          school: formData.lastEducation?.school || '',
+          class: formData.lastEducation?.prevClass || '',
+          year: '', // Not available in current interface
+          percentage: formData.lastEducation?.percentage || '',
+        },
+        emergencyContact: formData.emergencyContact,
+        smsPhone: formData.mobileNumber,
+        transport: {
+          required: Boolean(formData.transport?.route),
+          from: formData.transport?.pickupLocation || '',
+          to: formData.transport?.dropLocation || '',
+        },
+        motherTongue: formData.other?.motherTongue || '',
+        identificationMarks: [], // Not available in current interface
+        birthPlace: '', // Not available in current interface
+        state: formData.address?.state,
+        pinCode: formData.address?.pinCode,
+        caste: formData.caste,
+        admissionDate: new Date().toISOString(), // Use current date as admission date not available
+        session: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+        studentImageUrl: formData.studentImagePath,
+        fatherImageUrl: formData.fatherImagePath,
+        motherImageUrl: formData.motherImagePath,
+        guardianImageUrl: formData.guardianImagePath,
+      };
+      
+      await generateJPAdmissionFormPrint(printData);
     } catch (error) {
       console.error('Error printing student profile:', error);
       showToast('error', 'Failed to print student profile');

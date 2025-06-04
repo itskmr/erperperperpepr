@@ -37,6 +37,7 @@ interface Student {
   tcNumber: string;
   tcDate: string;
   admissionDate: string;
+  emergencyContact?: string;
   sessionInfo: {
     currentClass: string;
     currentSection: string;
@@ -159,11 +160,101 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
           <h2 className="text-xl font-semibold">Student Details</h2>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => generateJPAdmissionFormPrint(student)}
-              className="text-gray-500 hover:text-gray-700"
+              onClick={() => {
+                // Transform student data to match StudentDataForPrint interface
+                const printData = {
+                  admissionNo: student.admissionNo,
+                  fullName: student.fullName,
+                  dateOfBirth: student.dateOfBirth,
+                  gender: student.gender,
+                  category: student.category,
+                  religion: student.religion,
+                  nationality: student.nationality,
+                  bloodGroup: student.bloodGroup,
+                  aadhaarNumber: student.aadhaarNumber,
+                  mobileNumber: student.mobileNumber,
+                  email: student.email,
+                  fatherName: student.fatherName,
+                  motherName: student.motherName,
+                  guardianName: student.guardianName,
+                  guardianRelation: student.guardianRelation,
+                  guardianMobile: student.guardianMobile,
+                  presentAddress: student.presentAddress,
+                  permanentAddress: student.permanentAddress || student.presentAddress,
+                  currentSession: {
+                    class: student.sessionInfo?.currentClass,
+                    section: student.sessionInfo?.currentSection,
+                    rollNo: student.sessionInfo?.rollNumber,
+                  },
+                  father: {
+                    name: student.fatherName,
+                    qualification: '',
+                    occupation: '',
+                    organization: '',
+                    designation: '',
+                    contactNumber: '',
+                    email: '',
+                    aadhaarNo: '',
+                    annualIncome: '',
+                    officePhone: '',
+                  },
+                  mother: {
+                    name: student.motherName,
+                    qualification: '',
+                    occupation: '',
+                    organization: '',
+                    designation: '',
+                    contactNumber: '',
+                    email: '',
+                    aadhaarNo: '',
+                    annualIncome: '',
+                    officePhone: '',
+                  },
+                  guardian: {
+                    name: student.guardianName,
+                    qualification: '',
+                    occupation: '',
+                    organization: '',
+                    designation: '',
+                    contactNumber: student.guardianMobile,
+                    email: '',
+                    aadhaarNo: '',
+                    annualIncome: '',
+                    officePhone: '',
+                  },
+                  lastEducation: {
+                    school: student.lastSchool,
+                    class: '',
+                    year: '',
+                    percentage: '',
+                  },
+                  emergencyContact: student.emergencyContact,
+                  smsPhone: student.mobileNumber,
+                  transport: {
+                    required: false,
+                    from: '',
+                    to: '',
+                  },
+                  motherTongue: '',
+                  identificationMarks: [],
+                  birthPlace: '',
+                  state: '',
+                  pinCode: '',
+                  caste: '',
+                  admissionDate: student.admissionDate || new Date().toISOString(),
+                  session: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+                  studentImageUrl: student.documentPaths?.studentImagePath || undefined,
+                  fatherImageUrl: student.documentPaths?.fatherImagePath || undefined,
+                  motherImageUrl: student.documentPaths?.motherImagePath || undefined,
+                  guardianImageUrl: student.documentPaths?.guardianImagePath || undefined,
+                };
+                
+                generateJPAdmissionFormPrint(printData);
+              }}
+              className="text-blue-600 hover:text-blue-700 p-2 rounded-md bg-blue-50 hover:bg-blue-100 transition-colors"
               title="Print Admission Form"
             >
-              <FaPrint />
+              <FaPrint size={18} />
             </button>
             <button
               onClick={onClose}
@@ -397,6 +488,113 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                // Transform student data to match StudentDataForPrint interface
+                const printData = {
+                  admissionNo: student.admissionNo,
+                  fullName: student.fullName,
+                  dateOfBirth: student.dateOfBirth,
+                  gender: student.gender,
+                  category: student.category,
+                  religion: student.religion,
+                  nationality: student.nationality,
+                  bloodGroup: student.bloodGroup,
+                  aadhaarNumber: student.aadhaarNumber,
+                  mobileNumber: student.mobileNumber,
+                  email: student.email,
+                  fatherName: student.fatherName,
+                  motherName: student.motherName,
+                  guardianName: student.guardianName,
+                  guardianRelation: student.guardianRelation,
+                  guardianMobile: student.guardianMobile,
+                  presentAddress: student.presentAddress,
+                  permanentAddress: student.permanentAddress || student.presentAddress,
+                  currentSession: {
+                    class: student.sessionInfo?.currentClass,
+                    section: student.sessionInfo?.currentSection,
+                    rollNo: student.sessionInfo?.rollNumber,
+                  },
+                  father: {
+                    name: student.fatherName,
+                    qualification: '',
+                    occupation: '',
+                    organization: '',
+                    designation: '',
+                    contactNumber: '',
+                    email: '',
+                    aadhaarNo: '',
+                    annualIncome: '',
+                    officePhone: '',
+                  },
+                  mother: {
+                    name: student.motherName,
+                    qualification: '',
+                    occupation: '',
+                    organization: '',
+                    designation: '',
+                    contactNumber: '',
+                    email: '',
+                    aadhaarNo: '',
+                    annualIncome: '',
+                    officePhone: '',
+                  },
+                  guardian: {
+                    name: student.guardianName,
+                    qualification: '',
+                    occupation: '',
+                    organization: '',
+                    designation: '',
+                    contactNumber: student.guardianMobile,
+                    email: '',
+                    aadhaarNo: '',
+                    annualIncome: '',
+                    officePhone: '',
+                  },
+                  lastEducation: {
+                    school: student.lastSchool,
+                    class: '',
+                    year: '',
+                    percentage: '',
+                  },
+                  emergencyContact: student.emergencyContact,
+                  smsPhone: student.mobileNumber,
+                  transport: {
+                    required: false,
+                    from: '',
+                    to: '',
+                  },
+                  motherTongue: '',
+                  identificationMarks: [],
+                  birthPlace: '',
+                  state: '',
+                  pinCode: '',
+                  caste: '',
+                  admissionDate: student.admissionDate || new Date().toISOString(),
+                  session: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+                  studentImageUrl: student.documentPaths?.studentImagePath || undefined,
+                  fatherImageUrl: student.documentPaths?.fatherImagePath || undefined,
+                  motherImageUrl: student.documentPaths?.motherImagePath || undefined,
+                  guardianImageUrl: student.documentPaths?.guardianImagePath || undefined,
+                };
+                
+                generateJPAdmissionFormPrint(printData);
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
+            >
+              <FaPrint className="h-4 w-4 mr-2" />
+              Print Form
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

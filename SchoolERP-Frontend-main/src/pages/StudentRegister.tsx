@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 
 // Class options as specified by user
@@ -112,6 +113,8 @@ const StudentRegistration = () => {
     { id: 2, title: 'Contact & Address', icon: '📍' },
     { id: 3, title: 'Parent Details', icon: '👪' }
   ];
+
+  const navigate = useNavigate();
 
   const validateCurrentStep = () => {
     const errors: string[] = [];
@@ -488,6 +491,11 @@ const StudentRegistration = () => {
           motherAadharCardNo: "",
         });
         setCurrentStep(1);
+        
+        // Navigate to all students registration page after successful submission
+        setTimeout(() => {
+          navigate('/school/students/register/allStudents');
+        }, 2000); // 2 second delay to show success message
       } else {
         throw new Error(result.message || 'Registration failed');
       }
