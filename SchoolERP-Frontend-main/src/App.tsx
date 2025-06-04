@@ -53,6 +53,7 @@ import TeacherDirectory from './components/Schools/TeacherDirectory/TeacherDirec
 import DriverDirectory from './components/Schools/DriverDirectory/DriverDirectory';
 import VehicleManagement from './components/Schools/VehicleManagement/VehicleManagement';
 import TransportRoutes from './components/Schools/TransportRoutes/TransportRoutes';
+import BusAttendance from './components/Transportation/BusAttendance';
 import ExamSchedule from './components/Teacher/ExamSchedule';
 import FeeCollectionApp from "./components/Schools/FeesCollection";
 import  AttendanceManagement from "./components/Teacher/AttendanceManagement";
@@ -69,7 +70,6 @@ import TeacherDiary from './components/Teacher/TeacherDiary';
 import DiaryViewer from './components/common/DiaryViewer';
 import SchoolDiaryView from './components/Schools/SchoolDiaryView';
 import TeacherAttendanceManagement from "./components/School/TeacherAttendanceManagement";
-import TeacherTimetable from './components/Teacher/TeacherTimetable';
 import StudentTimetable from './components/Student/StudentTimetable';
 
 // Parent components
@@ -507,6 +507,17 @@ function AppContent({
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/school/transport-management/bus-attendance"
+          element={
+            <ProtectedRoute allowedRoles={['school']}>
+              <Layout userRole={userRole} onLogout={handleLogout}>
+                <BusAttendance />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        
         
         <Route
           path="/school/students/register/allStudents"
@@ -586,12 +597,12 @@ function AppContent({
           }
         />
 
-        <Route
+<Route
           path="/teacher/timetable"
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
               <Layout userRole={userRole} onLogout={handleLogout}>
-                <TeacherTimetable />
+                <Timetable />
               </Layout>
             </ProtectedRoute>
           }

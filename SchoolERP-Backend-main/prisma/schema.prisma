@@ -60,6 +60,7 @@ model School {
   attendance  Attendance[] // Added attendance relation
   teacherAttendance TeacherAttendance[] @relation("SchoolTeacherAttendance")
   teacherDiaries TeacherDiary[] // Added teacher diaries relation
+  busAttendance BusAttendance[] // Added bus attendance relation
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -246,6 +247,7 @@ model Student {
   educationInfo EducationInfo?
   otherInfo     OtherInfo?
   studentTransport StudentTransport[]
+  busAttendance BusAttendance[] // Added bus attendance relation
 
   // Meta
   transferCertificates TransferCertificate[]
@@ -385,10 +387,13 @@ model TransportInfo {
   transportDriver String?
   pickupLocation  String?
   dropLocation    String?
+  busId           String? // Reference to Bus model
+  pickupPoint     String? // Specific pickup point for bus attendance
 
-  // Relation
+  // Relations
   studentId String   @unique
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bus       Bus?    @relation(fields: [busId], references: [id], onDelete: SetNull)
 }
 
 model EducationInfo {
@@ -837,6 +842,8 @@ model Bus {
   route               Route?        @relation(fields: [routeId], references: [id])
   trips               Trip[]
   maintenance         Maintenance[]
+  busAttendance       BusAttendance[] // Added bus attendance relation
+  transportInfo       TransportInfo[] // Added transport info relation
   
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -928,6 +935,47 @@ model StudentTransport {
   
   @@index([studentId])
   @@index([routeId])
+}
+
+// Bus Attendance Model
+model BusAttendance {
+  id             String                @id @default(uuid())
+  studentId      String
+  busId          String
+  date           DateTime
+  status         BusAttendanceStatus   @default(NOT_MARKED)
+  reason         String?               @db.Text
+  pickupTime     DateTime?
+  dropoffTime    DateTime?
+  pickupPoint    String?
+  markedBy       String                // User ID who marked the attendance
+  notes          String?               @db.Text
+  
+  // School Association
+  schoolId       Int
+  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  student        Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bus            Bus                   @relation(fields: [busId], references: [id], onDelete: Cascade)
+  
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  
+  // Unique constraint to prevent duplicate attendance for same student, bus, and date
+  @@unique([studentId, busId, date])
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([busId])
+  @@index([date])
+}
+
+// Enum for Bus Attendance Status
+enum BusAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  NOT_MARKED
 }
 
 // Enum for Trip Status
@@ -1076,6 +1124,8 @@ enum DiaryEntryType {
   EVENT           // Class event or activity
   NOTICE          // Official notice
   REMINDER        // Reminder for students/parents
+  ASSIGNMENT      // Assignment for students
+  TEACHING_MATERIAL // Teaching materials and resources
 }
 
 // Enum for diary entry priority

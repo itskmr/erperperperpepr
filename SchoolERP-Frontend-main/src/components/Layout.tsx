@@ -41,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, userRole }) => {
   ]);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const profileDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -98,6 +99,11 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, userRole }) => {
     if (window.innerWidth < 1024) {
       setIsMobileSidebarOpen(false);
     }
+  };
+
+  // Handle sidebar collapse state change
+  const handleSidebarCollapse = (isCollapsed: boolean) => {
+    setIsSidebarCollapsed(isCollapsed);
   };
 
   // Replace the existing useEffect for click handling with this:
@@ -163,7 +169,8 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, userRole }) => {
     isProfileDropdownOpen,
     setIsProfileDropdownOpen,
     profileDropdownRef,
-    closeMobileSidebar
+    closeMobileSidebar,
+    onSidebarCollapse: handleSidebarCollapse
   };
 
   // Get the appropriate header based on user role
@@ -253,99 +260,108 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, userRole }) => {
             </div>
 
             {/* Center section - Search */}
-            <div className="flex-1 flex items-center justify-center px-2 lg:ml-6 lg:justify-end">
-              <div className="max-w-lg w-full lg:max-w-xs">
-                <div className="relative">
-                  <button
-                    onClick={toggleSearch}
-                    className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    aria-label="Search"
-                    aria-expanded={isSearchOpen}
-                  >
-                    <Search className="h-5 w-5" />
-                  </button>
-                  
-                  {isSearchOpen && (
-                    <div className="absolute right-0 mt-2 w-96 bg-white rounded-md shadow-lg p-4 z-50">
-                      <form onSubmit={handleSearchSubmit}>
-                        <div className="flex items-center border border-gray-300 rounded-md">
-                          <div className="pl-3">
-                            <Search className="h-5 w-5 text-gray-400" />
+            {userRole !== 'school' && userRole !== 'teacher' && (
+              <div className="flex-1 flex items-center justify-center px-2 lg:ml-6 lg:justify-end">
+                <div className="max-w-lg w-full lg:max-w-xs">
+                  <div className="relative">
+                    <button
+                      onClick={toggleSearch}
+                      className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      aria-label="Search"
+                      aria-expanded={isSearchOpen}
+                    >
+                      <Search className="h-5 w-5" />
+                    </button>
+                    
+                    {isSearchOpen && (
+                      <div className="absolute right-0 mt-2 w-96 bg-white rounded-md shadow-lg p-4 z-50">
+                        <form onSubmit={handleSearchSubmit}>
+                          <div className="flex items-center border border-gray-300 rounded-md">
+                            <div className="pl-3">
+                              <Search className="h-5 w-5 text-gray-400" />
+                            </div>
+                            <input
+                              ref={searchInputRef}
+                              type="text"
+                              placeholder="Search..."
+                              className="w-full p-2 focus:outline-none"
+                              value={searchQuery}
+                              onChange={handleSearchChange}
+                            />
                           </div>
-                          <input
-                            ref={searchInputRef}
-                            type="text"
-                            placeholder="Search..."
-                            className="w-full p-2 focus:outline-none"
-                            value={searchQuery}
-                            onChange={handleSearchChange}
-                          />
-                        </div>
-                      </form>
-                    </div>
-                  )}
+                        </form>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Spacer for school and teacher roles */}
+            {(userRole === 'school' || userRole === 'teacher') && (
+              <div className="flex-1"></div>
+            )}
 
             {/* Right section - Notifications and Profile */}
             <div className="flex items-center">
-              {/* Notifications */}
-              <div className="relative" ref={notificationsRef}>
-                <button
-                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                  className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  aria-label="View notifications"
-                  aria-expanded={isNotificationsOpen}
-                >
-                  <span className="sr-only">View notifications</span>
-                  <div className="relative">
-                    <Bell className="h-6 w-6" />
-                    {unreadCount > 0 && (
-                      <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-                    )}
-                  </div>
-                </button>
-                
-                {isNotificationsOpen && (
-                  <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-50">
-                    <div className="px-4 py-2 border-b border-gray-100 flex justify-between items-center">
-                      <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
+              {/* Notifications - Hide for school and teacher roles */}
+              {userRole !== 'school' && userRole !== 'teacher' && (
+                <div className="relative" ref={notificationsRef}>
+                  <button
+                    onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    className="p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    aria-label="View notifications"
+                    aria-expanded={isNotificationsOpen}
+                  >
+                    <span className="sr-only">View notifications</span>
+                    <div className="relative">
+                      <Bell className="h-6 w-6" />
                       {unreadCount > 0 && (
-                        <button 
-                          onClick={markAllAsRead}
-                          className="text-xs text-indigo-600 hover:text-indigo-800"
-                        >
-                          Mark all as read
-                        </button>
+                        <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
                       )}
                     </div>
-                    
-                    <div className="max-h-60 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <p className="px-4 py-2 text-sm text-gray-500">No notifications</p>
-                      ) : (
-                        notifications.map(notification => (
-                          <div 
-                            key={notification.id}
-                            onClick={() => handleNotificationClick(notification.id)}
-                            className={`px-4 py-2 hover:bg-gray-50 cursor-pointer ${!notification.isRead ? 'bg-blue-50' : ''}`}
+                  </button>
+                  
+                  {isNotificationsOpen && (
+                    <div className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-50">
+                      <div className="px-4 py-2 border-b border-gray-100 flex justify-between items-center">
+                        <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button 
+                            onClick={markAllAsRead}
+                            className="text-xs text-indigo-600 hover:text-indigo-800"
                           >
-                            <p className={`text-sm ${!notification.isRead ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
-                              {notification.text}
-                            </p>
-                            {notification.date && (
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(notification.date).toLocaleDateString()}
+                            Mark all as read
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="max-h-60 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <p className="px-4 py-2 text-sm text-gray-500">No notifications</p>
+                        ) : (
+                          notifications.map(notification => (
+                            <div 
+                              key={notification.id}
+                              onClick={() => handleNotificationClick(notification.id)}
+                              className={`px-4 py-2 hover:bg-gray-50 cursor-pointer ${!notification.isRead ? 'bg-blue-50' : ''}`}
+                            >
+                              <p className={`text-sm ${!notification.isRead ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
+                                {notification.text}
                               </p>
-                            )}
-                          </div>
-                        ))
-                      )}
+                              {notification.date && (
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {new Date(notification.date).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
               
               {/* Profile dropdown */}
               {renderRoleBasedProfileButton()}
@@ -367,9 +383,13 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, userRole }) => {
         {/* Sidebar */}
         <div
           ref={dropdownRef}
-          className={`bg-white shadow-lg fixed lg:sticky top-0 lg:top-16 h-full z-30 w-64 lg:w-56 xl:w-64 transform ${
+          className={`bg-white shadow-lg fixed lg:sticky top-0 lg:top-16 h-full z-30 transform ${
             isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col lg:h-[calc(100vh-4rem)]`}
+          } lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col lg:h-[calc(100vh-4rem)] ${
+            userRole === 'school' || userRole === 'teacher'
+              ? (isSidebarCollapsed ? 'w-20' : 'w-64') 
+              : 'w-64 lg:w-56 xl:w-64'
+          }`}
         >
           {/* Sidebar Content - Render based on role */}
           {renderRoleBasedSidebar()}

@@ -841,6 +841,16 @@ export const createBus = async (req, res) => {
 export const updateBus = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Get and validate school ID
+    const { schoolId, error } = await getAndValidateSchoolId(req);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error
+      });
+    }
+    
     const {
       registrationNumber,
       make,
@@ -858,16 +868,53 @@ export const updateBus = async (req, res) => {
       notes
     } = req.body;
     
-    // Check if bus exists
-    const busExists = await prisma.bus.findUnique({
-      where: { id }
+    // Check if bus exists and belongs to the school
+    const busExists = await prisma.bus.findFirst({
+      where: { 
+        id: id,
+        schoolId: schoolId
+      }
     });
     
     if (!busExists) {
       return res.status(404).json({
         success: false,
-        message: "Bus not found"
+        message: "Bus not found or doesn't belong to this school"
       });
+    }
+
+    // Validate driver belongs to the same school if provided
+    if (driverId) {
+      const driver = await prisma.driver.findFirst({
+        where: {
+          id: driverId,
+          schoolId: schoolId
+        }
+      });
+
+      if (!driver) {
+        return res.status(400).json({
+          success: false,
+          message: "Driver not found or doesn't belong to this school"
+        });
+      }
+    }
+
+    // Validate route belongs to the same school if provided
+    if (routeId) {
+      const route = await prisma.route.findFirst({
+        where: {
+          id: routeId,
+          schoolId: schoolId
+        }
+      });
+
+      if (!route) {
+        return res.status(400).json({
+          success: false,
+          message: "Route not found or doesn't belong to this school"
+        });
+      }
     }
     
     // Prepare update data
@@ -890,12 +937,23 @@ export const updateBus = async (req, res) => {
     
     const bus = await prisma.bus.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: {
+        driver: true,
+        route: true,
+        school: {
+          select: {
+            id: true,
+            schoolName: true
+          }
+        }
+      }
     });
     
     res.status(200).json({
       success: true,
-      data: bus
+      data: bus,
+      message: "Bus updated successfully"
     });
   } catch (error) {
     console.error("Error updating bus:", error);
@@ -2490,6 +2548,542 @@ export const getSchoolInfo = async (req, res) => {
         image_url: null,
         status: null
       }
+    });
+  }
+};
+
+// ==================== BUS ATTENDANCE FUNCTIONS ====================
+
+// Get students by bus ID
+export const getStudentsByBus = async (req, res) => {
+  try {
+    const { busId } = req.params;
+    const schoolId = req.user.schoolId || req.user.id;
+
+    // Verify bus belongs to the school
+    const bus = await prisma.bus.findFirst({
+      where: {
+        id: busId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!bus) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bus not found or access denied'
+      });
+    }
+
+    // Get students assigned to this bus through transport info
+    const students = await prisma.student.findMany({
+      where: {
+        schoolId: schoolId,
+        transportInfo: {
+          busId: busId
+        }
+      },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNo: true,
+        sessionInfo: {
+          select: {
+            currentClass: true,
+            currentSection: true,
+            currentRollNo: true
+          }
+        },
+        transportInfo: {
+          select: {
+            pickupLocation: true,
+            pickupPoint: true
+          }
+        },
+        mobileNumber: true,
+        studentImagePath: true
+      }
+    });
+
+    // Format the response
+    const formattedStudents = students.map(student => ({
+      id: student.id,
+      fullName: student.fullName,
+      admissionNo: student.admissionNo,
+      rollNumber: student.sessionInfo?.currentRollNo || '',
+      currentClass: student.sessionInfo?.currentClass || '',
+      currentSection: student.sessionInfo?.currentSection || '',
+      busId: busId,
+      pickupPoint: student.transportInfo?.pickupPoint || '',
+      parentContact: student.mobileNumber || '',
+      profileImage: student.studentImagePath || null
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedStudents,
+      message: 'Students retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching students by bus:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch students',
+      error: error.message
+    });
+  }
+};
+
+// Get bus attendance records for a specific date
+export const getBusAttendanceByDate = async (req, res) => {
+  try {
+    const { busId } = req.params;
+    const { date } = req.query;
+    const schoolId = req.user.schoolId || req.user.id;
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date parameter is required'
+      });
+    }
+
+    // Verify bus belongs to the school
+    const bus = await prisma.bus.findFirst({
+      where: {
+        id: busId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!bus) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bus not found or access denied'
+      });
+    }
+
+    // Parse the date to ensure it's in the correct format
+    const attendanceDate = new Date(date);
+    const startOfDay = new Date(attendanceDate.setHours(0, 0, 0, 0));
+    const endOfDay = new Date(attendanceDate.setHours(23, 59, 59, 999));
+
+    // Get attendance records for the specified date
+    const attendanceRecords = await prisma.busAttendance.findMany({
+      where: {
+        busId: busId,
+        schoolId: schoolId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      },
+      include: {
+        student: {
+          select: {
+            fullName: true,
+            admissionNo: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: attendanceRecords,
+      message: 'Attendance records retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching bus attendance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch attendance records',
+      error: error.message
+    });
+  }
+};
+
+// Mark bus attendance
+export const markBusAttendance = async (req, res) => {
+  try {
+    const {
+      studentId,
+      busId,
+      date,
+      status,
+      reason,
+      pickupTime,
+      dropoffTime,
+      pickupPoint,
+      notes
+    } = req.body;
+
+    const schoolId = req.user.schoolId || req.user.id;
+    const markedBy = req.user.id.toString();
+
+    // Validate required fields
+    if (!studentId || !busId || !date || !status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID, Bus ID, date, and status are required'
+      });
+    }
+
+    // Verify bus belongs to the school
+    const bus = await prisma.bus.findFirst({
+      where: {
+        id: busId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!bus) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bus not found or access denied'
+      });
+    }
+
+    // Verify student belongs to the school
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found or access denied'
+      });
+    }
+
+    // Parse the date
+    const attendanceDate = new Date(date);
+
+    // Create or update attendance record
+    const attendanceRecord = await prisma.busAttendance.upsert({
+      where: {
+        studentId_busId_date: {
+          studentId: studentId,
+          busId: busId,
+          date: attendanceDate
+        }
+      },
+      update: {
+        status: status,
+        reason: reason || null,
+        pickupTime: pickupTime ? new Date(pickupTime) : null,
+        dropoffTime: dropoffTime ? new Date(dropoffTime) : null,
+        pickupPoint: pickupPoint || null,
+        markedBy: markedBy,
+        notes: notes || null,
+        updatedAt: new Date()
+      },
+      create: {
+        studentId: studentId,
+        busId: busId,
+        date: attendanceDate,
+        status: status,
+        reason: reason || null,
+        pickupTime: pickupTime ? new Date(pickupTime) : null,
+        dropoffTime: dropoffTime ? new Date(dropoffTime) : null,
+        pickupPoint: pickupPoint || null,
+        markedBy: markedBy,
+        notes: notes || null,
+        schoolId: schoolId
+      },
+      include: {
+        student: {
+          select: {
+            fullName: true,
+            admissionNo: true
+          }
+        },
+        bus: {
+          select: {
+            registrationNumber: true,
+            make: true,
+            model: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: attendanceRecord,
+      message: 'Attendance marked successfully'
+    });
+
+  } catch (error) {
+    console.error('Error marking bus attendance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark attendance',
+      error: error.message
+    });
+  }
+};
+
+// Update bus attendance record
+export const updateBusAttendance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      status,
+      reason,
+      pickupTime,
+      dropoffTime,
+      pickupPoint,
+      notes
+    } = req.body;
+
+    const schoolId = req.user.schoolId || req.user.id;
+    const markedBy = req.user.id.toString();
+
+    // Verify attendance record belongs to the school
+    const existingRecord = await prisma.busAttendance.findFirst({
+      where: {
+        id: id,
+        schoolId: schoolId
+      }
+    });
+
+    if (!existingRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attendance record not found or access denied'
+      });
+    }
+
+    // Update the attendance record
+    const updatedRecord = await prisma.busAttendance.update({
+      where: {
+        id: id
+      },
+      data: {
+        status: status || existingRecord.status,
+        reason: reason !== undefined ? reason : existingRecord.reason,
+        pickupTime: pickupTime ? new Date(pickupTime) : existingRecord.pickupTime,
+        dropoffTime: dropoffTime ? new Date(dropoffTime) : existingRecord.dropoffTime,
+        pickupPoint: pickupPoint !== undefined ? pickupPoint : existingRecord.pickupPoint,
+        markedBy: markedBy,
+        notes: notes !== undefined ? notes : existingRecord.notes,
+        updatedAt: new Date()
+      },
+      include: {
+        student: {
+          select: {
+            fullName: true,
+            admissionNo: true
+          }
+        },
+        bus: {
+          select: {
+            registrationNumber: true,
+            make: true,
+            model: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: updatedRecord,
+      message: 'Attendance updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error updating bus attendance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update attendance',
+      error: error.message
+    });
+  }
+};
+
+// Get bus attendance statistics
+export const getBusAttendanceStats = async (req, res) => {
+  try {
+    const { busId } = req.params;
+    const { startDate, endDate } = req.query;
+    const schoolId = req.user.schoolId || req.user.id;
+
+    // Verify bus belongs to the school
+    const bus = await prisma.bus.findFirst({
+      where: {
+        id: busId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!bus) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bus not found or access denied'
+      });
+    }
+
+    // Set date range (default to current month if not provided)
+    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Get attendance statistics
+    const stats = await prisma.busAttendance.groupBy({
+      by: ['status'],
+      where: {
+        busId: busId,
+        schoolId: schoolId,
+        date: {
+          gte: start,
+          lte: end
+        }
+      },
+      _count: {
+        status: true
+      }
+    });
+
+    // Get total students assigned to this bus
+    const totalStudents = await prisma.student.count({
+      where: {
+        schoolId: schoolId,
+        transportInfo: {
+          busId: busId
+        }
+      }
+    });
+
+    // Format statistics
+    const formattedStats = {
+      totalStudents: totalStudents,
+      presentStudents: stats.find(s => s.status === 'PRESENT')?._count.status || 0,
+      absentStudents: stats.find(s => s.status === 'ABSENT')?._count.status || 0,
+      lateStudents: stats.find(s => s.status === 'LATE')?._count.status || 0,
+      notMarkedStudents: stats.find(s => s.status === 'NOT_MARKED')?._count.status || 0
+    };
+
+    // Calculate attendance percentage
+    const totalMarked = formattedStats.presentStudents + formattedStats.absentStudents + formattedStats.lateStudents;
+    formattedStats.attendancePercentage = totalMarked > 0 ? 
+      ((formattedStats.presentStudents + formattedStats.lateStudents) / totalMarked * 100).toFixed(2) : 0;
+
+    res.status(200).json({
+      success: true,
+      data: formattedStats,
+      message: 'Attendance statistics retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching bus attendance stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch attendance statistics',
+      error: error.message
+    });
+  }
+};
+
+// Get student bus attendance history
+export const getStudentBusAttendanceHistory = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { startDate, endDate, limit = 30 } = req.query;
+    const schoolId = req.user.schoolId || req.user.id;
+
+    // Verify student belongs to the school
+    const student = await prisma.student.findFirst({
+      where: {
+        id: studentId,
+        schoolId: schoolId
+      }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found or access denied'
+      });
+    }
+
+    // Set date range
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Get attendance history
+    const attendanceHistory = await prisma.busAttendance.findMany({
+      where: {
+        studentId: studentId,
+        schoolId: schoolId,
+        date: {
+          gte: start,
+          lte: end
+        }
+      },
+      include: {
+        bus: {
+          select: {
+            registrationNumber: true,
+            make: true,
+            model: true
+          }
+        }
+      },
+      orderBy: {
+        date: 'desc'
+      },
+      take: parseInt(limit)
+    });
+
+    // Get attendance statistics for the period
+    const stats = await prisma.busAttendance.groupBy({
+      by: ['status'],
+      where: {
+        studentId: studentId,
+        schoolId: schoolId,
+        date: {
+          gte: start,
+          lte: end
+        }
+      },
+      _count: {
+        status: true
+      }
+    });
+
+    const attendanceStats = {
+      totalDays: attendanceHistory.length,
+      presentDays: stats.find(s => s.status === 'PRESENT')?._count.status || 0,
+      absentDays: stats.find(s => s.status === 'ABSENT')?._count.status || 0,
+      lateDays: stats.find(s => s.status === 'LATE')?._count.status || 0,
+      notMarkedDays: stats.find(s => s.status === 'NOT_MARKED')?._count.status || 0
+    };
+
+    const totalMarked = attendanceStats.presentDays + attendanceStats.absentDays + attendanceStats.lateDays;
+    attendanceStats.attendancePercentage = totalMarked > 0 ? 
+      ((attendanceStats.presentDays + attendanceStats.lateDays) / totalMarked * 100).toFixed(2) + '%' : '0%';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        attendanceHistory: attendanceHistory,
+        attendanceStats: attendanceStats
+      },
+      message: 'Student attendance history retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching student bus attendance history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch attendance history',
+      error: error.message
     });
   }
 }; 

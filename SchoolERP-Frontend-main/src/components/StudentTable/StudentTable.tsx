@@ -163,7 +163,7 @@ const StudentTable: React.FC<StudentTableProps> = ({ onUpdateStats }) => {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      let url = new URL(STUDENT_API.GET_ALL);
+      const url = new URL(STUDENT_API.GET_ALL);
       
       // Add query parameters
       const params = new URLSearchParams();

@@ -4,17 +4,13 @@ import {
   Edit,
   Trash2,
   Clock,
-  User,
-  Book,
-  School,
   Calendar,
   MapPin,
   CheckCircle,
   XCircle,
-  RefreshCw,
-  Eye
+  RefreshCw
 } from 'lucide-react';
-import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../utils/authApi';
+import { apiGet, apiPost, apiPut, apiDelete } from '../../utils/authApi';
 
 // Types
 interface TimetableEntry {
@@ -29,6 +25,11 @@ interface TimetableEntry {
   roomNumber?: string;
   teacherName?: string;
   isMyClass?: boolean;
+  teacher?: {
+    id: number;
+    fullName: string;
+    subjects?: string;
+  };
 }
 
 interface TimeSlot {
@@ -38,6 +39,18 @@ interface TimeSlot {
   label: string;
 }
 
+interface Teacher {
+  id: number;
+  fullName: string;
+  designation?: string;
+  subjects?: string; // JSON string of subjects
+}
+
+// Predefined data
+// const CLASS_OPTIONS = [...];
+// const SECTION_OPTIONS = [...];
+// const ALL_SUBJECTS = [...];
+
 // Constants
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
@@ -45,7 +58,7 @@ const TeacherTimetable: React.FC = () => {
   // State
   const [timetableData, setTimetableData] = useState<TimetableEntry[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [teacherData, setTeacherData] = useState<any>(null);
+  const [teacherData, setTeacherData] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -56,6 +69,11 @@ const TeacherTimetable: React.FC = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<string>('');
   
+  // Delete confirmation states
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [deletingEntryTitle, setDeletingEntryTitle] = useState<string>('');
+
   // Form data
   const [formData, setFormData] = useState({
     className: '',
@@ -63,6 +81,9 @@ const TeacherTimetable: React.FC = () => {
     subjectName: '',
     roomNumber: ''
   });
+
+  // UI states
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   // Utility functions
   const formatTime = (time: string) => {
@@ -73,9 +94,9 @@ const TeacherTimetable: React.FC = () => {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    // You can integrate with your existing notification system
-    console.log(`${type}: ${message}`);
+  const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') => {
+    setSnackbar({ open: true, message, severity });
+    setTimeout(() => setSnackbar({ open: false, message: '', severity: 'success' }), 5000);
   };
 
   // Get authenticated teacher info
@@ -146,8 +167,8 @@ const TeacherTimetable: React.FC = () => {
       const teacher = getTeacherInfo();
       if (teacher?.id) {
         const response = await apiGet(`/teachers/${teacher.id}`);
-        if (response) {
-          setTeacherData(response);
+        if (response && typeof response === 'object') {
+          setTeacherData(response as Teacher);
         }
       }
     } catch (error) {
@@ -224,12 +245,12 @@ const TeacherTimetable: React.FC = () => {
       };
 
       await apiPost('/timetable', entryData);
-      showNotification('Timetable entry added successfully!');
+      showSnackbar('Timetable entry added successfully!');
       setIsAddModalOpen(false);
       fetchTimetableData();
     } catch (error) {
       console.error('Error saving entry:', error);
-      showNotification('Failed to add timetable entry', 'error');
+      showSnackbar('Failed to add timetable entry', 'error');
     }
   };
 
@@ -250,26 +271,24 @@ const TeacherTimetable: React.FC = () => {
       };
 
       await apiPut(`/timetable/${selectedEntry.id}`, entryData);
-      showNotification('Timetable entry updated successfully!');
+      showSnackbar('Timetable entry updated successfully!');
       setIsEditModalOpen(false);
       fetchTimetableData();
     } catch (error) {
       console.error('Error updating entry:', error);
-      showNotification('Failed to update timetable entry', 'error');
+      showSnackbar('Failed to update timetable entry', 'error');
     }
   };
 
   // Delete entry
   const handleDeleteEntry = async (entryId: string) => {
     try {
-      if (window.confirm('Are you sure you want to delete this timetable entry?')) {
-        await apiDelete(`/timetable/${entryId}`);
-        showNotification('Timetable entry deleted successfully!');
-        fetchTimetableData();
-      }
+      await apiDelete(`/timetable/${entryId}`);
+      showSnackbar('Timetable entry deleted successfully!');
+      fetchTimetableData();
     } catch (error) {
       console.error('Error deleting entry:', error);
-      showNotification('Failed to delete timetable entry', 'error');
+      showSnackbar('Failed to delete timetable entry', 'error');
     }
   };
 
@@ -280,67 +299,79 @@ const TeacherTimetable: React.FC = () => {
     if (entries.length === 0) {
       return (
         <div
-          className="h-20 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center"
+          className="h-16 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center bg-gray-50"
           onClick={() => handleCellClick(timeSlotId, day)}
         >
-          <Plus className="h-4 w-4 text-gray-400 hover:text-blue-500" />
+          <Plus className="h-3 w-3 text-gray-400 hover:text-blue-500" />
         </div>
       );
     }
 
     return (
-      <div className="h-20 border border-gray-200">
-        {entries.map((entry, index) => (
+      <div className="h-16 border border-gray-200 overflow-hidden">
+        {entries.slice(0, 1).map((entry, index) => (
           <div
             key={index}
-            className={`h-full p-2 text-xs flex flex-col justify-between cursor-pointer transition-colors duration-200 ${
+            className={`h-full p-1 text-xs flex items-center justify-between cursor-pointer transition-colors duration-200 ${
               entry.isMyClass
-                ? 'bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500'
-                : 'bg-gray-50 hover:bg-gray-100'
+                ? 'bg-gradient-to-br from-blue-100 to-blue-200 hover:from-blue-200 hover:to-blue-300 border-l-3 border-blue-500'
+                : 'bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 border-l-2 border-gray-300'
             }`}
           >
-            <div className="flex justify-between items-start">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-900 truncate">
-                  {entry.subjectName}
-                </div>
-                <div className="text-gray-600 truncate">
-                  {entry.className} {entry.section}
-                </div>
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div className={`font-semibold text-xs truncate ${entry.isMyClass ? 'text-blue-900' : 'text-gray-900'}`}>
+                {entry.subjectName}
+              </div>
+              <div className="flex items-center space-x-1">
+                <span className={`text-xs truncate ${entry.isMyClass ? 'text-blue-700' : 'text-gray-600'}`}>
+                  {entry.className}-{entry.section}
+                </span>
                 {entry.roomNumber && (
-                  <div className="text-gray-500 truncate">
-                    Room: {entry.roomNumber}
-                  </div>
+                  <>
+                    <span className="text-gray-400">•</span>
+                    <div className={`text-xs flex items-center ${entry.isMyClass ? 'text-blue-600' : 'text-gray-500'}`}>
+                      <MapPin className="h-2 w-2 mr-0.5" />
+                      <span>{entry.roomNumber}</span>
+                    </div>
+                  </>
                 )}
               </div>
-              
-              {entry.isMyClass && (
-                <div className="flex space-x-1 ml-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditEntry(entry);
-                    }}
-                    className="text-blue-600 hover:text-blue-800 p-1"
-                    title="Edit"
-                  >
-                    <Edit className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteEntry(entry.id);
-                    }}
-                    className="text-red-600 hover:text-red-800 p-1"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
             </div>
+            
+            {entry.isMyClass && (
+              <div className="flex flex-col space-y-0.5 ml-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditEntry(entry);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 p-0.5 rounded hover:bg-blue-50"
+                  title="Edit"
+                >
+                  <Edit className="h-2 w-2" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeletingEntryId(entry.id);
+                    setDeletingEntryTitle(entry.subjectName);
+                    setShowDeleteConfirmation(true);
+                  }}
+                  className="text-red-600 hover:text-red-800 p-0.5 rounded hover:bg-red-50"
+                  title="Delete"
+                >
+                  <Trash2 className="h-2 w-2" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
+        
+        {entries.length > 1 && (
+          <div className="absolute bottom-0 right-0 bg-gray-600 text-white text-xs px-1 rounded-tl">
+            +{entries.length - 1}
+          </div>
+        )}
       </div>
     );
   };
@@ -418,15 +449,23 @@ const TeacherTimetable: React.FC = () => {
           <table className="min-w-full">
             <thead>
               <tr>
-                <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                <th className="w-28 px-2 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-slate-600 to-slate-700">
+                  <Clock className="h-3 w-3 inline mr-1" />
                   Time
                 </th>
-                {DAYS.map((day) => (
+                {DAYS.map((day, index) => (
                   <th
                     key={day}
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    className={`px-2 py-2 text-center text-xs font-medium text-white uppercase tracking-wider ${
+                      index === 0 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                      index === 1 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                      index === 2 ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
+                      index === 3 ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+                      index === 4 ? 'bg-gradient-to-r from-pink-500 to-pink-600' :
+                      'bg-gradient-to-r from-cyan-500 to-cyan-600'
+                    }`}
                   >
-                    {day}
+                    {day.substring(0, 3)}
                   </th>
                 ))}
               </tr>
@@ -434,10 +473,10 @@ const TeacherTimetable: React.FC = () => {
             <tbody>
               {timeSlots.map((timeSlot) => (
                 <tr key={timeSlot.id}>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-gray-50 font-medium">
+                  <td className="px-2 py-2 whitespace-nowrap text-sm text-white bg-gradient-to-r from-slate-600 to-slate-700 font-medium">
                     <div className="flex flex-col">
-                      <span>{formatTime(timeSlot.startTime)}</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs font-medium">{formatTime(timeSlot.startTime)}</span>
+                      <span className="text-xs opacity-75">
                         {formatTime(timeSlot.endTime)}
                       </span>
                     </div>
@@ -602,6 +641,51 @@ const TeacherTimetable: React.FC = () => {
                 Update Class
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && deletingEntryId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Delete Class</h3>
+            
+            <p>Are you sure you want to delete the class "{deletingEntryTitle}"?</p>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowDeleteConfirmation(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteEntry(deletingEntryId);
+                  setShowDeleteConfirmation(false);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Snackbar */}
+      {snackbar.open && (
+        <div className={`fixed bottom-4 right-4 z-50 p-4 rounded-md shadow-lg ${
+          snackbar.severity === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {snackbar.severity === 'success' ? (
+              <CheckCircle className="h-5 w-5" />
+            ) : (
+              <XCircle className="h-5 w-5" />
+            )}
+            <span>{snackbar.message}</span>
           </div>
         </div>
       )}

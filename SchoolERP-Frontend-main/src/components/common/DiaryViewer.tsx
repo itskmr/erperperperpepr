@@ -7,7 +7,10 @@ import {
   X,
   AlertCircle,
   Users,
-  User
+  User,
+  Download,
+  File,
+  Image
 } from 'lucide-react';
 
 interface DiaryEntry {
@@ -27,6 +30,14 @@ interface DiaryEntry {
     email: string;
     designation: string;
   };
+  attachments?: string[];
+  imageUrls?: string[];
+  homework?: string;
+  classSummary?: string;
+  notices?: string;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface FilterState {
@@ -258,6 +269,24 @@ const DiaryViewer: React.FC<DiaryViewerProps> = ({ userRole, className, section 
           </div>
 
           <p className="text-gray-700 text-sm line-clamp-3">{entry.content}</p>
+          
+          {/* Show attachment/image indicators */}
+          {((entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0) || (entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0)) && (
+            <div className="flex items-center space-x-4 mt-3 pt-3 border-t border-gray-100">
+              {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <Image className="h-3 w-3 mr-1" />
+                  {entry.imageUrls.length} image{entry.imageUrls.length !== 1 ? 's' : ''}
+                </div>
+              )}
+              {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <File className="h-3 w-3 mr-1" />
+                  {entry.attachments.length} document{entry.attachments.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -295,8 +324,25 @@ const DiaryViewer: React.FC<DiaryViewerProps> = ({ userRole, className, section 
     const typeConfig = getEntryTypeConfig(entry.entryType);
     const priorityConfig = getPriorityConfig(entry.priority);
 
+    const handleDownload = async (url: string, filename: string) => {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        console.error('Error downloading file:', error);
+      }
+    };
+
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">{entry.title}</h3>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -332,6 +378,119 @@ const DiaryViewer: React.FC<DiaryViewerProps> = ({ userRole, className, section 
           <span className="font-medium text-gray-700">Content:</span>
           <div className="mt-2 p-4 bg-gray-50 rounded-md">
             <p className="text-gray-700 whitespace-pre-wrap">{entry.content}</p>
+          </div>
+        </div>
+
+        {entry.homework && (
+          <div>
+            <span className="font-medium text-gray-700">Homework:</span>
+            <div className="mt-2 p-4 bg-yellow-50 rounded-md">
+              <p className="text-gray-700 whitespace-pre-wrap">{entry.homework}</p>
+            </div>
+          </div>
+        )}
+
+        {entry.classSummary && (
+          <div>
+            <span className="font-medium text-gray-700">Class Summary:</span>
+            <div className="mt-2 p-4 bg-blue-50 rounded-md">
+              <p className="text-gray-700 whitespace-pre-wrap">{entry.classSummary}</p>
+            </div>
+          </div>
+        )}
+
+        {entry.notices && (
+          <div>
+            <span className="font-medium text-gray-700">Notices:</span>
+            <div className="mt-2 p-4 bg-red-50 rounded-md">
+              <p className="text-gray-700 whitespace-pre-wrap">{entry.notices}</p>
+            </div>
+          </div>
+        )}
+
+        {entry.remarks && (
+          <div>
+            <span className="font-medium text-gray-700">Remarks:</span>
+            <div className="mt-2 p-4 bg-green-50 rounded-md">
+              <p className="text-gray-700 whitespace-pre-wrap">{entry.remarks}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Images section */}
+        {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+          <div>
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Images</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {entry.imageUrls.map((imageUrl, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={imageUrl}
+                    alt={`Diary image ${index + 1}`}
+                    className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
+                    <button
+                      onClick={() => handleDownload(imageUrl, `image-${index + 1}.jpg`)}
+                      className="opacity-0 group-hover:opacity-100 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-all duration-200"
+                      title="Download image"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Documents section */}
+        {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+          <div>
+            <h4 className="text-lg font-medium text-gray-900 mb-4">Documents</h4>
+            <div className="space-y-2">
+              {entry.attachments.map((attachment, index) => {
+                const fileName = attachment.split('/').pop() || `document-${index + 1}`;
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center">
+                      <File className="h-5 w-5 text-gray-500 mr-3" />
+                      <span className="text-sm text-gray-700">{fileName}</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => window.open(attachment, '_blank')}
+                        className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition-colors flex items-center text-sm"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleDownload(attachment, fileName)}
+                        className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors flex items-center text-sm"
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Teacher information */}
+        <div className="border-t border-gray-200 pt-4">
+          <div className="text-sm text-gray-600">
+            <p><strong>Created by:</strong> {entry.teacher.fullName}</p>
+            <p><strong>Designation:</strong> {entry.teacher.designation}</p>
+            {entry.createdAt && (
+              <p><strong>Created:</strong> {new Date(entry.createdAt).toLocaleString()}</p>
+            )}
+            {entry.updatedAt && entry.updatedAt !== entry.createdAt && (
+              <p><strong>Last updated:</strong> {new Date(entry.updatedAt).toLocaleString()}</p>
+            )}
           </div>
         </div>
       </div>
