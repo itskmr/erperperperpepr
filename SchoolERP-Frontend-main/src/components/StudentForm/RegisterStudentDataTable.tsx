@@ -8,6 +8,9 @@ import {
   ExportColumn,
   getGenericTableExportConfig
 } from '../../utils/exportUtils';
+import { generateRegistrationFormPrint } from '../../utils/registrationPrint';
+import { generateApplicationFormPrint } from '../../utils/applicationFormPrint';
+import { FaEye, FaEdit, FaTrash, FaPrint } from 'react-icons/fa';
 
 type Student = {
   // Required fields
@@ -763,6 +766,24 @@ const RegisterStudentDataTable: React.FC = () => {
     }
   };
 
+  const handleViewRegistrationPrint = async (student: any) => {
+    try {
+      await generateRegistrationFormPrint(student);
+    } catch (error) {
+      console.error('Error generating registration form print:', error);
+      alert('Error generating registration form print');
+    }
+  };
+
+  const handleViewApplicationPrint = async (student: any) => {
+    try {
+      await generateApplicationFormPrint(student);
+    } catch (error) {
+      console.error('Error generating application form print:', error);
+      alert('Error generating application form print');
+    }
+  };
+
   if (loading) {
     return (
       <div className="w-full">
@@ -898,7 +919,8 @@ const RegisterStudentDataTable: React.FC = () => {
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </button>
-            <button 
+            {/* PDF export button hidden as requested by user */}
+            {/* <button 
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center transition-colors duration-300 shadow-sm"
               onClick={exportToPDF}
               disabled={sortedStudents.length === 0}
@@ -908,7 +930,7 @@ const RegisterStudentDataTable: React.FC = () => {
                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
               Export PDF
-            </button>
+            </button> */}
             <button 
               className="px-4 py-2 border border-gray-300 rounded-md flex items-center hover:bg-gray-50 transition-colors duration-300"
               onClick={() => {
@@ -1088,12 +1110,20 @@ const RegisterStudentDataTable: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => window.print()}
+                    onClick={() => handleViewApplicationPrint(selectedStudent)}
                     className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg flex items-center transition-colors duration-200"
-                    title="Print Details"
+                    title="Print Application Form"
                   >
-                    <Download size={18} className="mr-2" />
-                    Print
+                    <FaPrint className="mr-2" />
+                    Print Application
+                  </button>
+                  <button
+                    onClick={() => handleViewRegistrationPrint(selectedStudent)}
+                    className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg flex items-center transition-colors duration-200"
+                    title="Print Registration Form"
+                  >
+                    <FaPrint className="mr-2" />
+                    Print Registration
                   </button>
                   <button
                     onClick={() => setIsViewModalOpen(false)}

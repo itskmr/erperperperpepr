@@ -1,4 +1,5 @@
 import { useState, ChangeEvent, FormEvent, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   StudentFormData, 
   Documents, 
@@ -26,6 +27,8 @@ interface Driver {
  * Custom hook for managing student registration form state and validation
  */
 export const useStudentRegistration = (): UseStudentRegistrationReturn => {
+  const navigate = useNavigate();
+
   // Form steps
   const steps: Step[] = [
     { id: 1, title: 'Basic Info', icon: '👤' },
@@ -410,6 +413,11 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       console.log("Student registered successfully:", result);
       setSuccess(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Navigate to manage students page after successful submission
+      setTimeout(() => {
+        navigate('/school/students/manage-students');
+      }, 2000); // 2 second delay to show success message
       
     } catch (error) {
       console.error("Form submission error:", error);
