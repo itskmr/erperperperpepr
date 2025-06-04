@@ -123,6 +123,8 @@ export const createStudent = async (req, res) => {
       driver: req.body['transport.driver'] || req.body.transportDriver || '',
       pickupLocation: req.body['transport.pickupLocation'] || req.body.pickupLocation || '',
       dropLocation: req.body['transport.dropLocation'] || req.body.dropLocation || '',
+      busId: req.body['transport.busId'] || req.body.busId || null,
+      pickupPoint: req.body['transport.pickupPoint'] || req.body.pickupPoint || '',
     };
     
     // Extract academic registration
@@ -402,6 +404,14 @@ export const createStudent = async (req, res) => {
           transportDriver: transport.driver,
           pickupLocation: transport.pickupLocation,
           dropLocation: transport.dropLocation,
+          pickupPoint: transport.pickupPoint,
+          ...(transport.busId && {
+            bus: {
+              connect: {
+                id: transport.busId
+              }
+            }
+          }),
           
           // Connect to student
           student: {
@@ -852,6 +862,12 @@ export const updateStudent = async (req, res) => {
         if (studentData.transport.driver !== undefined) transportUpdateData.transportDriver = studentData.transport.driver;
         if (studentData.transport.pickupLocation !== undefined) transportUpdateData.pickupLocation = studentData.transport.pickupLocation;
         if (studentData.transport.dropLocation !== undefined) transportUpdateData.dropLocation = studentData.transport.dropLocation;
+        if (studentData.transport.pickupPoint !== undefined) transportUpdateData.pickupPoint = studentData.transport.pickupPoint;
+        
+        // Handle busId directly (not as relation)
+        if (studentData.transport.busId !== undefined) {
+          transportUpdateData.busId = studentData.transport.busId || null;
+        }
 
         if (Object.keys(transportUpdateData).length > 0) {
           await prisma.transportInfo.upsert({
@@ -1560,25 +1576,8 @@ export const updateStudentDocument = async (req, res) => {
     
     // If new file is uploaded, update the path
     if (file) {
-      updateData[documentType] = file.path;
-      
-      // Update document verification status based on document type
-      if (documentType === 'birthCertificatePath') {
-        updateData.birthCertificateSubmitted = true;
-      } else if (documentType === 'aadhaarCardPath') {
-        updateData.studentAadharSubmitted = true;
-      } else if (documentType === 'fatherAadharPath') {
-        updateData.fatherAadharSubmitted = true;
-      } else if (documentType === 'motherAadharPath') {
-        updateData.motherAadharSubmitted = true;
-      } else if (documentType === 'transferCertificatePath') {
-        updateData.tcSubmitted = true;
-      } else if (documentType === 'markSheetPath') {
-        updateData.marksheetSubmitted = true;
-      }
-
-      updateData.documentsVerified = true;
-    }
+      updateData[documentType] = file.path
+    };
     
     // Update student record
     const updatedStudent = await prisma.student.update({

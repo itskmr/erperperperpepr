@@ -91,6 +91,8 @@ interface Student {
     driver?: string;
     pickupLocation?: string;
     dropLocation?: string;
+    busId?: string;
+    pickupPoint?: string;
   };
   father?: {
     name?: string;
@@ -167,6 +169,15 @@ interface Driver {
   contactNumber: string;
 }
 
+interface Bus {
+  id: string;
+  registrationNumber: string;
+  make: string;
+  model: string;
+  capacity: number;
+  status: string;
+}
+
 // Constants
 const CLASSES = [
   'Nursery', 'LKG', 'UKG',
@@ -201,6 +212,7 @@ const StudentEdit: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [buses, setBuses] = useState<Bus[]>([]);
   
   // State to track password changes - only store new passwords
   const [passwordUpdates, setPasswordUpdates] = useState<{
@@ -237,9 +249,10 @@ const StudentEdit: React.FC = () => {
   // Fetch transport data
   const fetchTransportData = useCallback(async () => {
     try {
-      const [routesResponse, driversResponse] = await Promise.all([
+      const [routesResponse, driversResponse, busesResponse] = await Promise.all([
         axios.get(`${API_URL}/transport/routes`, { headers: getAuthHeaders() }),
-        axios.get(`${API_URL}/transport/drivers`, { headers: getAuthHeaders() })
+        axios.get(`${API_URL}/transport/drivers`, { headers: getAuthHeaders() }),
+        axios.get(`${API_URL}/transport/buses`, { headers: getAuthHeaders() })
       ]);
 
       if (routesResponse.data?.success) {
@@ -248,6 +261,10 @@ const StudentEdit: React.FC = () => {
 
       if (driversResponse.data?.success) {
         setDrivers(driversResponse.data.data || []);
+      }
+
+      if (busesResponse.data?.success) {
+        setBuses(busesResponse.data.data || []);
       }
     } catch (error) {
       console.error('Error fetching transport data:', error);
@@ -370,7 +387,9 @@ const StudentEdit: React.FC = () => {
             route: studentData.transportInfo?.transportRoute || '',
             driver: studentData.transportInfo?.transportDriver || '',
             pickupLocation: studentData.transportInfo?.pickupLocation || '',
-            dropLocation: studentData.transportInfo?.dropLocation || ''
+            dropLocation: studentData.transportInfo?.dropLocation || '',
+            busId: studentData.transportInfo?.busId || '',
+            pickupPoint: studentData.transportInfo?.pickupPoint || '',
           },
           
           // Education information
@@ -831,8 +850,13 @@ const StudentEdit: React.FC = () => {
                 value: driver.id,
                 label: `${driver.name} (${driver.contactNumber})`
               })))}
+              {renderSelect('Select Bus', 'transport.busId', buses.map(bus => ({
+                value: bus.id,
+                label: `${bus.registrationNumber || 'Bus'} - ${bus.make} ${bus.model} (Capacity: ${bus.capacity})`
+              })))}
               {renderInput('Pickup Location', 'transport.pickupLocation')}
               {renderInput('Drop Location', 'transport.dropLocation')}
+              {renderInput('Pickup Point/Stop', 'transport.pickupPoint', 'text', false, 'Specific pickup point for bus attendance')}
             </div>
           </div>
         );

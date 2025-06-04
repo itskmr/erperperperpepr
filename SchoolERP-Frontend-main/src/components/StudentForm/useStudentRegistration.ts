@@ -22,6 +22,14 @@ interface Driver {
   contactNumber: string;
 }
 
+interface Bus {
+  id: string;
+  registrationNumber: string;
+  make: string;
+  model: string;
+  capacity: number;
+}
+
 /**
  * Custom hook for managing student registration form state and validation
  */
@@ -134,7 +142,9 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
       route: '',
       driver: '',
       pickupLocation: '',
-      dropLocation: ''
+      dropLocation: '',
+      busId: '',
+      pickupPoint: ''
     },
     documents: {
       studentImage: null,
@@ -199,13 +209,15 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [transportRoutes, setTransportRoutes] = useState<TransportRoute[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [buses, setBuses] = useState<Bus[]>([]);
 
   // Fetch transport data
   const fetchTransportData = useCallback(async () => {
     try {
-      const [routesData, driversData] = await Promise.all([
+      const [routesData, driversData, busesData] = await Promise.all([
         apiGet<TransportRoute[]>(`/transport/routes`),
-        apiGet<Driver[]>(`/transport/drivers`)
+        apiGet<Driver[]>(`/transport/drivers`),
+        apiGet<Bus[]>(`/transport/buses`)
       ]);
 
       // Handle the response - the apiGet function already extracts the data
@@ -219,6 +231,12 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
         setDrivers(driversData);
       } else if (driversData && typeof driversData === 'object' && 'length' in driversData) {
         setDrivers(driversData as Driver[]);
+      }
+
+      if (Array.isArray(busesData)) {
+        setBuses(busesData);
+      } else if (busesData && typeof busesData === 'object' && 'length' in busesData) {
+        setBuses(busesData as Bus[]);
       }
     } catch (error) {
       console.error('Error fetching transport data:', error);
@@ -340,7 +358,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (payload.schoolId) return payload.schoolId;
-          } catch (e) {
+          } catch {
             console.warn('Failed to decode token for school ID');
           }
         }
@@ -351,7 +369,7 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
           try {
             const user = JSON.parse(userData);
             return user.schoolId || user.id; // For school users, their ID is the school ID
-          } catch (e) {
+          } catch {
             console.warn('Failed to parse user data for school ID');
           }
         }
@@ -478,11 +496,11 @@ export const useStudentRegistration = (): UseStudentRegistrationReturn => {
     validationErrors,
     transportRoutes,
     drivers,
+    buses,
     handleChange,
     handleFileChange,
     handleSubmit,
     nextStep,
-    prevStep,
-    calculateAge
+    prevStep
   };
 }; 

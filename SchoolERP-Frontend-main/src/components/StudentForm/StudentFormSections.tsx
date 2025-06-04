@@ -13,6 +13,7 @@ interface StudentFormSectionsProps {
   validationErrors: Record<string, string>;
   transportRoutes: Array<{ id: string; name: string; fromLocation: string; toLocation: string; }>;
   drivers: Array<{ id: string; name: string; contactNumber: string; }>;
+  buses: Array<{ id: string; registrationNumber: string; make: string; model: string; capacity: number; }>;
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>, documentType: keyof Documents) => void;
 }
@@ -26,6 +27,7 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
   validationErrors,
   transportRoutes,
   drivers,
+  buses,
   handleChange,
   handleFileChange
 }) => {
@@ -626,6 +628,20 @@ const StudentFormSections: React.FC<StudentFormSectionsProps> = ({
                 ], true)}
                 {renderInput('Pickup Location', 'transport.pickupLocation', 'text', true)}
                 {renderInput('Drop Location', 'transport.dropLocation', 'text', true)}
+
+                {/* New Bus Selection Fields */}
+                {formData.transport?.mode === 'Bus' && (
+                  <>
+                    {renderSelect('Select Bus', 'transport.busId', [
+                      { value: '', label: 'Select Bus' },
+                      ...(buses || []).map(bus => ({
+                        value: bus.id,
+                        label: `${bus.registrationNumber || 'Bus'} - ${bus.make} ${bus.model} (Capacity: ${bus.capacity})`
+                      }))
+                    ], true)}
+                    {renderInput('Pickup Point/Stop', 'transport.pickupPoint', 'text', false, 'Specific pickup point for bus attendance')}
+                  </>
+                )}
               </>
             )}
           </div>

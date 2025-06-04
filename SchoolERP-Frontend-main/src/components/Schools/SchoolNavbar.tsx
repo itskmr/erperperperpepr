@@ -339,6 +339,13 @@ const SchoolSidebar: React.FC<SchoolNavbarProps> = (props) => {
               onClick={() => setIsMobileSidebarOpen(false)}
               isActive={isPathActive("/school/administration/timetable")}
             />
+            <NavLink 
+              to="/school/transport-management/bus-attendance" 
+              icon={<UserCheck className="h-4 w-4" />}
+              label="Bus Attendance" 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              isActive={isPathActive("/school/transport-management/bus-attendance")}
+            />
           </NavDropdown>
 
           {/* Student Management */}
@@ -457,6 +464,7 @@ const SchoolSidebar: React.FC<SchoolNavbarProps> = (props) => {
               onClick={() => setIsMobileSidebarOpen(false)}
               isActive={isPathActive("/school/transport-management/transport-routes")}
             />
+            
           </NavDropdown>
 
           {/* Financial Management */}

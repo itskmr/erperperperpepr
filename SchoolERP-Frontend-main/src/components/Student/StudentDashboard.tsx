@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, Calendar, CheckCircle, XCircle, Clock, User, Book, BookOpen,
-  Bell, Activity, GraduationCap, BarChart3, MessageSquare, FileText,
-  Eye, UserCheck, Home, ChevronRight, Target, AlertCircle, RefreshCw,
-  Phone, Mail, MapPin, Calendar as CalendarIcon, School, UserIcon,
-  Contact, Info, Edit, Settings
+  Users, Calendar, Clock, User, Book, BookOpen,
+  GraduationCap, BarChart3, FileText,
+  AlertCircle, RefreshCw,
+  Phone, School, UserIcon,
+  Contact, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import BusAttendanceWidget from './BusAttendanceWidget';
 
 // Types
 interface StudentInfo {
@@ -364,12 +364,6 @@ const StudentDashboard: React.FC = () => {
     };
   };
 
-  // Get today's timetable
-  const getTodayTimetable = () => {
-    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
-    return timetable.filter(entry => entry.day === today);
-  };
-
   // Get attendance status color
   const getAttendanceColor = (status: string) => {
     switch (status) {
@@ -430,7 +424,6 @@ const StudentDashboard: React.FC = () => {
   }
 
   const dateInfo = getCurrentDateInfo();
-  const todayTimetable = getTodayTimetable();
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -573,6 +566,20 @@ const StudentDashboard: React.FC = () => {
           </motion.div>
         </div>
 
+        {/* Bus Attendance Widget */}
+        <motion.div
+          className="mb-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+        >
+          <BusAttendanceWidget 
+            studentId={studentInfo?.id?.toString()}
+            showHistory={true}
+            compact={false}
+          />
+        </motion.div>
+
         {/* Tab Navigation */}
         <div className="bg-white rounded-lg shadow-md mb-6">
           <div className="border-b border-gray-200">
@@ -585,7 +592,7 @@ const StudentDashboard: React.FC = () => {
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as 'timetable' | 'attendance' | 'diary' | 'profile')}
                   className={`py-4 px-2 border-b-2 font-medium text-sm flex items-center space-x-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'

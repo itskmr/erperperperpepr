@@ -44,7 +44,15 @@ import {
   getStudentsByRoute,
   assignStudentToRoute,
   updateStudentTransport,
-  removeStudentFromRoute
+  removeStudentFromRoute,
+  
+  // Bus attendance routes
+  getStudentsByBus,
+  getBusAttendanceByDate,
+  markBusAttendance,
+  updateBusAttendance,
+  getBusAttendanceStats,
+  getStudentBusAttendanceHistory
 } from '../controllers/transportController.js';
 import { protect, authorize, enforceSchoolIsolation, requireSchoolContext } from '../middlewares/authMiddleware.js';
 
@@ -256,6 +264,44 @@ router.delete('/student-transport/:id',
   authorize('admin', 'school'), 
   enforceSchoolIsolation,
   removeStudentFromRoute
+);
+
+// Bus attendance routes
+router.get('/buses/:busId/students', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getStudentsByBus
+);
+router.get('/buses/:busId/attendance', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getBusAttendanceByDate
+);
+router.post('/buses/attendance', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  markBusAttendance
+);
+router.put('/buses/attendance/:id', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  updateBusAttendance
+);
+router.get('/buses/:busId/attendance/stats', 
+  protect, 
+  authorize('admin', 'school', 'teacher'), 
+  enforceSchoolIsolation,
+  getBusAttendanceStats
+);
+router.get('/students/:studentId/bus-attendance', 
+  protect, 
+  authorize('admin', 'school', 'teacher', 'student'), 
+  enforceSchoolIsolation,
+  getStudentBusAttendanceHistory
 );
 
 export default router; 
