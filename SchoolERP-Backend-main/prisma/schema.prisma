@@ -1124,6 +1124,8 @@ enum DiaryEntryType {
   EVENT           // Class event or activity
   NOTICE          // Official notice
   REMINDER        // Reminder for students/parents
+  ASSIGNMENT      // Assignment for students
+  TEACHING_MATERIAL // Teaching materials and resources
 }
 
 // Enum for diary entry priority

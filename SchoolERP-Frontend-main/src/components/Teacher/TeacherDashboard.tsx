@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, Calendar, CheckCircle, XCircle, Clock, User, Book, Plus,
-  Bell, Activity, GraduationCap, BarChart3, MessageSquare, FileText,
-  Eye, UserCheck, BookOpen, TrendingUp, AlertCircle, RefreshCw,
-  Home, ChevronRight, Target, Award, Mail, Phone
+  Users, Calendar, Clock, GraduationCap, BarChart3,
+  Eye, UserCheck, BookOpen, AlertCircle, RefreshCw,
+  ChevronRight, Target, Mail, Phone, Book, Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -16,6 +15,9 @@ interface TeacherInfo {
   designation?: string;
   schoolId: number;
   schoolName?: string;
+  isClassIncharge: boolean;
+  inchargeClass?: string;
+  inchargeSection?: string;
 }
 
 interface TodayTimetableEntry {
@@ -64,6 +66,22 @@ interface DashboardStats {
   pendingAssignments: number;
 }
 
+interface TeacherClass {
+  id: string;
+  className: string;
+  section: string;
+  subject: string;
+  isClassIncharge: boolean;
+}
+
+interface TeacherClassesData {
+  assignedClasses: TeacherClass[];
+  inchargeClass?: {
+    className: string;
+    section: string;
+  };
+}
+
 const TeacherDashboard: React.FC = () => {
   // State
   const [teacherInfo, setTeacherInfo] = useState<TeacherInfo | null>(null);
@@ -71,6 +89,7 @@ const TeacherDashboard: React.FC = () => {
   const [attendanceStats, setAttendanceStats] = useState<TeacherAttendanceStats | null>(null);
   const [recentDiaryEntries, setRecentDiaryEntries] = useState<DiaryEntry[]>([]);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [teacherClasses, setTeacherClasses] = useState<TeacherClassesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -89,7 +108,10 @@ const TeacherDashboard: React.FC = () => {
           email: user.email || '',
           designation: user.designation || 'Teacher',
           schoolId: user.schoolId || user.school_id,
-          schoolName: user.schoolName || user.school_name
+          schoolName: user.schoolName || user.school_name,
+          isClassIncharge: user.isClassIncharge || false,
+          inchargeClass: user.inchargeClass || undefined,
+          inchargeSection: user.inchargeSection || undefined
         };
       }
       
@@ -102,7 +124,10 @@ const TeacherDashboard: React.FC = () => {
           email: payload.email || '',
           designation: payload.designation || 'Teacher',
           schoolId: payload.schoolId || payload.school_id,
-          schoolName: payload.schoolName || payload.school_name
+          schoolName: payload.schoolName || payload.school_name,
+          isClassIncharge: payload.isClassIncharge || false,
+          inchargeClass: payload.inchargeClass || undefined,
+          inchargeSection: payload.inchargeSection || undefined
         };
       }
       
@@ -163,7 +188,7 @@ const TeacherDashboard: React.FC = () => {
       const teacher = teacherInfo;
       if (!teacher) return;
 
-      // Get current month attendance
+      // Get current month attendance for this specific teacher
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -176,7 +201,7 @@ const TeacherDashboard: React.FC = () => {
         const teacherData = response.data.teachers[0];
         const stats = teacherData.attendanceStats;
         
-        // Get today's attendance
+        // Get today's attendance for this teacher
         const todayResponse = await apiCall(`/api/teacher-attendance/date?date=${now.toISOString().split('T')[0]}`);
         let todayStatus = 'NOT_MARKED' as const;
         let checkInTime = undefined;
@@ -206,9 +231,40 @@ const TeacherDashboard: React.FC = () => {
             checkOutTime
           }
         });
+      } else {
+        // If no attendance data found, set default values
+        setAttendanceStats({
+          thisMonth: {
+            totalDays: 0,
+            presentDays: 0,
+            absentDays: 0,
+            lateDays: 0,
+            attendancePercentage: '0%'
+          },
+          today: {
+            status: 'NOT_MARKED',
+            checkInTime: undefined,
+            checkOutTime: undefined
+          }
+        });
       }
     } catch (error) {
       console.error('Error fetching attendance stats:', error);
+      // Set fallback data on error
+      setAttendanceStats({
+        thisMonth: {
+          totalDays: 0,
+          presentDays: 0,
+          absentDays: 0,
+          lateDays: 0,
+          attendancePercentage: '0%'
+        },
+        today: {
+          status: 'NOT_MARKED',
+          checkInTime: undefined,
+          checkOutTime: undefined
+        }
+      });
     }
   };
 
@@ -260,6 +316,61 @@ const TeacherDashboard: React.FC = () => {
     }
   };
 
+  // Fetch teacher classes
+  const fetchTeacherClasses = async () => {
+    try {
+      const teacher = teacherInfo;
+      if (!teacher) return;
+
+      // Get teacher's classes from timetable
+      const response = await apiCall(`/api/timetable?teacherId=${teacher.id}`);
+      
+      if (response.success && response.data) {
+        const timetableEntries = response.data;
+        
+        // Extract unique classes and check if teacher is class incharge
+        const classMap = new Map();
+        let inchargeClass = null;
+        
+        timetableEntries.forEach((entry: any) => {
+          const classKey = `${entry.className}-${entry.section}`;
+          if (!classMap.has(classKey)) {
+            classMap.set(classKey, {
+              id: classKey,
+              className: entry.className,
+              section: entry.section,
+              subject: entry.subjectName,
+              isClassIncharge: false
+            });
+          }
+        });
+
+        // Check if teacher is class incharge from teacher info
+        if (teacher.isClassIncharge && teacher.inchargeClass && teacher.inchargeSection) {
+          inchargeClass = {
+            className: teacher.inchargeClass,
+            section: teacher.inchargeSection
+          };
+          
+          // Mark the incharge class in the classes list
+          const inchargeKey = `${teacher.inchargeClass}-${teacher.inchargeSection}`;
+          if (classMap.has(inchargeKey)) {
+            const classData = classMap.get(inchargeKey);
+            classData.isClassIncharge = true;
+            classMap.set(inchargeKey, classData);
+          }
+        }
+
+        setTeacherClasses({
+          assignedClasses: Array.from(classMap.values()),
+          inchargeClass: inchargeClass || undefined
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching teacher classes:', error);
+    }
+  };
+
   // Initialize dashboard
   const initializeDashboard = async () => {
     try {
@@ -279,7 +390,8 @@ const TeacherDashboard: React.FC = () => {
         fetchTodayTimetable(),
         fetchAttendanceStats(),
         fetchRecentDiaryEntries(),
-        fetchDashboardStats()
+        fetchDashboardStats(),
+        fetchTeacherClasses()
       ]);
       
     } catch (error) {
@@ -412,88 +524,142 @@ const TeacherDashboard: React.FC = () => {
         
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <motion.div 
+          <motion.div 
             className="bg-white rounded-lg shadow-md p-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            >
-                                      <div className="flex items-center">
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <Users className="h-6 w-6 text-blue-600" />
-                                        </div>
+          >
+            <div className="flex items-center">
+              <div className="bg-emerald-100 p-3 rounded-lg">
+                <Book className="h-6 w-6 text-emerald-600" />
+              </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Students</p>
-                <p className="text-2xl font-bold text-gray-900">{dashboardStats?.totalStudents || 0}</p>
-                                      </div>
-                                    </div>
+                <p className="text-sm font-medium text-gray-600">My Classes</p>
+                <p className="text-2xl font-bold text-gray-900">{teacherClasses?.assignedClasses.length || 0}</p>
+              </div>
+            </div>
           </motion.div>
 
           <motion.div 
             className="bg-white rounded-lg shadow-md p-6"
             initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-                                      <div className="flex items-center">
-              <div className="bg-emerald-100 p-3 rounded-lg">
-                <Book className="h-6 w-6 text-emerald-600" />
-                                        </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Classes</p>
-                <p className="text-2xl font-bold text-gray-900">{dashboardStats?.totalClasses || 0}</p>
-                </div>
-              </div>
-            </motion.div>
-          
-              <motion.div 
-            className="bg-white rounded-lg shadow-md p-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                        <div className="flex items-center">
+            <div className="flex items-center">
               <div className="bg-orange-100 p-3 rounded-lg">
                 <Clock className="h-6 w-6 text-orange-600" />
-                        </div>
+              </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Today's Classes</p>
                 <p className="text-2xl font-bold text-gray-900">{dashboardStats?.todayClasses || 0}</p>
-                        </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
             className="bg-white rounded-lg shadow-md p-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <div className="flex items-center">
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Class Incharge</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {teacherClasses?.inchargeClass 
+                    ? `${teacherClasses.inchargeClass.className} - ${teacherClasses.inchargeClass.section}`
+                    : 'Not Assigned'
+                  }
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            className="bg-white rounded-lg shadow-md p-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
             <div className="flex items-center">
               <div className={`p-3 rounded-lg ${
                 attendanceStats?.today.status === 'PRESENT' ? 'bg-green-100' :
+                attendanceStats?.today.status === 'LATE' ? 'bg-yellow-100' :
                 attendanceStats?.today.status === 'ABSENT' ? 'bg-red-100' :
-                attendanceStats?.today.status === 'LATE' ? 'bg-yellow-100' : 'bg-gray-100'
+                'bg-gray-100'
               }`}>
-                {attendanceStats?.today.status === 'PRESENT' ? (
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                ) : attendanceStats?.today.status === 'ABSENT' ? (
-                  <XCircle className="h-6 w-6 text-red-600" />
-                ) : (
-                  <Clock className="h-6 w-6 text-gray-600" />
-                )}
-                                </div>
+                <UserCheck className={`h-6 w-6 ${
+                  attendanceStats?.today.status === 'PRESENT' ? 'text-green-600' :
+                  attendanceStats?.today.status === 'LATE' ? 'text-yellow-600' :
+                  attendanceStats?.today.status === 'ABSENT' ? 'text-red-600' :
+                  'text-gray-600'
+                }`} />
+              </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Today's Status</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {attendanceStats?.today.status === 'NOT_MARKED' ? 'Not Marked' : 
-                   attendanceStats?.today.status || 'Unknown'}
+                <p className={`text-lg font-bold ${
+                  attendanceStats?.today.status === 'PRESENT' ? 'text-green-600' :
+                  attendanceStats?.today.status === 'LATE' ? 'text-yellow-600' :
+                  attendanceStats?.today.status === 'ABSENT' ? 'text-red-600' :
+                  'text-gray-600'
+                }`}>
+                  {attendanceStats?.today.status === 'PRESENT' ? 'Present' :
+                   attendanceStats?.today.status === 'LATE' ? 'Late' :
+                   attendanceStats?.today.status === 'ABSENT' ? 'Absent' :
+                   'Not Marked'}
                 </p>
-                                </div>
-                </div>
-              </motion.div>
+                {attendanceStats?.today.checkInTime && (
+                  <p className="text-xs text-gray-500">
+                    Check-in: {new Date(`1970-01-01T${attendanceStats.today.checkInTime}`).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </p>
+                )}
+              </div>
             </div>
-          
+          </motion.div>
+        </div>
+
+        {/* Teacher Classes Section */}
+        {teacherClasses && teacherClasses.assignedClasses.length > 0 && (
+          <motion.div 
+            className="bg-white rounded-lg shadow-md mb-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                <BookOpen className="h-5 w-5 text-emerald-600 mr-2" />
+                My Teaching Classes
+              </h2>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {teacherClasses.assignedClasses.map((classItem, index) => (
+                  <div key={classItem.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900">
+                        {classItem.className} - {classItem.section}
+                      </h3>
+                      {classItem.isClassIncharge && (
+                        <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+                          Class Teacher
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600">Subject: {classItem.subject}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Today's Timetable & Attendance */}
           <div className="lg:col-span-2 space-y-6">
@@ -502,7 +668,7 @@ const TeacherDashboard: React.FC = () => {
               className="bg-white rounded-lg shadow-md"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
             >
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
@@ -528,8 +694,8 @@ const TeacherDashboard: React.FC = () => {
                         <div className="flex-shrink-0">
                           <div className="bg-emerald-100 p-2 rounded-lg">
                             <Clock className="h-4 w-4 text-emerald-600" />
-                    </div>
-                    </div>
+                          </div>
+                        </div>
                         <div className="ml-4 flex-1">
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-medium text-gray-900">
@@ -542,25 +708,25 @@ const TeacherDashboard: React.FC = () => {
                           {entry.roomNumber && (
                             <p className="text-sm text-gray-600 mt-1">Room: {entry.roomNumber}</p>
                           )}
-                          </div>
                         </div>
+                      </div>
                     ))}
-                          </div>
+                    </div>
                 ) : (
                   <div className="text-center py-8">
                     <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">No classes scheduled for today</p>
-                    </div>
-                  )}
+                  </div>
+                )}
               </div>
             </motion.div>
           
             {/* Teacher Attendance Summary */}
-              <motion.div
+            <motion.div
               className="bg-white rounded-lg shadow-md"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.7 }}
             >
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center">
@@ -575,38 +741,38 @@ const TeacherDashboard: React.FC = () => {
                     <div className="text-center p-4 bg-green-50 rounded-lg">
                       <div className="text-2xl font-bold text-green-600">
                         {attendanceStats.thisMonth.presentDays}
-                  </div>
+                      </div>
                       <div className="text-sm text-green-800">Present Days</div>
-                </div>
+                    </div>
                     <div className="text-center p-4 bg-red-50 rounded-lg">
                       <div className="text-2xl font-bold text-red-600">
                         {attendanceStats.thisMonth.absentDays}
-              </div>
+                      </div>
                       <div className="text-sm text-red-800">Absent Days</div>
-                </div>
+                    </div>
                     <div className="text-center p-4 bg-yellow-50 rounded-lg">
                       <div className="text-2xl font-bold text-yellow-600">
                         {attendanceStats.thisMonth.lateDays}
-              </div>
+                      </div>
                       <div className="text-sm text-yellow-800">Late Days</div>
                     </div>
                     <div className="text-center p-4 bg-blue-50 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600">
                         {attendanceStats.thisMonth.attendancePercentage}
-                  </div>
+                      </div>
                       <div className="text-sm text-blue-800">Attendance %</div>
+                    </div>
                   </div>
-                </div>
                 ) : (
                   <div className="text-center py-8">
                     <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">Attendance data not available</p>
-              </div>
+                  </div>
                 )}
               </div>
-                    </motion.div>
-                  </div>
-                  
+            </motion.div>
+          </div>
+
           {/* Right Column - Recent Diary & Quick Actions */}
           <div className="space-y-6">
             {/* Recent Diary Entries */}
@@ -614,7 +780,7 @@ const TeacherDashboard: React.FC = () => {
               className="bg-white rounded-lg shadow-md"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.7 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
             >
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
@@ -644,9 +810,9 @@ const TeacherDashboard: React.FC = () => {
                         <p className="text-xs text-gray-500 mt-1">
                           {new Date(entry.date).toLocaleDateString()}
                         </p>
-                        </div>
+                      </div>
                     ))}
-                </div>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -657,24 +823,24 @@ const TeacherDashboard: React.FC = () => {
                     >
                       Create your first entry
                     </Link>
-                </div>
+                  </div>
                 )}
               </div>
             </motion.div>
         
             {/* Quick Access Shortcuts */}
-        <motion.div 
+            <motion.div 
               className="bg-white rounded-lg shadow-md"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-        >
+              transition={{ duration: 0.5, delay: 0.9 }}
+            >
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center">
                   <Target className="h-5 w-5 text-emerald-600 mr-2" />
                   Quick Access
                 </h2>
-          </div>
+              </div>
               
               <div className="p-6">
                 <div className="grid grid-cols-2 gap-4">
@@ -712,8 +878,8 @@ const TeacherDashboard: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-            </div>
           </div>
+        </div>
       </div>
     </div>
   );

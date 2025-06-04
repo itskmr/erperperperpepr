@@ -1,7 +1,123 @@
 import { PrismaClient } from '@prisma/client';
 import { getSchoolIdFromContext } from '../middlewares/authMiddleware.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(process.cwd(), 'uploads', 'teacher-diary');
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    // Generate unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    const filename = `${file.fieldname}-${uniqueSuffix}${extension}`;
+    cb(null, filename);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  // Define allowed file types
+  const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  const allowedDocumentTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain'
+  ];
+
+  if (file.fieldname === 'images' && allowedImageTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else if (file.fieldname === 'attachments' && allowedDocumentTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type: ${file.mimetype}. Please upload valid images or documents.`), false);
+  }
+};
+
+export const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 10 // Maximum 10 files per request
+  }
+});
+
+// Helper function to construct full file URLs
+const constructFileUrl = (filePath, req) => {
+  if (!filePath) return null;
+  
+  // If it's already a full URL, return as is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  
+  // If it starts with uploads/ remove the leading /
+  const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+  
+  // Construct full URL
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  return `${baseUrl}/${cleanPath}`;
+};
+
+// Helper function to process entries and convert file paths to URLs
+const processEntryUrls = (entry, req) => {
+  const processedEntry = { ...entry };
+  
+  // Process attachments
+  if (processedEntry.attachments) {
+    try {
+      const attachments = typeof processedEntry.attachments === 'string' 
+        ? JSON.parse(processedEntry.attachments) 
+        : processedEntry.attachments;
+      
+      processedEntry.attachments = Array.isArray(attachments) 
+        ? attachments.map(path => constructFileUrl(path, req))
+        : [];
+    } catch (e) {
+      console.error('Error parsing attachments for entry', entry.id, ':', e);
+      processedEntry.attachments = [];
+    }
+  } else {
+    processedEntry.attachments = [];
+  }
+
+  // Process imageUrls
+  if (processedEntry.imageUrls) {
+    try {
+      const imageUrls = typeof processedEntry.imageUrls === 'string' 
+        ? JSON.parse(processedEntry.imageUrls) 
+        : processedEntry.imageUrls;
+      
+      processedEntry.imageUrls = Array.isArray(imageUrls) 
+        ? imageUrls.map(path => constructFileUrl(path, req))
+        : [];
+    } catch (e) {
+      console.error('Error parsing imageUrls for entry', entry.id, ':', e);
+      processedEntry.imageUrls = [];
+    }
+  } else {
+    processedEntry.imageUrls = [];
+  }
+
+  return processedEntry;
+};
 
 /**
  * Get all diary entries for a teacher with filtering and pagination
@@ -79,13 +195,16 @@ export const getTeacherDiaryEntries = async (req, res) => {
       take: parseInt(limit)
     });
 
+    // Parse JSON fields for each entry
+    const processedEntries = diaryEntries.map(entry => processEntryUrls(entry, req));
+
     const totalPages = Math.ceil(totalEntries / limit);
 
     return res.status(200).json({
       success: true,
       message: "Teacher diary entries retrieved successfully",
       data: {
-        entries: diaryEntries,
+        entries: processedEntries,
         pagination: {
           currentPage: parseInt(page),
           totalPages,
@@ -217,11 +336,14 @@ export const getDiaryEntriesForView = async (req, res) => {
       take: parseInt(limit)
     });
 
+    // Parse JSON fields for each entry
+    const processedEntries = diaryEntries.map(entry => processEntryUrls(entry, req));
+
     const totalPages = Math.ceil(totalEntries / limit);
 
     console.log('Retrieved diary entries:', {
       totalEntries,
-      currentPageEntries: diaryEntries.length,
+      currentPageEntries: processedEntries.length,
       currentPage: page,
       totalPages
     });
@@ -230,7 +352,7 @@ export const getDiaryEntriesForView = async (req, res) => {
       success: true,
       message: "Diary entries retrieved successfully",
       data: {
-        entries: diaryEntries,
+        entries: processedEntries,
         pagination: {
           currentPage: parseInt(page),
           totalPages,
@@ -611,27 +733,13 @@ export const getDiaryEntryById = async (req, res) => {
     }
 
     // Parse JSON fields
-    if (diaryEntry.attachments) {
-      try {
-        diaryEntry.attachments = JSON.parse(diaryEntry.attachments);
-      } catch (e) {
-        diaryEntry.attachments = [];
-      }
-    }
-
-    if (diaryEntry.imageUrls) {
-      try {
-        diaryEntry.imageUrls = JSON.parse(diaryEntry.imageUrls);
-      } catch (e) {
-        diaryEntry.imageUrls = [];
-      }
-    }
+    const processedEntry = processEntryUrls(diaryEntry, req);
 
     return res.status(200).json({
       success: true,
       message: "Diary entry retrieved successfully",
       data: {
-        entry: diaryEntry
+        entry: processedEntry
       }
     });
 
@@ -831,6 +939,70 @@ export const healthCheck = async (req, res) => {
       success: false,
       message: "Health check failed",
       error: error.message
+    });
+  }
+};
+
+/**
+ * Upload files for teacher diary
+ * Role: TEACHER only
+ */
+export const uploadFiles = async (req, res) => {
+  try {
+    // Check if user is a teacher
+    const userRole = req.user.role?.toUpperCase();
+    if (userRole !== 'TEACHER') {
+      return res.status(403).json({
+        success: false,
+        message: "Only teachers can upload files"
+      });
+    }
+
+    const uploadedFiles = {
+      images: [],
+      attachments: []
+    };
+
+    // Get base URL for constructing full URLs
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    // Process uploaded files
+    if (req.files) {
+      if (req.files.images) {
+        uploadedFiles.images = req.files.images.map(file => ({
+          filename: file.filename,
+          originalName: file.originalname,
+          path: `${baseUrl}/uploads/teacher-diary/${file.filename}`,
+          relativePath: `/uploads/teacher-diary/${file.filename}`,
+          size: file.size,
+          mimetype: file.mimetype
+        }));
+      }
+
+      if (req.files.attachments) {
+        uploadedFiles.attachments = req.files.attachments.map(file => ({
+          filename: file.filename,
+          originalName: file.originalname,
+          path: `${baseUrl}/uploads/teacher-diary/${file.filename}`,
+          relativePath: `/uploads/teacher-diary/${file.filename}`,
+          size: file.size,
+          mimetype: file.mimetype
+        }));
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Files uploaded successfully",
+      data: uploadedFiles
+    });
+
+  } catch (error) {
+    console.error("Error uploading files:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload files",
+      error: process.env.NODE_ENV === 'development' ? error.message : "Internal server error"
     });
   }
 }; 

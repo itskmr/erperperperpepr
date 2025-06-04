@@ -80,7 +80,9 @@ export type DiaryEntryType =
   | 'ASSESSMENT'
   | 'EVENT'
   | 'NOTICE'
-  | 'REMINDER';
+  | 'REMINDER'
+  | 'ASSIGNMENT'
+  | 'TEACHING_MATERIAL';
 
 export type DiaryPriority = 
   | 'LOW'
@@ -403,6 +405,10 @@ export const getEntryTypeColor = (entryType: DiaryEntryType): string => {
       return 'text-yellow-600 bg-yellow-100';
     case 'REMINDER':
       return 'text-red-600 bg-red-100';
+    case 'ASSIGNMENT':
+      return 'text-pink-600 bg-pink-100';
+    case 'TEACHING_MATERIAL':
+      return 'text-teal-600 bg-teal-100';
     default:
       return 'text-gray-600 bg-gray-100';
   }

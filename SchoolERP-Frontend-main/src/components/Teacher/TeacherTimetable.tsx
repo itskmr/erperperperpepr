@@ -4,17 +4,13 @@ import {
   Edit,
   Trash2,
   Clock,
-  // User,
-  // Book,
-//  School,
   Calendar,
   MapPin,
-  // CheckCircle,
+  CheckCircle,
   XCircle,
-  RefreshCw,
-  // Eye
+  RefreshCw
 } from 'lucide-react';
-import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../utils/authApi';
+import { apiGet, apiPost, apiPut, apiDelete } from '../../utils/authApi';
 
 // Types
 interface TimetableEntry {
@@ -29,6 +25,11 @@ interface TimetableEntry {
   roomNumber?: string;
   teacherName?: string;
   isMyClass?: boolean;
+  teacher?: {
+    id: number;
+    fullName: string;
+    subjects?: string;
+  };
 }
 
 interface TimeSlot {
@@ -38,6 +39,18 @@ interface TimeSlot {
   label: string;
 }
 
+interface Teacher {
+  id: number;
+  fullName: string;
+  designation?: string;
+  subjects?: string; // JSON string of subjects
+}
+
+// Predefined data
+// const CLASS_OPTIONS = [...];
+// const SECTION_OPTIONS = [...];
+// const ALL_SUBJECTS = [...];
+
 // Constants
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
@@ -45,7 +58,7 @@ const TeacherTimetable: React.FC = () => {
   // State
   const [timetableData, setTimetableData] = useState<TimetableEntry[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [teacherData, setTeacherData] = useState<any>(null);
+  const [teacherData, setTeacherData] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -56,6 +69,11 @@ const TeacherTimetable: React.FC = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<string>('');
   
+  // Delete confirmation states
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [deletingEntryTitle, setDeletingEntryTitle] = useState<string>('');
+
   // Form data
   const [formData, setFormData] = useState({
     className: '',
@@ -63,6 +81,9 @@ const TeacherTimetable: React.FC = () => {
     subjectName: '',
     roomNumber: ''
   });
+
+  // UI states
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   // Utility functions
   const formatTime = (time: string) => {
@@ -73,9 +94,9 @@ const TeacherTimetable: React.FC = () => {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    // You can integrate with your existing notification system
-    console.log(`${type}: ${message}`);
+  const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') => {
+    setSnackbar({ open: true, message, severity });
+    setTimeout(() => setSnackbar({ open: false, message: '', severity: 'success' }), 5000);
   };
 
   // Get authenticated teacher info
@@ -146,8 +167,8 @@ const TeacherTimetable: React.FC = () => {
       const teacher = getTeacherInfo();
       if (teacher?.id) {
         const response = await apiGet(`/teachers/${teacher.id}`);
-        if (response) {
-          setTeacherData(response);
+        if (response && typeof response === 'object') {
+          setTeacherData(response as Teacher);
         }
       }
     } catch (error) {
@@ -224,12 +245,12 @@ const TeacherTimetable: React.FC = () => {
       };
 
       await apiPost('/timetable', entryData);
-      showNotification('Timetable entry added successfully!');
+      showSnackbar('Timetable entry added successfully!');
       setIsAddModalOpen(false);
       fetchTimetableData();
     } catch (error) {
       console.error('Error saving entry:', error);
-      showNotification('Failed to add timetable entry', 'error');
+      showSnackbar('Failed to add timetable entry', 'error');
     }
   };
 
@@ -250,26 +271,24 @@ const TeacherTimetable: React.FC = () => {
       };
 
       await apiPut(`/timetable/${selectedEntry.id}`, entryData);
-      showNotification('Timetable entry updated successfully!');
+      showSnackbar('Timetable entry updated successfully!');
       setIsEditModalOpen(false);
       fetchTimetableData();
     } catch (error) {
       console.error('Error updating entry:', error);
-      showNotification('Failed to update timetable entry', 'error');
+      showSnackbar('Failed to update timetable entry', 'error');
     }
   };
 
   // Delete entry
   const handleDeleteEntry = async (entryId: string) => {
     try {
-      if (window.confirm('Are you sure you want to delete this timetable entry?')) {
-        await apiDelete(`/timetable/${entryId}`);
-        showNotification('Timetable entry deleted successfully!');
-        fetchTimetableData();
-      }
+      await apiDelete(`/timetable/${entryId}`);
+      showSnackbar('Timetable entry deleted successfully!');
+      fetchTimetableData();
     } catch (error) {
       console.error('Error deleting entry:', error);
-      showNotification('Failed to delete timetable entry', 'error');
+      showSnackbar('Failed to delete timetable entry', 'error');
     }
   };
 
@@ -334,7 +353,9 @@ const TeacherTimetable: React.FC = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteEntry(entry.id);
+                    setDeletingEntryId(entry.id);
+                    setDeletingEntryTitle(entry.subjectName);
+                    setShowDeleteConfirmation(true);
                   }}
                   className="text-red-600 hover:text-red-800 p-0.5 rounded hover:bg-red-50"
                   title="Delete"
@@ -620,6 +641,51 @@ const TeacherTimetable: React.FC = () => {
                 Update Class
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && deletingEntryId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Delete Class</h3>
+            
+            <p>Are you sure you want to delete the class "{deletingEntryTitle}"?</p>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowDeleteConfirmation(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteEntry(deletingEntryId);
+                  setShowDeleteConfirmation(false);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Snackbar */}
+      {snackbar.open && (
+        <div className={`fixed bottom-4 right-4 z-50 p-4 rounded-md shadow-lg ${
+          snackbar.severity === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {snackbar.severity === 'success' ? (
+              <CheckCircle className="h-5 w-5" />
+            ) : (
+              <XCircle className="h-5 w-5" />
+            )}
+            <span>{snackbar.message}</span>
           </div>
         </div>
       )}

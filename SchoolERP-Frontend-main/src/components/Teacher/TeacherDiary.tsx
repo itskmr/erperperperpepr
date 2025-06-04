@@ -9,7 +9,12 @@ import {
   X,
   Save,
   AlertCircle,
-  Users
+  Users,
+  Upload,
+  File,
+  Image,
+  Eye,
+  Download
 } from 'lucide-react';
 
 interface DiaryEntry {
@@ -20,7 +25,7 @@ interface DiaryEntry {
   className: string;
   section: string;
   subject: string;
-  entryType: 'GENERAL' | 'HOMEWORK' | 'ANNOUNCEMENT' | 'ASSESSMENT' | 'EVENT' | 'NOTICE' | 'REMINDER';
+  entryType: 'GENERAL' | 'HOMEWORK' | 'ANNOUNCEMENT' | 'ASSESSMENT' | 'EVENT' | 'NOTICE' | 'REMINDER' | 'ASSIGNMENT' | 'TEACHING_MATERIAL';
   priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   isPublic: boolean;
   teacher: {
@@ -29,6 +34,14 @@ interface DiaryEntry {
     email: string;
     designation: string;
   };
+  attachments?: string[];
+  imageUrls?: string[];
+  homework?: string;
+  classSummary?: string;
+  notices?: string;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface FilterState {
@@ -41,8 +54,23 @@ interface FilterState {
   priority: string;
 }
 
-type EntryType = 'GENERAL' | 'HOMEWORK' | 'ANNOUNCEMENT' | 'ASSESSMENT' | 'EVENT' | 'NOTICE' | 'REMINDER';
+type EntryType = 'GENERAL' | 'HOMEWORK' | 'ANNOUNCEMENT' | 'ASSESSMENT' | 'EVENT' | 'NOTICE' | 'REMINDER' | 'ASSIGNMENT' | 'TEACHING_MATERIAL';
 type Priority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+// Add new interface for view modal
+interface ViewModalProps {
+  entry: DiaryEntry;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+// Add new interface for delete confirmation
+interface DeleteConfirmationProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  entryTitle: string;
+}
 
 const TeacherDiary: React.FC = () => {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -74,8 +102,26 @@ const TeacherDiary: React.FC = () => {
     subject: '',
     entryType: 'GENERAL' as EntryType,
     priority: 'NORMAL' as Priority,
-    isPublic: true
+    isPublic: true,
+    attachments: [] as string[],
+    imageUrls: [] as string[],
+    homework: '',
+    classSummary: '',
+    notices: '',
+    remarks: ''
   });
+
+  // Additional states for file uploads - removed unused variables
+  // const [uploadingFiles, setUploadingFiles] = useState(false);
+  // const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  // const [selectedImages, setSelectedImages] = useState<File[]>([]);
+
+  // Add missing state variables for view and delete functionality
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingEntry, setViewingEntry] = useState<DiaryEntry | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
+  const [deletingEntryTitle, setDeletingEntryTitle] = useState<string>('');
 
   // Class and Section options
   const classOptions = [
@@ -109,7 +155,9 @@ const TeacherDiary: React.FC = () => {
     { value: 'ASSESSMENT', label: 'Assessment', color: 'bg-purple-100 text-purple-800' },
     { value: 'EVENT', label: 'Event', color: 'bg-pink-100 text-pink-800' },
     { value: 'NOTICE', label: 'Notice', color: 'bg-teal-100 text-teal-800' },
-    { value: 'REMINDER', label: 'Reminder', color: 'bg-purple-100 text-purple-800' }
+    { value: 'REMINDER', label: 'Reminder', color: 'bg-purple-100 text-purple-800' },
+    { value: 'ASSIGNMENT', label: 'Assignment', color: 'bg-orange-100 text-orange-800' },
+    { value: 'TEACHING_MATERIAL', label: 'Teaching Material', color: 'bg-indigo-100 text-indigo-800' }
   ];
 
   const priorityLevels = [
@@ -193,7 +241,23 @@ const TeacherDiary: React.FC = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          title: data.title,
+          content: data.content,
+          date: data.date,
+          className: data.className,
+          section: data.section,
+          subject: data.subject,
+          entryType: data.entryType,
+          priority: data.priority,
+          isPublic: data.isPublic,
+          attachments: data.attachments,
+          imageUrls: data.imageUrls,
+          homework: data.homework || null,
+          classSummary: data.classSummary || null,
+          notices: data.notices || null,
+          remarks: data.remarks || null
+        })
       });
 
       if (response.status === 401) {
@@ -208,15 +272,34 @@ const TeacherDiary: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to create diary entry`);
+        throw new Error(errorData.message || 'Failed to create diary entry');
       }
 
-      await fetchEntries();
-      setShowCreateModal(false);
-      resetForm();
-    } catch (err) {
-      console.error('Error creating entry:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create diary entry');
+      const result = await response.json();
+      if (result.success) {
+        setShowCreateModal(false);
+        setFormData({
+          title: '',
+          content: '',
+          date: new Date().toISOString().split('T')[0],
+          className: '',
+          section: '',
+          subject: '',
+          entryType: 'GENERAL' as EntryType,
+          priority: 'NORMAL' as Priority,
+          isPublic: true,
+          attachments: [],
+          imageUrls: [],
+          homework: '',
+          classSummary: '',
+          notices: '',
+          remarks: ''
+        });
+        fetchEntries(); // Refresh the list
+      }
+    } catch (error) {
+      console.error('Error creating diary entry:', error);
+      setError('Failed to create diary entry. Please try again.');
     }
   };
 
@@ -238,7 +321,23 @@ const TeacherDiary: React.FC = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          title: data.title,
+          content: data.content,
+          date: data.date,
+          className: data.className,
+          section: data.section,
+          subject: data.subject,
+          entryType: data.entryType,
+          priority: data.priority,
+          isPublic: data.isPublic,
+          attachments: data.attachments,
+          imageUrls: data.imageUrls,
+          homework: data.homework || null,
+          classSummary: data.classSummary || null,
+          notices: data.notices || null,
+          remarks: data.remarks || null
+        })
       });
 
       if (response.status === 401) {
@@ -253,23 +352,40 @@ const TeacherDiary: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to update diary entry`);
+        throw new Error(errorData.message || 'Failed to update diary entry');
       }
 
-      await fetchEntries();
-      setShowEditModal(false);
-      setEditingEntry(null);
-      resetForm();
-    } catch (err) {
-      console.error('Error updating entry:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update diary entry');
+      const result = await response.json();
+      if (result.success) {
+        setShowEditModal(false);
+        setEditingEntry(null);
+        setFormData({
+          title: '',
+          content: '',
+          date: new Date().toISOString().split('T')[0],
+          className: '',
+          section: '',
+          subject: '',
+          entryType: 'GENERAL' as EntryType,
+          priority: 'NORMAL' as Priority,
+          isPublic: true,
+          attachments: [],
+          imageUrls: [],
+          homework: '',
+          classSummary: '',
+          notices: '',
+          remarks: ''
+        });
+        fetchEntries(); // Refresh the list
+      }
+    } catch (error) {
+      console.error('Error updating diary entry:', error);
+      setError('Failed to update diary entry. Please try again.');
     }
   };
 
   // Delete diary entry
   const deleteEntry = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this diary entry?')) return;
-
     try {
       const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       
@@ -318,26 +434,44 @@ const TeacherDiary: React.FC = () => {
       subject: '',
       entryType: 'GENERAL',
       priority: 'NORMAL',
-      isPublic: true
+      isPublic: true,
+      attachments: [],
+      imageUrls: [],
+      homework: '',
+      classSummary: '',
+      notices: '',
+      remarks: ''
     });
   }, []);
 
-  const openEditModal = useCallback((entry: DiaryEntry) => {
-    setEditingEntry(entry);
-    const editFormData = {
-      title: entry.title,
-      content: entry.content,
-      date: entry.date.split('T')[0],
-      className: entry.className,
-      section: entry.section,
-      subject: entry.subject,
-      entryType: entry.entryType,
-      priority: entry.priority,
-      isPublic: entry.isPublic
+  // Function to open edit modal with proper data setup
+  const openEditModal = (entry: DiaryEntry) => {
+    // Ensure arrays are properly handled
+    const processedAttachments = Array.isArray(entry.attachments) ? entry.attachments : [];
+    const processedImageUrls = Array.isArray(entry.imageUrls) ? entry.imageUrls : [];
+    
+    const editData = {
+      title: entry.title || '',
+      content: entry.content || '',
+      date: entry.date ? new Date(entry.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      className: entry.className || '',
+      section: entry.section || '',
+      subject: entry.subject || '',
+      entryType: entry.entryType as EntryType,
+      priority: entry.priority as Priority,
+      isPublic: entry.isPublic ?? true,
+      attachments: processedAttachments,
+      imageUrls: processedImageUrls,
+      homework: entry.homework || '',
+      classSummary: entry.classSummary || '',
+      notices: entry.notices || '',
+      remarks: entry.remarks || ''
     };
-    setFormData(editFormData);
+    
+    setFormData(editData);
+    setEditingEntry(entry);
     setShowEditModal(true);
-  }, []);
+  };
 
   const getEntryTypeConfig = (type: string) => {
     return entryTypes.find(t => t.value === type) || entryTypes[0];
@@ -367,11 +501,59 @@ const TeacherDiary: React.FC = () => {
   }> = ({ initialData, onSubmit, onCancel, isEditing }) => {
     // Local state that won't be affected by parent re-renders
     const [localData, setLocalData] = useState(initialData);
+    const [localUploadingFiles, setLocalUploadingFiles] = useState(false);
     
     // Sync with initial data only when it changes (for edit mode)
     useEffect(() => {
       setLocalData(initialData);
     }, [initialData.title, initialData.content, initialData.date]); // Only key fields to prevent unnecessary updates
+
+    // Handle file upload
+    const handleFileUpload = async (files: File[], type: 'images' | 'attachments') => {
+      if (files.length === 0) return;
+
+      setLocalUploadingFiles(true);
+      try {
+        const formData = new FormData();
+        files.forEach(file => {
+          formData.append(type, file);
+        });
+
+        const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+        const response = await fetch('/api/teacher-diary/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+          const uploadedFiles = result.data[type] || [];
+          // Use the full path URLs returned by the backend
+          const filePaths = uploadedFiles.map((file: { path: string }) => file.path);
+          
+          setLocalData(prev => ({
+            ...prev,
+            [type === 'images' ? 'imageUrls' : 'attachments']: [
+              ...prev[type === 'images' ? 'imageUrls' : 'attachments'],
+              ...filePaths
+            ]
+          }));
+        }
+      } catch (error) {
+        console.error('File upload error:', error);
+        alert('Failed to upload files. Please try again.');
+      } finally {
+        setLocalUploadingFiles(false);
+      }
+    };
 
     const handleSubmit = () => {
       onSubmit(localData);
@@ -427,7 +609,7 @@ const TeacherDiary: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Class *
@@ -465,7 +647,9 @@ const TeacherDiary: React.FC = () => {
               ))}
             </select>
           </div>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Subject *
@@ -479,23 +663,23 @@ const TeacherDiary: React.FC = () => {
               required
             />
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Priority
-          </label>
-          <select
-            value={localData.priority}
-            onChange={(e) => setLocalData(prev => ({ ...prev, priority: e.target.value as Priority }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {priorityLevels.map(priority => (
-              <option key={priority.value} value={priority.value}>
-                {priority.label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Priority
+            </label>
+            <select
+              value={localData.priority}
+              onChange={(e) => setLocalData(prev => ({ ...prev, priority: e.target.value as Priority }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {priorityLevels.map(priority => (
+                <option key={priority.value} value={priority.value}>
+                  {priority.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
@@ -510,6 +694,166 @@ const TeacherDiary: React.FC = () => {
             placeholder="Enter detailed content for this diary entry..."
             required
           />
+        </div>
+
+        {/* Additional Content Sections */}
+        <div className="space-y-4 border-t border-gray-200 pt-4">
+          <h4 className="text-sm font-medium text-gray-700">Additional Content Sections</h4>
+          
+          {/* Homework Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Homework Assignment
+            </label>
+            <textarea
+              value={localData.homework || ''}
+              onChange={(e) => setLocalData(prev => ({ ...prev, homework: e.target.value }))}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter homework details (optional)..."
+            />
+          </div>
+
+          {/* Class Summary Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Class Summary
+            </label>
+            <textarea
+              value={localData.classSummary || ''}
+              onChange={(e) => setLocalData(prev => ({ ...prev, classSummary: e.target.value }))}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Summarize what was covered in class (optional)..."
+            />
+          </div>
+
+          {/* Notices Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Important Notices
+            </label>
+            <textarea
+              value={localData.notices || ''}
+              onChange={(e) => setLocalData(prev => ({ ...prev, notices: e.target.value }))}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Any important notices for students/parents (optional)..."
+            />
+          </div>
+
+          {/* Remarks Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Additional Remarks
+            </label>
+            <textarea
+              value={localData.remarks || ''}
+              onChange={(e) => setLocalData(prev => ({ ...prev, remarks: e.target.value }))}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Any additional remarks or observations (optional)..."
+            />
+          </div>
+        </div>
+
+        {/* Enhanced File Upload Section */}
+        <div className="space-y-4 border-t pt-4">
+          <h4 className="text-sm font-medium text-gray-700 flex items-center">
+            <Upload className="h-4 w-4 mr-2" />
+            File Attachments
+          </h4>
+          
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Image className="h-4 w-4 inline mr-1" />
+              Upload Images
+            </label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                handleFileUpload(files, 'images');
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={localUploadingFiles}
+            />
+            {(Array.isArray(localData.imageUrls) ? localData.imageUrls.length : 0) > 0 && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-600">Uploaded images:</p>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(Array.isArray(localData.imageUrls) ? localData.imageUrls : []).map((image, index) => (
+                    <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <Image className="h-3 w-3 mr-1" />
+                      {image.split('/').pop()}
+                      <button
+                        type="button"
+                        onClick={() => setLocalData(prev => ({ 
+                          ...prev, 
+                          imageUrls: Array.isArray(prev.imageUrls) ? prev.imageUrls.filter((_, i) => i !== index) : []
+                        }))}
+                        className="ml-1 text-blue-600 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Document Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <File className="h-4 w-4 inline mr-1" />
+              Upload Documents
+            </label>
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.ppt,.pptx"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                handleFileUpload(files, 'attachments');
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={localUploadingFiles}
+            />
+            {(Array.isArray(localData.attachments) ? localData.attachments.length : 0) > 0 && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-600">Uploaded documents:</p>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(Array.isArray(localData.attachments) ? localData.attachments : []).map((file, index) => (
+                    <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <File className="h-3 w-3 mr-1" />
+                      {file.split('/').pop()}
+                      <button
+                        type="button"
+                        onClick={() => setLocalData(prev => ({ 
+                          ...prev, 
+                          attachments: Array.isArray(prev.attachments) ? prev.attachments.filter((_, i) => i !== index) : []
+                        }))}
+                        className="ml-1 text-green-600 hover:text-green-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {localUploadingFiles && (
+            <div className="flex items-center text-sm text-blue-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              Uploading files...
+            </div>
+          )}
         </div>
 
         <div className="flex items-center">
@@ -537,6 +881,7 @@ const TeacherDiary: React.FC = () => {
             type="button"
             onClick={handleSubmit}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
+            disabled={localUploadingFiles}
           >
             <Save className="h-4 w-4 mr-2" />
             {isEditing ? 'Update Entry' : 'Create Entry'}
@@ -573,6 +918,13 @@ const TeacherDiary: React.FC = () => {
             </div>
             <div className="flex space-x-2">
               <button
+                onClick={() => openViewModal(entry)}
+                className="p-2 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                title="View entry"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              <button
                 onClick={() => openEditModal(entry)}
                 className="p-2 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                 title="Edit entry"
@@ -580,7 +932,7 @@ const TeacherDiary: React.FC = () => {
                 <Edit className="h-4 w-4" />
               </button>
               <button
-                onClick={() => deleteEntry(entry.id)}
+                onClick={() => openDeleteConfirmation(entry.id, entry.title)}
                 className="p-2 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                 title="Delete entry"
               >
@@ -605,10 +957,444 @@ const TeacherDiary: React.FC = () => {
           </div>
 
           <p className="text-gray-700 text-sm line-clamp-3">{entry.content}</p>
+          
+          {/* Show attachment/image indicators */}
+          {((entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0) || (entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0)) && (
+            <div className="flex items-center space-x-4 mt-3 pt-3 border-t border-gray-100">
+              {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <Image className="h-3 w-3 mr-1" />
+                  {entry.imageUrls.length} image{entry.imageUrls.length !== 1 ? 's' : ''}
+                </div>
+              )}
+              {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+                <div className="flex items-center text-xs text-gray-500">
+                  <File className="h-3 w-3 mr-1" />
+                  {entry.attachments.length} document{entry.attachments.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
   });
+
+  // Component for viewing diary entry details
+  const ViewModal: React.FC<ViewModalProps> = ({ entry, isOpen, onClose }) => {
+    if (!isOpen || !entry) return null;
+
+    const handleDownload = async (url: string, filename: string) => {
+      try {
+        // Get the token for authentication
+        const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+        
+        // If the URL is already a full URL, use it directly
+        let downloadUrl = url;
+        
+        // If it's a relative path or needs our API endpoint
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          // Extract filename from path
+          const pathSegments = url.split('/');
+          const file = pathSegments[pathSegments.length - 1];
+          downloadUrl = `/api/teacher-diary/files/${file}?download=true`;
+        } else {
+          // For full URLs, try to extract filename and use our API endpoint for better security
+          const urlObj = new URL(url);
+          const pathSegments = urlObj.pathname.split('/');
+          const file = pathSegments[pathSegments.length - 1];
+          if (file && urlObj.pathname.includes('teacher-diary')) {
+            downloadUrl = `/api/teacher-diary/files/${file}?download=true`;
+          }
+        }
+
+        const response = await fetch(downloadUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(objectUrl);
+      } catch (error) {
+        console.error('Error downloading file:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        alert(`Failed to download file: ${errorMessage}`);
+      }
+    };
+
+    const typeConfig = getEntryTypeConfig(entry.entryType);
+    const priorityConfig = getPriorityConfig(entry.priority);
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[95vh] overflow-y-auto">
+          {/* Header */}
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{entry.title}</h2>
+              <div className="flex flex-wrap gap-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${typeConfig.color}`}>
+                  {typeConfig.label}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${priorityConfig.color}`}>
+                  {priorityConfig.label} Priority
+                </span>
+                {entry.isPublic && (
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    Public
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          
+          <div className="p-6 space-y-8">
+            {/* Basic Information Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center text-sm text-gray-600 mb-1">
+                  <Calendar className="h-4 w-4 mr-2 text-blue-500" />
+                  <span className="font-medium">Date</span>
+                </div>
+                <p className="text-gray-900 font-semibold">{new Date(entry.date).toLocaleDateString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center text-sm text-gray-600 mb-1">
+                  <Users className="h-4 w-4 mr-2 text-green-500" />
+                  <span className="font-medium">Class & Section</span>
+                </div>
+                <p className="text-gray-900 font-semibold">Class {entry.className} - Section {entry.section}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center text-sm text-gray-600 mb-1">
+                  <BookOpen className="h-4 w-4 mr-2 text-purple-500" />
+                  <span className="font-medium">Subject</span>
+                </div>
+                <p className="text-gray-900 font-semibold">{entry.subject}</p>
+              </div>
+            </div>
+
+            {/* Content Sections */}
+            <div className="space-y-6">
+              {/* Main Content */}
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="w-1 h-6 bg-blue-500 rounded mr-3"></div>
+                  Main Content
+                </h3>
+                <div className="prose max-w-none">
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{entry.content}</p>
+                </div>
+              </div>
+
+              {/* Homework Section */}
+              {entry.homework && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-yellow-800 mb-4 flex items-center">
+                    <div className="w-1 h-6 bg-yellow-500 rounded mr-3"></div>
+                    Homework Assignment
+                  </h3>
+                  <div className="prose max-w-none">
+                    <p className="text-yellow-700 leading-relaxed whitespace-pre-wrap">{entry.homework}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Class Summary Section */}
+              {entry.classSummary && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
+                    <div className="w-1 h-6 bg-blue-500 rounded mr-3"></div>
+                    Class Summary
+                  </h3>
+                  <div className="prose max-w-none">
+                    <p className="text-blue-700 leading-relaxed whitespace-pre-wrap">{entry.classSummary}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Notices Section */}
+              {entry.notices && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center">
+                    <div className="w-1 h-6 bg-red-500 rounded mr-3"></div>
+                    Important Notices
+                  </h3>
+                  <div className="prose max-w-none">
+                    <p className="text-red-700 leading-relaxed whitespace-pre-wrap">{entry.notices}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Remarks Section */}
+              {entry.remarks && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-green-800 mb-4 flex items-center">
+                    <div className="w-1 h-6 bg-green-500 rounded mr-3"></div>
+                    Additional Remarks
+                  </h3>
+                  <div className="prose max-w-none">
+                    <p className="text-green-700 leading-relaxed whitespace-pre-wrap">{entry.remarks}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Attachments Section */}
+            {((entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0) || 
+              (entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0)) && (
+              <div className="space-y-6">
+                {/* Images section */}
+                {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <Image className="h-5 w-5 mr-2 text-indigo-500" />
+                      Images ({entry.imageUrls.length})
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {entry.imageUrls?.map((imageUrl, index) => {
+                        // Handle both relative and absolute URLs
+                        const displayUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://') 
+                          ? imageUrl 
+                          : imageUrl.startsWith('/') 
+                            ? imageUrl 
+                            : `/${imageUrl}`;
+                        
+                        return (
+                          <div key={index} className="relative group bg-white rounded-lg overflow-hidden shadow-sm">
+                            <img
+                              src={displayUrl}
+                              alt={`Diary image ${index + 1}`}
+                              className="w-full h-32 object-cover"
+                              onError={(e) => {
+                                // Fallback for broken images
+                                const target = e.target as HTMLImageElement;
+                                target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f3f4f6"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%236b7280" font-family="sans-serif" font-size="12">Image not found</text></svg>';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center">
+                              <button
+                                onClick={() => handleDownload(imageUrl, `image-${index + 1}.jpg`)}
+                                className="opacity-0 group-hover:opacity-100 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-all duration-200 transform scale-90 group-hover:scale-100"
+                                title="Download image"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }) || []}
+                    </div>
+                  </div>
+                )}
+
+                {/* Documents section */}
+                {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <File className="h-5 w-5 mr-2 text-orange-500" />
+                      Documents ({entry.attachments.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {entry.attachments.map((attachment, index) => {
+                        const fileName = attachment.split('/').pop() || `document-${index + 1}`;
+                        const fileExtension = fileName.split('.').pop()?.toLowerCase();
+                        const getFileIcon = () => {
+                          switch (fileExtension) {
+                            case 'pdf': return '📄';
+                            case 'doc':
+                            case 'docx': return '📝';
+                            case 'xls':
+                            case 'xlsx': return '📊';
+                            case 'ppt':
+                            case 'pptx': return '📽️';
+                            case 'txt': return '📋';
+                            default: return '📁';
+                          }
+                        };
+
+                        // Handle view URL construction
+                        const getViewUrl = () => {
+                          if (attachment.startsWith('http://') || attachment.startsWith('https://')) {
+                            const urlObj = new URL(attachment);
+                            const pathSegments = urlObj.pathname.split('/');
+                            const file = pathSegments[pathSegments.length - 1];
+                            if (file && urlObj.pathname.includes('teacher-diary')) {
+                              return `/api/teacher-diary/files/${file}`;
+                            }
+                            return attachment;
+                          } else {
+                            const pathSegments = attachment.split('/');
+                            const file = pathSegments[pathSegments.length - 1];
+                            return `/api/teacher-diary/files/${file}`;
+                          }
+                        };
+
+                        const handleView = async () => {
+                          try {
+                            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+                            const viewUrl = getViewUrl();
+                            
+                            const response = await fetch(viewUrl, {
+                              headers: {
+                                'Authorization': `Bearer ${token}`,
+                              },
+                            });
+
+                            if (!response.ok) {
+                              throw new Error(`Failed to load file: ${response.status}`);
+                            }
+
+                            const blob = await response.blob();
+                            const objectUrl = window.URL.createObjectURL(blob);
+                            window.open(objectUrl, '_blank');
+                            
+                            // Clean up after a delay
+                            setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+                          } catch (error) {
+                            console.error('Error viewing file:', error);
+                            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                            alert(`Failed to view file: ${errorMessage}`);
+                          }
+                        };
+                        
+                        return (
+                          <div key={index} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                            <div className="flex items-center flex-1 min-w-0">
+                              <span className="text-2xl mr-3">{getFileIcon()}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-700 truncate">{fileName}</p>
+                                <p className="text-xs text-gray-500 uppercase">{fileExtension} File</p>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2 ml-4">
+                              <button
+                                onClick={handleView}
+                                className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition-colors flex items-center text-sm"
+                                title="View document"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleDownload(attachment, fileName)}
+                                className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors flex items-center text-sm"
+                                title="Download document"
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                Download
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Teacher information */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">Entry Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+                  <div>
+                    <p><span className="font-medium">Created by:</span> {entry.teacher.fullName}</p>
+                    <p><span className="font-medium">Designation:</span> {entry.teacher.designation}</p>
+                  </div>
+                  <div>
+                    <p><span className="font-medium">Created:</span> {new Date(entry.createdAt).toLocaleString()}</p>
+                    {entry.updatedAt !== entry.createdAt && (
+                      <p><span className="font-medium">Last updated:</span> {new Date(entry.updatedAt).toLocaleString()}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Component for delete confirmation
+  const DeleteConfirmation: React.FC<DeleteConfirmationProps> = ({ isOpen, onClose, onConfirm, entryTitle }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div className="p-6">
+            <div className="flex items-center mb-4">
+              <div className="bg-red-100 p-3 rounded-full mr-4">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Diary Entry</h3>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete the diary entry "{entryTitle}"? This action cannot be undone.
+            </p>
+            
+            <div className="flex space-x-3 justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // View and delete functionality
+  const openViewModal = (entry: DiaryEntry) => {
+    setViewingEntry(entry);
+    setShowViewModal(true);
+  };
+
+  const openDeleteConfirmation = (entryId: number, title: string) => {
+    setDeletingEntryId(entryId);
+    setDeletingEntryTitle(title);
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deletingEntryId) {
+      await deleteEntry(deletingEntryId);
+      setShowDeleteConfirmation(false);
+      setDeletingEntryId(null);
+      setDeletingEntryTitle('');
+    }
+  };
 
   const Modal = React.memo<{ 
     isOpen: boolean; 
@@ -739,6 +1525,30 @@ const TeacherDiary: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* View Modal */}
+        {viewingEntry && (
+          <ViewModal
+            entry={viewingEntry}
+            isOpen={showViewModal}
+            onClose={() => {
+              setShowViewModal(false);
+              setViewingEntry(null);
+            }}
+          />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmation
+          isOpen={showDeleteConfirmation}
+          onClose={() => {
+            setShowDeleteConfirmation(false);
+            setDeletingEntryId(null);
+            setDeletingEntryTitle('');
+          }}
+          onConfirm={handleDeleteConfirm}
+          entryTitle={deletingEntryTitle}
+        />
 
         {/* Modals */}
         <Modal

@@ -315,6 +315,7 @@ export const getQuickAccessData = async (req, res) => {
           { name: 'Fee Structure', route: '/school/financial-management/fee-structure', icon: 'DollarSign', count: null },
           { name: 'Collect Fees', route: '/School/FeeCollection', icon: 'CreditCard', count: pendingFees },
           { name: 'Add Expense', route: '/School/ExpenseTracker', icon: 'Minus', count: null },
+          { name: 'Bus Attendance ', route: '/school/transport-management/bus-attendance', icon: 'UserCheck', count: null },
           { name: 'Student Attendance', route: '/school/student-attendance', icon: 'Calendar', count: todayAttendance },
           { name: 'School Profile', route: '/school/profile', icon: 'School', count: null },
           { name: 'Timetable', route: '/school/administration/timetable', icon: 'Clock', count: null }

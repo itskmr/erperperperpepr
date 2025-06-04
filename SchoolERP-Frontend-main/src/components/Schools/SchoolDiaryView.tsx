@@ -11,7 +11,10 @@ import {
   Clock,
   AlertCircle,
   CheckCircle,
-  X
+  X,
+  Download,
+  File,
+  Image
 } from 'lucide-react';
 
 interface DiaryEntry {
@@ -31,6 +34,14 @@ interface DiaryEntry {
     email: string;
     designation: string;
   };
+  attachments?: string[];
+  imageUrls?: string[];
+  homework?: string;
+  classSummary?: string;
+  notices?: string;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface FilterState {
@@ -267,6 +278,24 @@ const SchoolDiaryView: React.FC = () => {
           <p className="line-clamp-3">{entry.content}</p>
         </div>
 
+        {/* Show attachment/image indicators */}
+        {((entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0) || (entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0)) && (
+          <div className="flex items-center space-x-4 mb-4 pt-3 border-t border-gray-100">
+            {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+              <div className="flex items-center text-xs text-gray-500">
+                <Image className="h-3 w-3 mr-1" />
+                {entry.imageUrls.length} image{entry.imageUrls.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+              <div className="flex items-center text-xs text-gray-500">
+                <File className="h-3 w-3 mr-1" />
+                {entry.attachments.length} document{entry.attachments.length !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-500">
             <span className="font-medium">{entry.teacher.fullName}</span>
@@ -299,6 +328,23 @@ const SchoolDiaryView: React.FC = () => {
     const entryTypeConfig = getEntryTypeConfig(entry.entryType);
     const priorityConfig = getPriorityConfig(entry.priority);
 
+    const handleDownload = async (url: string, filename: string) => {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error) {
+        console.error('Error downloading file:', error);
+      }
+    };
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -312,7 +358,7 @@ const SchoolDiaryView: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-6">
+          <div className="p-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -369,6 +415,119 @@ const SchoolDiaryView: React.FC = () => {
               <h3 className="text-lg font-semibold mb-3">Content</h3>
               <div className="bg-gray-50 rounded-lg p-4 whitespace-pre-wrap">
                 {entry.content}
+              </div>
+            </div>
+
+            {entry.homework && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Homework</h3>
+                <div className="bg-yellow-50 rounded-lg p-4 whitespace-pre-wrap">
+                  {entry.homework}
+                </div>
+              </div>
+            )}
+
+            {entry.classSummary && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Class Summary</h3>
+                <div className="bg-blue-50 rounded-lg p-4 whitespace-pre-wrap">
+                  {entry.classSummary}
+                </div>
+              </div>
+            )}
+
+            {entry.notices && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Notices</h3>
+                <div className="bg-red-50 rounded-lg p-4 whitespace-pre-wrap">
+                  {entry.notices}
+                </div>
+              </div>
+            )}
+
+            {entry.remarks && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Remarks</h3>
+                <div className="bg-green-50 rounded-lg p-4 whitespace-pre-wrap">
+                  {entry.remarks}
+                </div>
+              </div>
+            )}
+
+            {/* Images section */}
+            {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Images</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {entry.imageUrls.map((imageUrl, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={imageUrl}
+                        alt={`Diary image ${index + 1}`}
+                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
+                        <button
+                          onClick={() => handleDownload(imageUrl, `image-${index + 1}.jpg`)}
+                          className="opacity-0 group-hover:opacity-100 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-all duration-200"
+                          title="Download image"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Documents section */}
+            {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Documents</h3>
+                <div className="space-y-2">
+                  {entry.attachments.map((attachment, index) => {
+                    const fileName = attachment.split('/').pop() || `document-${index + 1}`;
+                    return (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center">
+                          <File className="h-5 w-5 text-gray-500 mr-3" />
+                          <span className="text-sm text-gray-700">{fileName}</span>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => window.open(attachment, '_blank')}
+                            className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition-colors flex items-center text-sm"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleDownload(attachment, fileName)}
+                            className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors flex items-center text-sm"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Teacher information */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="text-sm text-gray-600">
+                <p><strong>Created by:</strong> {entry.teacher.fullName}</p>
+                <p><strong>Designation:</strong> {entry.teacher.designation}</p>
+                {entry.createdAt && (
+                  <p><strong>Created:</strong> {new Date(entry.createdAt).toLocaleString()}</p>
+                )}
+                {entry.updatedAt && entry.updatedAt !== entry.createdAt && (
+                  <p><strong>Last updated:</strong> {new Date(entry.updatedAt).toLocaleString()}</p>
+                )}
               </div>
             </div>
           </div>

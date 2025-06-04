@@ -92,6 +92,12 @@ interface DiaryEntry {
   };
   priority: string;
   type: string;
+  attachments?: string[];
+  imageUrls?: string[];
+  homework?: string;
+  classSummary?: string;
+  notices?: string;
+  remarks?: string;
 }
 
 interface DashboardData {
@@ -106,13 +112,36 @@ interface DashboardData {
   };
 }
 
+interface AttendanceRecord {
+  date: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE';
+}
+
+interface AttendanceStatistics {
+  presentDays: number;
+  absentDays: number;
+  lateDays: number;
+  percentage: number;
+}
+
+interface AttendanceResponseData {
+  statistics: AttendanceStatistics;
+  records: AttendanceRecord[];
+}
+
+interface TimetableResponseData {
+  student: {
+    class: string;
+    section: string;
+  };
+  timetable: Record<string, TimetableEntry[]>;
+}
+
 const NewParentDashboard: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'timetable' | 'diary' | 'profile'>('overview');
-  const [selectedChild, setSelectedChild] = useState<string>('');
-  const [children, setChildren] = useState<Student[]>([]);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
 
   // Get greeting based on time
@@ -165,35 +194,9 @@ const NewParentDashboard: React.FC = () => {
     }
   };
 
-  // Fetch linked children
-  const fetchChildren = async () => {
-    try {
-      const token = getAuthToken();
-      const response = await fetch(`${API_URL}/parent/children`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setChildren(data.data);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching children:', error);
-    }
-  };
-
   useEffect(() => {
     fetchDashboardData();
-    fetchChildren();
   }, []);
-
-  // Attendance chart colors
-  const attendanceColors = ['#10b981', '#ef4444', '#f59e0b', '#6b7280'];
 
   if (loading) {
     return (
@@ -460,7 +463,7 @@ const NewParentDashboard: React.FC = () => {
             )}
 
             {activeTab === 'attendance' && (
-              <AttendanceView student={student} />
+              <AttendanceView />
             )}
 
             {activeTab === 'timetable' && (
@@ -490,8 +493,8 @@ const NewParentDashboard: React.FC = () => {
 };
 
 // Additional Components for each tab view
-const AttendanceView: React.FC<{ student: Student }> = ({ student }) => {
-  const [attendanceData, setAttendanceData] = useState<any>(null);
+const AttendanceView: React.FC<{ student: Student }> = () => {
+  const [attendanceData, setAttendanceData] = useState<AttendanceResponseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -732,6 +735,8 @@ const TimetableView: React.FC<{ student: Student }> = ({ student }) => {
 const DiaryView: React.FC<{ student: Student }> = ({ student }) => {
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [filters, setFilters] = useState({
     subject: '',
     date: ''
@@ -769,6 +774,23 @@ const DiaryView: React.FC<{ student: Student }> = ({ student }) => {
     }
   };
 
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -795,7 +817,7 @@ const DiaryView: React.FC<{ student: Student }> = ({ student }) => {
       ) : (
         <div className="space-y-4">
           {diaryEntries.map((entry) => (
-            <div key={entry.id} className="bg-white border rounded-lg p-4">
+            <div key={entry.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h4 className="font-semibold text-gray-900">{entry.subject}</h4>
@@ -803,7 +825,7 @@ const DiaryView: React.FC<{ student: Student }> = ({ student }) => {
                     by {entry.teacher.fullName} • {entry.teacher.designation}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end space-y-2">
                   <div className="text-sm text-gray-500">
                     {new Date(entry.date).toLocaleDateString()}
                   </div>
@@ -820,12 +842,212 @@ const DiaryView: React.FC<{ student: Student }> = ({ student }) => {
                   </span>
                 </div>
               </div>
-              <p className="text-gray-700">{entry.content}</p>
+              
+              <p className="text-gray-700 mb-3">{entry.content}</p>
+              
+              {/* Show attachment/image indicators */}
+              {((entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0) || (entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0)) && (
+                <div className="flex items-center space-x-4 mb-3 pt-3 border-t border-gray-100">
+                  {entry.imageUrls && Array.isArray(entry.imageUrls) && entry.imageUrls.length > 0 && (
+                    <div className="flex items-center text-xs text-gray-500">
+                      <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {entry.imageUrls.length} image{entry.imageUrls.length !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                  {entry.attachments && Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+                    <div className="flex items-center text-xs text-gray-500">
+                      <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {entry.attachments.length} document{entry.attachments.length !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setSelectedEntry(entry);
+                    setShowDetailModal(true);
+                  }}
+                  className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors text-sm"
+                >
+                  View Details
+                </button>
+              </div>
             </div>
           ))}
           {diaryEntries.length === 0 && (
             <p className="text-center text-gray-500 py-8">No diary entries found</p>
           )}
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {showDetailModal && selectedEntry && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-900">{selectedEntry.subject}</h2>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="font-medium text-gray-700">Date:</span>
+                  <p className="text-gray-600">{new Date(selectedEntry.date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Teacher:</span>
+                  <p className="text-gray-600">{selectedEntry.teacher.fullName}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Subject:</span>
+                  <p className="text-gray-600">{selectedEntry.subject}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Priority:</span>
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      selectedEntry.priority === 'HIGH'
+                        ? 'bg-red-100 text-red-800'
+                        : selectedEntry.priority === 'MEDIUM'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}
+                  >
+                    {selectedEntry.priority}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Content</h3>
+                <div className="bg-gray-50 rounded-lg p-4 whitespace-pre-wrap">
+                  {selectedEntry.content}
+                </div>
+              </div>
+
+              {selectedEntry.homework && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Homework</h3>
+                  <div className="bg-yellow-50 rounded-lg p-4 whitespace-pre-wrap">
+                    {selectedEntry.homework}
+                  </div>
+                </div>
+              )}
+
+              {selectedEntry.classSummary && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Class Summary</h3>
+                  <div className="bg-blue-50 rounded-lg p-4 whitespace-pre-wrap">
+                    {selectedEntry.classSummary}
+                  </div>
+                </div>
+              )}
+
+              {selectedEntry.notices && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Notices</h3>
+                  <div className="bg-red-50 rounded-lg p-4 whitespace-pre-wrap">
+                    {selectedEntry.notices}
+                  </div>
+                </div>
+              )}
+
+              {selectedEntry.remarks && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Remarks</h3>
+                  <div className="bg-green-50 rounded-lg p-4 whitespace-pre-wrap">
+                    {selectedEntry.remarks}
+                  </div>
+                </div>
+              )}
+
+              {/* Images section */}
+              {selectedEntry.imageUrls && Array.isArray(selectedEntry.imageUrls) && selectedEntry.imageUrls.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Images</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {selectedEntry.imageUrls.map((imageUrl, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={imageUrl}
+                          alt={`Diary image ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
+                          <button
+                            onClick={() => handleDownload(imageUrl, `image-${index + 1}.jpg`)}
+                            className="opacity-0 group-hover:opacity-100 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-all duration-200"
+                            title="Download image"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Documents section */}
+              {selectedEntry.attachments && Array.isArray(selectedEntry.attachments) && selectedEntry.attachments.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Documents</h3>
+                  <div className="space-y-2">
+                    {selectedEntry.attachments.map((attachment, index) => {
+                      const fileName = attachment.split('/').pop() || `document-${index + 1}`;
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center">
+                            <svg className="h-5 w-5 text-gray-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="text-sm text-gray-700">{fileName}</span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => window.open(attachment, '_blank')}
+                              className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition-colors flex items-center text-sm"
+                            >
+                              <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              View
+                            </button>
+                            <button
+                              onClick={() => handleDownload(attachment, fileName)}
+                              className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors flex items-center text-sm"
+                            >
+                              <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
