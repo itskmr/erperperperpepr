@@ -562,42 +562,50 @@ const Timetable: React.FC = () => {
     return (
       <div 
         onClick={() => handleCellClick(timeSlotId, day)}
-        className="min-h-[120px] bg-gray-50 border-2 border-gray-200 cursor-pointer relative overflow-hidden rounded-lg transition-all duration-300 hover:bg-blue-50 hover:border-blue-400 hover:shadow-md"
+        className="min-h-[100px] bg-gray-50 border border-gray-300 cursor-pointer relative overflow-hidden rounded-md transition-all duration-200 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
       >
         {entryCount > 0 && (
-          <div className="absolute top-2 right-2 z-10">
-            <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full shadow">
-              {entryCount > 99 ? '99+' : entryCount}
+          <div className="absolute top-1 right-1 z-10">
+            <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-semibold text-white bg-red-500 rounded-full">
+              {entryCount > 9 ? '9+' : entryCount}
             </span>
           </div>
         )}
         
         {entries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full">
-            <Plus className="text-gray-400 mb-2" size={24} />
-            <span className="text-gray-500 hover:text-blue-600">
+          <div className="flex flex-col items-center justify-center h-full py-4">
+            <Plus className="text-gray-400 mb-1" size={18} />
+            <span className="text-xs text-gray-500 hover:text-blue-600 font-medium">
               Add Entry
             </span>
           </div>
         ) : (
-          <div className="p-2">
-            {entries.slice(0, 2).map((entry) => (
+          <div className="p-1.5 space-y-1">
+            {entries.slice(0, 3).map((entry, index) => (
               <div 
                 key={entry.id} 
                 onClick={(e) => handleEntryClick(entry, e)}
-                className="p-3 m-1 rounded-lg cursor-pointer transition-all duration-300 bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg"
+                className={`p-2 rounded-md cursor-pointer transition-all duration-200 text-white text-xs ${
+                  index === 0 ? 'bg-indigo-500 hover:bg-indigo-600' : 
+                  index === 1 ? 'bg-emerald-500 hover:bg-emerald-600' : 
+                  'bg-purple-500 hover:bg-purple-600'
+                }`}
               >
                 <div className="flex items-center gap-1 mb-1">
-                  <User className="text-white" size={16} />
-                  <span className="text-white text-xs">
+                  <User className="text-white flex-shrink-0" size={12} />
+                  <span className="text-xs font-medium truncate">
                     {entry.teacher?.fullName || 'Unknown Teacher'}
                   </span>
                 </div>
                 
+                <div className="text-xs opacity-90 truncate mb-1">
+                  Subject: {entry.subjectName}
+                </div>
+                
                 {entry.roomNumber && (
                   <div className="flex items-center gap-1">
-                    <MapPin className="text-white" size={16} />
-                    <span className="text-white text-xs">
+                    <MapPin className="text-white flex-shrink-0" size={10} />
+                    <span className="text-xs opacity-90">
                       Room {entry.roomNumber}
                     </span>
                   </div>
@@ -605,10 +613,12 @@ const Timetable: React.FC = () => {
               </div>
             ))}
             
-            {entries.length > 2 && (
-              <span className="ml-2 text-blue-600 font-semibold">
-                +{entries.length - 2} more
-              </span>
+            {entries.length > 3 && (
+              <div className="text-center">
+                <span className="text-xs text-gray-600 font-semibold bg-gray-200 px-2 py-1 rounded-full">
+                  +{entries.length - 3} more
+                </span>
+              </div>
             )}
           </div>
         )}
@@ -805,17 +815,24 @@ const Timetable: React.FC = () => {
               </div>
             ) : (
               // Normal timetable grid
-              <div className="grid grid-cols-12 gap-4">
+              <div className="grid grid-cols-12 gap-2">
                 {/* Header Row */}
                 <div className="col-span-12">
-                  <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-2 bg-blue-600 text-white font-bold text-center p-4 rounded-lg shadow">
-                      <Clock className="mr-2 inline-block" size={16} />
-                      TIME SLOTS
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white font-medium text-center py-2 px-1 rounded-md shadow-sm">
+                      <Clock className="mx-auto mb-1" size={12} />
+                      <span className="text-xs">TIME SLOTS</span>
                     </div>
-                    {DAYS.map((day) => (
-                      <div key={day} className="col-span-2 bg-cyan-500 text-white font-bold text-center p-4 rounded-lg shadow">
-                        {day}
+                    {DAYS.map((day, index) => (
+                      <div key={day} className={`col-span-2 text-white font-medium text-center py-2 px-1 rounded-md shadow-sm ${
+                        index === 0 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                        index === 1 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                        index === 2 ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
+                        index === 3 ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+                        index === 4 ? 'bg-gradient-to-r from-pink-500 to-pink-600' :
+                        'bg-gradient-to-r from-cyan-500 to-cyan-600'
+                      }`}>
+                        <span className="text-xs">{day.substring(0, 3)}</span>
                       </div>
                     ))}
                   </div>
@@ -824,16 +841,16 @@ const Timetable: React.FC = () => {
                 {/* Time Slot Rows */}
                 {timeSlots.map((timeSlot) => (
                   <div key={timeSlot.id} className="col-span-12">
-                    <div className="grid grid-cols-12 gap-4">
-                      <div className="col-span-2 bg-blue-600 text-white font-bold text-center p-4 rounded-lg shadow min-h-[120px] flex items-center justify-center hover:bg-blue-700 transition-all duration-300">
-                        <span className="whitespace-pre-line">
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white font-medium text-center py-2 px-1 rounded-md shadow-sm min-h-[100px] flex flex-col items-center justify-center hover:from-slate-700 hover:to-slate-800 transition-all duration-200 relative">
+                        <span className="text-xs whitespace-pre-line leading-tight">
                           {timeSlot.label}
                         </span>
                         <button
                           onClick={(e) => handleTimeSlotMenuClick(e, timeSlot)}
-                          className="absolute top-1 right-1 text-white hover:bg-white/20 rounded-full"
+                          className="absolute top-1 right-1 text-white hover:bg-white/20 rounded-full p-1"
                         >
-                          <MoreVertical className="text-white" size={16} />
+                          <MoreVertical className="text-white" size={10} />
                         </button>
                       </div>
                       {DAYS.map((day) => (
@@ -847,16 +864,6 @@ const Timetable: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center space-y-2">
-          <p className="text-gray-600">
-            Powered by Gyansetu.ai
-          </p>
-          <p className="text-gray-500">
-            Developed By Ruhil Future Technologies (2025)
-          </p>
         </div>
       </div>
       

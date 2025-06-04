@@ -4,15 +4,15 @@ import {
   Edit,
   Trash2,
   Clock,
-  User,
-  Book,
-  School,
+  // User,
+  // Book,
+//  School,
   Calendar,
   MapPin,
-  CheckCircle,
+  // CheckCircle,
   XCircle,
   RefreshCw,
-  Eye
+  // Eye
 } from 'lucide-react';
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../utils/authApi';
 
@@ -280,67 +280,77 @@ const TeacherTimetable: React.FC = () => {
     if (entries.length === 0) {
       return (
         <div
-          className="h-20 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center"
+          className="h-16 border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center bg-gray-50"
           onClick={() => handleCellClick(timeSlotId, day)}
         >
-          <Plus className="h-4 w-4 text-gray-400 hover:text-blue-500" />
+          <Plus className="h-3 w-3 text-gray-400 hover:text-blue-500" />
         </div>
       );
     }
 
     return (
-      <div className="h-20 border border-gray-200">
-        {entries.map((entry, index) => (
+      <div className="h-16 border border-gray-200 overflow-hidden">
+        {entries.slice(0, 1).map((entry, index) => (
           <div
             key={index}
-            className={`h-full p-2 text-xs flex flex-col justify-between cursor-pointer transition-colors duration-200 ${
+            className={`h-full p-1 text-xs flex items-center justify-between cursor-pointer transition-colors duration-200 ${
               entry.isMyClass
-                ? 'bg-blue-100 hover:bg-blue-200 border-l-4 border-blue-500'
-                : 'bg-gray-50 hover:bg-gray-100'
+                ? 'bg-gradient-to-br from-blue-100 to-blue-200 hover:from-blue-200 hover:to-blue-300 border-l-3 border-blue-500'
+                : 'bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 border-l-2 border-gray-300'
             }`}
           >
-            <div className="flex justify-between items-start">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-900 truncate">
-                  {entry.subjectName}
-                </div>
-                <div className="text-gray-600 truncate">
-                  {entry.className} {entry.section}
-                </div>
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div className={`font-semibold text-xs truncate ${entry.isMyClass ? 'text-blue-900' : 'text-gray-900'}`}>
+                {entry.subjectName}
+              </div>
+              <div className="flex items-center space-x-1">
+                <span className={`text-xs truncate ${entry.isMyClass ? 'text-blue-700' : 'text-gray-600'}`}>
+                  {entry.className}-{entry.section}
+                </span>
                 {entry.roomNumber && (
-                  <div className="text-gray-500 truncate">
-                    Room: {entry.roomNumber}
-                  </div>
+                  <>
+                    <span className="text-gray-400">•</span>
+                    <div className={`text-xs flex items-center ${entry.isMyClass ? 'text-blue-600' : 'text-gray-500'}`}>
+                      <MapPin className="h-2 w-2 mr-0.5" />
+                      <span>{entry.roomNumber}</span>
+                    </div>
+                  </>
                 )}
               </div>
-              
-              {entry.isMyClass && (
-                <div className="flex space-x-1 ml-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditEntry(entry);
-                    }}
-                    className="text-blue-600 hover:text-blue-800 p-1"
-                    title="Edit"
-                  >
-                    <Edit className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteEntry(entry.id);
-                    }}
-                    className="text-red-600 hover:text-red-800 p-1"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
             </div>
+            
+            {entry.isMyClass && (
+              <div className="flex flex-col space-y-0.5 ml-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditEntry(entry);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 p-0.5 rounded hover:bg-blue-50"
+                  title="Edit"
+                >
+                  <Edit className="h-2 w-2" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteEntry(entry.id);
+                  }}
+                  className="text-red-600 hover:text-red-800 p-0.5 rounded hover:bg-red-50"
+                  title="Delete"
+                >
+                  <Trash2 className="h-2 w-2" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
+        
+        {entries.length > 1 && (
+          <div className="absolute bottom-0 right-0 bg-gray-600 text-white text-xs px-1 rounded-tl">
+            +{entries.length - 1}
+          </div>
+        )}
       </div>
     );
   };
@@ -418,15 +428,23 @@ const TeacherTimetable: React.FC = () => {
           <table className="min-w-full">
             <thead>
               <tr>
-                <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                <th className="w-28 px-2 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-slate-600 to-slate-700">
+                  <Clock className="h-3 w-3 inline mr-1" />
                   Time
                 </th>
-                {DAYS.map((day) => (
+                {DAYS.map((day, index) => (
                   <th
                     key={day}
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    className={`px-2 py-2 text-center text-xs font-medium text-white uppercase tracking-wider ${
+                      index === 0 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                      index === 1 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                      index === 2 ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
+                      index === 3 ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+                      index === 4 ? 'bg-gradient-to-r from-pink-500 to-pink-600' :
+                      'bg-gradient-to-r from-cyan-500 to-cyan-600'
+                    }`}
                   >
-                    {day}
+                    {day.substring(0, 3)}
                   </th>
                 ))}
               </tr>
@@ -434,10 +452,10 @@ const TeacherTimetable: React.FC = () => {
             <tbody>
               {timeSlots.map((timeSlot) => (
                 <tr key={timeSlot.id}>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-gray-50 font-medium">
+                  <td className="px-2 py-2 whitespace-nowrap text-sm text-white bg-gradient-to-r from-slate-600 to-slate-700 font-medium">
                     <div className="flex flex-col">
-                      <span>{formatTime(timeSlot.startTime)}</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs font-medium">{formatTime(timeSlot.startTime)}</span>
+                      <span className="text-xs opacity-75">
                         {formatTime(timeSlot.endTime)}
                       </span>
                     </div>

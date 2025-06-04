@@ -28,6 +28,7 @@ interface AdminNavbarProps {
   isProfileDropdownOpen?: boolean;
   setIsProfileDropdownOpen?: (isOpen: boolean) => void;
   profileDropdownRef?: React.RefObject<HTMLDivElement>;
+  onSidebarCollapse?: (isCollapsed: boolean) => void;
 }
 
 interface NavDropdownProps {

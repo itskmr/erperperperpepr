@@ -35,6 +35,7 @@ interface SchoolNavbarProps {
   isProfileDropdownOpen: boolean;
   setIsProfileDropdownOpen: (isOpen: boolean) => void;
   profileDropdownRef: React.RefObject<HTMLDivElement>;
+  onSidebarCollapse?: (isCollapsed: boolean) => void;
 }
 
 interface NavDropdownProps {
@@ -254,7 +255,7 @@ const ProfileDropdown = ({ onLogout }: { onLogout?: () => void }) => {
 
 // SchoolSidebar component
 const SchoolSidebar: React.FC<SchoolNavbarProps> = (props) => {
-  const { activeDropdown, toggleDropdown, setIsMobileSidebarOpen } = props;
+  const { activeDropdown, toggleDropdown, setIsMobileSidebarOpen, onSidebarCollapse } = props;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   
@@ -266,6 +267,16 @@ const SchoolSidebar: React.FC<SchoolNavbarProps> = (props) => {
     }
     // For other paths, match if the location starts with the path
     return location.pathname.startsWith(path);
+  };
+
+  // Handle collapse toggle and notify parent
+  const handleCollapseToggle = () => {
+    const newCollapsedState = !isCollapsed;
+    setIsCollapsed(newCollapsedState);
+    // Notify parent component about the collapse state change
+    if (onSidebarCollapse) {
+      onSidebarCollapse(newCollapsedState);
+    }
   };
   
   return (
@@ -279,7 +290,7 @@ const SchoolSidebar: React.FC<SchoolNavbarProps> = (props) => {
         )}
         
         <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={handleCollapseToggle}
           className={`p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200 ${isCollapsed ? 'mx-auto' : ''}`}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -541,6 +552,12 @@ const SchoolNavbar = {
         <Menu className="h-6 w-6" />
       </button>
     );
+  },
+
+  // Export the collapsed state management
+  useCollapsedState: () => {
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    return { isCollapsed, setIsCollapsed };
   }
 };
 

@@ -1,26 +1,14 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
-  Settings, 
-  LogOut, 
-  FileText, 
   User, 
   Home, 
   Calendar, 
-  Users, 
-  BarChart2,
   HelpCircle,
-  DollarSign,
-  Book,
   ChevronDown,
   GraduationCap,
   MessageSquare,
-  Bell,
   Clock,
-  Activity,
-  Award,
-  CreditCard,
-  Heart,
   BookOpen,
   MessageCircle
 } from "lucide-react";
@@ -35,6 +23,7 @@ interface ParentNavbarProps {
   setIsProfileDropdownOpen?: (isOpen: boolean) => void;
   profileDropdownRef?: React.RefObject<HTMLDivElement>;
   closeMobileSidebar?: () => void;
+  onSidebarCollapse?: (isCollapsed: boolean) => void;
 }
 
 interface NavDropdownProps {

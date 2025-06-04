@@ -614,42 +614,45 @@ const StudentDashboard: React.FC = () => {
                   {timetable.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                        <thead>
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-slate-600 to-slate-700">
                               Day
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-blue-500 to-blue-600">
                               Time
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-green-500 to-green-600">
                               Subject
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-purple-500 to-purple-600">
                               Teacher
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-white uppercase tracking-wider bg-gradient-to-r from-orange-500 to-orange-600">
                               Room
                             </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {timetable.map((entry, index) => (
-                            <tr key={`${entry.id}-${index}`} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {entry.day}
+                          {timetable.map((item, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {item.day}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
+                              <td className="px-3 py-2 text-sm text-gray-600">
+                                <div className="space-y-0.5">
+                                  <div className="font-medium text-xs">{formatTime(item.startTime)}</div>
+                                  <div className="text-xs opacity-75">{formatTime(item.endTime)}</div>
+                                </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {entry.subjectName}
+                              <td className="px-3 py-2 text-sm text-gray-900 font-medium truncate max-w-24">
+                                {item.subjectName}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {entry.teacherName || 'TBA'}
+                              <td className="px-3 py-2 text-sm text-gray-600 truncate max-w-20">
+                                {item.teacherName || 'TBA'}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {entry.roomNumber || '-'}
+                              <td className="px-3 py-2 text-sm text-gray-600">
+                                {item.roomNumber || '-'}
                               </td>
                             </tr>
                           ))}
