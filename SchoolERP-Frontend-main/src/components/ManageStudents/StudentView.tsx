@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FaTimes, FaDownload, FaFilePdf, FaFileImage, FaFile, FaEye } from 'react-icons/fa';
+import { FaTimes, FaEye, FaDownload, FaFileAlt, FaImage, FaCheck, FaExclamationTriangle, FaPrint, FaFile } from 'react-icons/fa';
+import { generateJPAdmissionFormPrint } from '../../utils/jpAdmissionPrint';
 import { DocumentStatus, DocumentPaths } from '../StudentForm/StudentFormTypes';
 
 interface StudentDocument {
@@ -98,9 +99,9 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
 
   const getDocumentIcon = (type: string) => {
     const lowerType = type.toLowerCase();
-    if (lowerType.includes('pdf')) return <FaFilePdf className="text-red-500" />;
+    if (lowerType.includes('pdf')) return <FaFileAlt className="text-red-500" />;
     if (lowerType.includes('image') || lowerType.includes('photo') || lowerType.includes('signature')) {
-      return <FaFileImage className="text-blue-500" />;
+      return <FaImage className="text-blue-500" />;
     }
     return <FaFile className="text-gray-500" />;
   };
@@ -156,12 +157,21 @@ const StudentView: React.FC<StudentViewProps> = ({ student, isOpen, onClose }) =
       <div className="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
           <h2 className="text-xl font-semibold">Student Details</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <FaTimes size={24} />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => generateJPAdmissionFormPrint(student)}
+              className="text-gray-500 hover:text-gray-700"
+              title="Print Admission Form"
+            >
+              <FaPrint />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <FaTimes size={24} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6">

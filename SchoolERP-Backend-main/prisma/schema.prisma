@@ -1022,7 +1022,7 @@ model TeacherDiary {
   
   // Core diary entry information
   title            String    // Title of the diary entry
-  content          String    @db.LongText // Main content of the diary entry
+  content          String     // Main content of the diary entry
   date             DateTime  // Date of the entry
   
   // Class and subject information

@@ -9,6 +9,11 @@ import TeacherProfileModal from './TeacherProfileModal';
 import TeacherFormModal from './TeacherFormModal';
 import jsPDF from 'jspdf';
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../../../utils/authApi';
+import { 
+  exportData, 
+  getTeacherExportConfig,
+  ExportFormat 
+} from '../../../utils/exportUtils';
 // import autoTable from 'jspdf-autotable';
 
 interface AddTeacherFormData extends Partial<Teacher> {
@@ -743,138 +748,12 @@ const TeacherDirectory: React.FC = () => {
   // Handle status change for a teacher
 
 
-  // Add export functions
+  // Enhanced export functions
   const handleExportCSV = () => {
     try {
-      // Prepare headers for CSV
-      const headers = [
-        'ID',
-        'Full Name',
-        'Email',
-        'Phone',
-        'Gender',
-        'Date of Birth',
-        'Age',
-        'Designation',
-        'Qualification',
-        'Address',
-        'Subjects',
-        'Classes and Sections',
-        'Joining Date',
-        'Experience',
-        'Profile Image',
-        'Is Class Incharge',
-        'Incharge Class',
-        'Incharge Section',
-        'Status',
-        'Religion',
-        'Blood Group',
-        'Marital Status',
-        'Facebook',
-        'Twitter',
-        'LinkedIn',
-        'Joining Salary',
-        'Account Holder Name',
-        'Account Number',
-        'Bank Name',
-        'Bank Branch',
-        'School ID',
-        'Username',
-        'Last Login',
-        'Created At',
-        'Updated At'
-      ];
-
-      // Prepare data rows with all fields
-      const csvData = teachers.map(teacher => {
-        // Format sections data
-        const formattedSections = Array.isArray(teacher.sections) 
-          ? teacher.sections.map(section => {
-              const classNum = section.class || '';
-              const sections = Array.isArray(section.sections) ? section.sections.join(',') : '';
-              return `${classNum}-${sections}`;
-            }).join('; ')
-          : '';
-
-        // Format subjects data
-        const formattedSubjects = Array.isArray(teacher.subjects) 
-          ? teacher.subjects.join(', ')
-          : '';
-
-        // Format dates
-        const formatDate = (date: string | undefined) => {
-          if (!date) return '';
-          try {
-            return new Date(date).toLocaleDateString();
-          } catch {
-            return date;
-          }
-        };
-
-        return [
-          String(teacher.id || ''),
-          teacher.fullName || '',
-          teacher.email || '',
-          teacher.phone || '',
-          teacher.gender || '',
-          formatDate(teacher.dateOfBirth),
-          String(teacher.age || ''),
-          teacher.designation || '',
-          teacher.qualification || '',
-          teacher.address || '',
-          formattedSubjects,
-          formattedSections,
-          formatDate(teacher.joining_year),
-          teacher.experience || '',
-          teacher.profileImage || '',
-          teacher.isClassIncharge ? 'Yes' : 'No',
-          teacher.inchargeClass || '',
-          teacher.inchargeSection || '',
-          teacher.status || '',
-          teacher.religion || '',
-          teacher.bloodGroup || '',
-          teacher.maritalStatus || '',
-          teacher.facebook || '',
-          teacher.twitter || '',
-          teacher.linkedIn || '',
-          String(teacher.joiningSalary || 0),
-          teacher.accountHolderName || '',
-          teacher.accountNumber || '',
-          teacher.bankName || '',
-          teacher.bankBranch || '',
-          String(teacher.schoolId || ''),
-          teacher.username || '',
-          formatDate(teacher.lastLogin),
-          formatDate(teacher.createdAt),
-          formatDate(teacher.updatedAt)
-        ];
-      });
-
-      // Combine headers and data with proper CSV formatting
-      const csvContent = [
-        headers.join(','),
-        ...csvData.map(row => row.map(cell => {
-          // Handle special characters and ensure proper CSV formatting
-          const cellStr = String(cell || '');
-          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
-            return `"${cellStr.replace(/"/g, '""')}"`;
-          }
-          return `"${cellStr}"`;
-        }).join(','))
-      ].join('\n');
-
-      // Create blob and download
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `teachers_export_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      showToast('success', 'Teachers data exported successfully');
+      const config = getTeacherExportConfig(teachers);
+      exportData('csv', config);
+      showToast('success', 'Teachers data exported to CSV successfully');
     } catch (error) {
       console.error('Error exporting teachers to CSV:', error);
       showToast('error', 'Failed to export teachers data to CSV');
@@ -883,137 +762,8 @@ const TeacherDirectory: React.FC = () => {
 
   const handleExportPDF = () => {
     try {
-      const doc = new jsPDF();
-      
-      // Add title and header
-      doc.setFontSize(20);
-      doc.setTextColor(41, 128, 185); // Blue color
-      doc.text('Teachers Directory', 14, 20);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100); // Gray color
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28);
-
-      let yPosition = 40;
-      const pageWidth = doc.internal.pageSize.width;
-      const margin = 14;
-      const contentWidth = pageWidth - (margin * 2);
-
-      // Process each teacher
-      teachers.forEach((teacher, index) => {
-        // Check if we need a new page
-        if (yPosition > 250) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        // Teacher header
-        doc.setFontSize(14);
-        doc.setTextColor(41, 128, 185);
-        doc.text(`${teacher.fullName}`, margin, yPosition);
-        
-        yPosition += 8;
-
-        // Basic Information
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text('Basic Information:', margin, yPosition);
-        yPosition += 6;
-
-        doc.setFontSize(9);
-        doc.setTextColor(60);
-        
-        // Calculate age if dateOfBirth is available
-        let ageDisplay = 'N/A';
-        if (teacher.dateOfBirth) {
-          const today = new Date();
-          const birthDate = new Date(teacher.dateOfBirth);
-          let age = today.getFullYear() - birthDate.getFullYear();
-          const monthDiff = today.getMonth() - birthDate.getMonth();
-          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-          }
-          ageDisplay = `${age} years`;
-        } else if (teacher.age) {
-          ageDisplay = `${teacher.age} years`;
-        }
-
-        // Create two columns for basic info
-        const basicInfo = [
-          ['Email', teacher.email || 'N/A'],
-          ['Phone', teacher.phone || 'N/A'],
-          ['Gender', teacher.gender || 'N/A'],
-          ['Age', ageDisplay],
-          ['Designation', teacher.designation || 'N/A'],
-          ['Qualification', teacher.qualification || 'N/A'],
-          ['Experience', teacher.experience ? `${teacher.experience} years` : 'N/A'],
-          ['Status', teacher.status || 'N/A']
-        ];
-
-        // Draw basic info in two columns
-        basicInfo.forEach(([label, value], i) => {
-          const x = margin + (i % 2) * (contentWidth / 2);
-          const y = yPosition + Math.floor(i / 2) * 6;
-          doc.text(`${label}: ${value}`, x, y);
-        });
-
-        yPosition += Math.ceil(basicInfo.length / 2) * 6 + 8;
-
-        // Teaching Details
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text('Teaching Details:', margin, yPosition);
-        yPosition += 6;
-
-        doc.setFontSize(9);
-        doc.setTextColor(60);
-
-        // Format subjects
-        const subjects = Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : 'N/A';
-        doc.text(`Subjects: ${subjects}`, margin, yPosition);
-        yPosition += 6;
-
-        // Format sections
-        const sections = Array.isArray(teacher.sections) 
-          ? teacher.sections.map(s => `${s.class}-${s.sections.join(',')}`).join('; ')
-          : 'N/A';
-        doc.text(`Classes & Sections: ${sections}`, margin, yPosition);
-        yPosition += 6;
-
-        // Class Incharge details if applicable
-        if (teacher.isClassIncharge) {
-          doc.text(`Class Incharge: ${teacher.inchargeClass} - ${teacher.inchargeSection}`, margin, yPosition);
-          yPosition += 6;
-        }
-
-        // Add joining date
-        const joiningDate = teacher.joining_year ? new Date(teacher.joining_year).toLocaleDateString() : 'N/A';
-        doc.text(`Joining Date: ${joiningDate}`, margin, yPosition);
-        yPosition += 12;
-
-        // Add a separator line between teachers
-        if (index < teachers.length - 1) {
-          doc.setDrawColor(200);
-          doc.line(margin, yPosition, pageWidth - margin, yPosition);
-          yPosition += 8;
-        }
-      });
-
-      // Add page numbers
-      const totalPages = (doc.internal as any).getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(100);
-        doc.text(
-          `Page ${i} of ${totalPages}`,
-          pageWidth - margin - 30,
-          doc.internal.pageSize.height - 10
-        );
-      }
-
-      // Save the PDF
-      doc.save(`teachers_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      const config = getTeacherExportConfig(teachers);
+      exportData('pdf', config);
       showToast('success', 'Teachers data exported to PDF successfully');
     } catch (error) {
       console.error('Error exporting teachers to PDF:', error);

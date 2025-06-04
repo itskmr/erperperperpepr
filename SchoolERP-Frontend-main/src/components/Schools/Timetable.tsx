@@ -62,6 +62,13 @@ interface TimetableEntryData {
   roomNumber?: string;
 }
 
+// Add school info interface
+interface SchoolInfo {
+  id: number;
+  schoolName: string;
+  code: string;
+}
+
 // Predefined data
 const CLASS_OPTIONS = [
   'Nursery', 'LKG', 'UKG',
@@ -90,6 +97,7 @@ const Timetable: React.FC = () => {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherSubjects, setTeacherSubjects] = useState<TeacherSubjectMapping>({});
+  const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
   
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -300,6 +308,14 @@ const Timetable: React.FC = () => {
   const saveEntry = async (entryData: TimetableEntryData): Promise<boolean> => {
     try {
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showSnackbar('Authentication token not found. Please login again.', 'error');
+        return false;
+      }
+
+      console.log('Saving timetable entry with data:', entryData);
+
       const response = await fetch('/api/timetable', {
         method: 'POST',
         headers: {
@@ -309,18 +325,27 @@ const Timetable: React.FC = () => {
         body: JSON.stringify(entryData),
       });
 
-      if (response.ok) {
+      console.log('Save response status:', response.status);
+      console.log('Save response headers:', response.headers.get('content-type'));
+
+      const responseData = await response.json();
+      console.log('Save response data:', responseData);
+
+      if (response.ok && responseData.success) {
         await fetchTimetableData();
-        showSnackbar('Timetable entry added successfully');
+        showSnackbar(responseData.message || 'Timetable entry added successfully', 'success');
         return true;
       } else {
-        const errorData = await response.json();
-        showSnackbar(errorData.message || 'Failed to save entry', 'error');
+        const errorMessage = responseData.message || 
+                           responseData.error || 
+                           `Server responded with status ${response.status}`;
+        console.error('Save failed:', errorMessage);
+        showSnackbar(errorMessage, 'error');
         return false;
       }
     } catch (error) {
       console.error('Error saving entry:', error);
-      showSnackbar('Error saving entry', 'error');
+      showSnackbar('Network error occurred while saving entry. Please check your connection.', 'error');
       return false;
     }
   };
@@ -328,6 +353,14 @@ const Timetable: React.FC = () => {
   const updateEntry = async (id: string, entryData: TimetableEntryData): Promise<boolean> => {
     try {
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showSnackbar('Authentication token not found. Please login again.', 'error');
+        return false;
+      }
+
+      console.log('Updating timetable entry with ID:', id, 'and data:', entryData);
+
       const response = await fetch(`/api/timetable/${id}`, {
         method: 'PUT',
         headers: {
@@ -337,18 +370,25 @@ const Timetable: React.FC = () => {
         body: JSON.stringify(entryData),
       });
 
-      if (response.ok) {
+      console.log('Update response status:', response.status);
+      const responseData = await response.json();
+      console.log('Update response data:', responseData);
+
+      if (response.ok && responseData.success) {
         await fetchTimetableData();
-        showSnackbar('Timetable entry updated successfully');
+        showSnackbar(responseData.message || 'Timetable entry updated successfully', 'success');
         return true;
       } else {
-        const errorData = await response.json();
-        showSnackbar(errorData.message || 'Failed to update entry', 'error');
+        const errorMessage = responseData.message || 
+                           responseData.error || 
+                           `Server responded with status ${response.status}`;
+        console.error('Update failed:', errorMessage);
+        showSnackbar(errorMessage, 'error');
         return false;
       }
     } catch (error) {
       console.error('Error updating entry:', error);
-      showSnackbar('Error updating entry', 'error');
+      showSnackbar('Network error occurred while updating entry. Please check your connection.', 'error');
       return false;
     }
   };
@@ -417,9 +457,17 @@ const Timetable: React.FC = () => {
 
   const handleSaveEntry = async () => {
     const timeSlot = timeSlots.find(ts => ts.id === selectedTimeSlot);
-    if (!timeSlot) return;
+    if (!timeSlot) {
+      showSnackbar('Invalid time slot selected', 'error');
+      return;
+    }
 
-    const entryData = {
+    if (!formData.teacherId || !formData.subjectName) {
+      showSnackbar('Please select both teacher and subject', 'error');
+      return;
+    }
+
+    const entryData: TimetableEntryData = {
       className: selectedClass,
       section: selectedSection,
       subjectName: formData.subjectName,
@@ -427,13 +475,18 @@ const Timetable: React.FC = () => {
       day: selectedDay.toLowerCase(),
       startTime: timeSlot.startTime,
       endTime: timeSlot.endTime,
-      roomNumber: formData.roomNumber
+      roomNumber: formData.roomNumber || undefined
     };
+
+    console.log('Saving timetable entry:', entryData);
 
     const success = await saveEntry(entryData);
     if (success) {
       setIsAddModalOpen(false);
       setFormData({ subjectName: '', teacherId: '', roomNumber: '' });
+      setSelectedTimeSlot('');
+      setSelectedDay('');
+      showSnackbar('Timetable entry added successfully', 'success');
     }
   };
 
@@ -575,7 +628,7 @@ const Timetable: React.FC = () => {
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Plus className="text-gray-400 mb-2" size={24} />
-            <span className="text-gray-500 hover:text-blue-600">
+            <span className="text-gray-500 hover:text-blue-600 text-center">
               Add Entry
             </span>
           </div>
@@ -587,16 +640,19 @@ const Timetable: React.FC = () => {
                 onClick={(e) => handleEntryClick(entry, e)}
                 className="p-3 m-1 rounded-lg cursor-pointer transition-all duration-300 bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg"
               >
+                <div className="text-xs font-semibold mb-1">
+                  {entry.subjectName}
+                </div>
                 <div className="flex items-center gap-1 mb-1">
-                  <User className="text-white" size={16} />
+                  <User className="text-white" size={14} />
                   <span className="text-white text-xs">
-                    {entry.teacher?.fullName || 'Unknown Teacher'}
+                    {entry.teacher?.fullName || entry.teacherName || 'Unknown Teacher'}
                   </span>
                 </div>
                 
                 {entry.roomNumber && (
                   <div className="flex items-center gap-1">
-                    <MapPin className="text-white" size={16} />
+                    <MapPin className="text-white" size={14} />
                     <span className="text-white text-xs">
                       Room {entry.roomNumber}
                     </span>
@@ -606,7 +662,7 @@ const Timetable: React.FC = () => {
             ))}
             
             {entries.length > 2 && (
-              <span className="ml-2 text-blue-600 font-semibold">
+              <span className="ml-2 text-blue-600 font-semibold text-xs">
                 +{entries.length - 2} more
               </span>
             )}
@@ -616,17 +672,199 @@ const Timetable: React.FC = () => {
     );
   };
 
-  // Effects
+  // Fetch school information
+  const fetchSchoolInfo = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/school/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setSchoolInfo(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching school info:', error);
+    }
+  };
+
+  // Load school info on component mount
   useEffect(() => {
+    fetchSchoolInfo();
+    fetchTimeSlots();
     fetchTeachers();
-    fetchTimeSlots(); // Load time slots on component mount
   }, []);
 
+  // Load timetable data when class or section changes
   useEffect(() => {
     if (selectedClass && selectedSection) {
       fetchTimetableData();
     }
   }, [selectedClass, selectedSection]);
+
+  // Enhanced print functionality
+  const handlePrintTimetable = () => {
+    const printContent = generatePrintContent();
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+    }
+  };
+
+  // Generate print content
+  const generatePrintContent = () => {
+    const schoolName = schoolInfo?.schoolName || 'School Name';
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Timetable - ${selectedClass} ${selectedSection}</title>
+        <style>
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+          }
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            font-size: 12px;
+          }
+          .header { 
+            text-align: center; 
+            margin-bottom: 20px; 
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+          }
+          .school-name { 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+          }
+          .class-info { 
+            font-size: 14px; 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+          }
+          .timetable-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px;
+          }
+          .timetable-table th, 
+          .timetable-table td { 
+            border: 1px solid #333; 
+            padding: 8px; 
+            text-align: center; 
+            vertical-align: middle;
+            font-size: 10px;
+          }
+          .timetable-table th { 
+            background-color: #f0f0f0; 
+            font-weight: bold;
+          }
+          .time-slot { 
+            background-color: #e8f4f8; 
+            font-weight: bold;
+            writing-mode: horizontal-tb;
+          }
+          .day-header { 
+            background-color: #d4edda; 
+            font-weight: bold;
+          }
+          .subject-cell {
+            min-height: 40px;
+            font-size: 9px;
+            line-height: 1.2;
+          }
+          .subject-name { 
+            font-weight: bold; 
+            display: block;
+          }
+          .teacher-name { 
+            font-size: 8px; 
+            color: #666;
+            display: block;
+          }
+          .room-number { 
+            font-size: 8px; 
+            color: #888;
+            display: block;
+          }
+          .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="school-name">${schoolName}</div>
+          <div class="class-info">Class Timetable - ${selectedClass} Section ${selectedSection}</div>
+          <div style="font-size: 10px; color: #666;">Academic Year: ${new Date().getFullYear()}-${new Date().getFullYear() + 1}</div>
+        </div>
+        
+        <table class="timetable-table">
+          <thead>
+            <tr>
+              <th class="time-slot" style="width: 120px;">Time</th>
+              ${DAYS.map(day => `<th class="day-header" style="width: 140px;">${day}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${timeSlots.map(timeSlot => `
+              <tr>
+                <td class="time-slot">
+                  <div style="font-size: 10px; font-weight: bold;">
+                    ${formatTime(timeSlot.startTime)}<br>
+                    ${formatTime(timeSlot.endTime)}
+                  </div>
+                </td>
+                ${DAYS.map(day => {
+                  const entries = getCellEntries(timeSlot.id, day);
+                  if (entries.length === 0) {
+                    return '<td class="subject-cell">-</td>';
+                  }
+                  return `<td class="subject-cell">
+                    ${entries.map(entry => `
+                      <div style="margin-bottom: 2px;">
+                        <span class="subject-name">${entry.subjectName}</span>
+                        ${entry.teacherName ? `<span class="teacher-name">${entry.teacherName}</span>` : ''}
+                        ${entry.roomNumber ? `<span class="room-number">Room: ${entry.roomNumber}</span>` : ''}
+                      </div>
+                    `).join('')}
+                  </td>`;
+                }).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+          <p>Powered by School ERP System</p>
+        </div>
+      </body>
+      </html>
+    `;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -636,14 +874,14 @@ const Timetable: React.FC = () => {
           <div className="flex items-center mb-4">
             <Filter className="mr-3 text-blue-600" size={20} />
             <h2 className="font-bold text-gray-800 text-xl">
-              Timetable Filters
+              Timetable Management
             </h2>
           </div>
           
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
             <h3 className="font-bold text-blue-800 mb-2">
               <School className="mr-2 inline-block" size={20} />
-              Timetable for {selectedClass} - Section {selectedSection}
+              {schoolInfo?.schoolName || 'School Name'} - {selectedClass} Section {selectedSection}
             </h3>
             <p className="text-gray-600">
               Total Entries: <span className="font-semibold text-blue-600">{timetableData.length}</span> | 
@@ -651,7 +889,7 @@ const Timetable: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div>
               <label htmlFor="class" className="block text-sm font-medium text-gray-700 mb-1">
                 Class
@@ -688,8 +926,8 @@ const Timetable: React.FC = () => {
               </select>
             </div>
 
-            <div className="md:col-span-4">
-              <div className="flex gap-3 justify-end flex-wrap">
+            <div className="flex items-end">
+              <div className="flex gap-3 justify-end flex-wrap w-full">
                 <button
                   onClick={fetchTimetableData}
                   disabled={loading}
@@ -706,7 +944,7 @@ const Timetable: React.FC = () => {
                 </button>
                 
                 <button
-                  onClick={() => window.print()}
+                  onClick={handlePrintTimetable}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
                 >
                   Print Timetable
@@ -723,58 +961,7 @@ const Timetable: React.FC = () => {
           </div>
         </div>
 
-        {/* Timetable Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Entries</p>
-                <p className="text-2xl font-bold">{timetableData.length}</p>
-              </div>
-              <div className="bg-blue-400 p-3 rounded-full">
-                <Book className="h-6 w-6" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm font-medium">Time Slots</p>
-                <p className="text-2xl font-bold">{timeSlots.length}</p>
-              </div>
-              <div className="bg-green-400 p-3 rounded-full">
-                <Clock className="h-6 w-6" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-yellow-100 text-sm font-medium">Active Teachers</p>
-                <p className="text-2xl font-bold">{teachers.length}</p>
-              </div>
-              <div className="bg-yellow-400 p-3 rounded-full">
-                <User className="h-6 w-6" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Class & Section</p>
-                <p className="text-2xl font-bold">{selectedClass} - {selectedSection}</p>
-              </div>
-              <div className="bg-purple-400 p-3 rounded-full">
-                <School className="h-6 w-6" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Timetable Grid */}
+        {/* Timetable Grid - Improved for better fit */}
         <div className="bg-white rounded-lg shadow-md border overflow-hidden">
           <div className="p-4">
             {timeSlots.length === 0 ? (
@@ -796,7 +983,7 @@ const Timetable: React.FC = () => {
                     Add Time Slot
                   </button>
                   <button
-                    className="rounded-lg"
+                    className="rounded-lg bg-gray-600 hover:bg-gray-700 text-white px-4 py-2"
                     onClick={fetchTimeSlots}
                   >
                     Refresh Time Slots
@@ -804,46 +991,52 @@ const Timetable: React.FC = () => {
                 </div>
               </div>
             ) : (
-              // Normal timetable grid
-              <div className="grid grid-cols-12 gap-4">
-                {/* Header Row */}
-                <div className="col-span-12">
-                  <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-2 bg-blue-600 text-white font-bold text-center p-4 rounded-lg shadow">
-                      <Clock className="mr-2 inline-block" size={16} />
-                      TIME SLOTS
-                    </div>
-                    {DAYS.map((day) => (
-                      <div key={day} className="col-span-2 bg-cyan-500 text-white font-bold text-center p-4 rounded-lg shadow">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Time Slot Rows */}
-                {timeSlots.map((timeSlot) => (
-                  <div key={timeSlot.id} className="col-span-12">
-                    <div className="grid grid-cols-12 gap-4">
-                      <div className="col-span-2 bg-blue-600 text-white font-bold text-center p-4 rounded-lg shadow min-h-[120px] flex items-center justify-center hover:bg-blue-700 transition-all duration-300">
-                        <span className="whitespace-pre-line">
-                          {timeSlot.label}
-                        </span>
-                        <button
-                          onClick={(e) => handleTimeSlotMenuClick(e, timeSlot)}
-                          className="absolute top-1 right-1 text-white hover:bg-white/20 rounded-full"
-                        >
-                          <MoreVertical className="text-white" size={16} />
-                        </button>
-                      </div>
+              // Improved timetable grid layout
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="w-32 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border border-gray-200">
+                        <Clock className="mr-1 inline-block" size={14} />
+                        Time
+                      </th>
                       {DAYS.map((day) => (
-                        <div key={`${timeSlot.id}-${day}`} className="col-span-2">
-                          {renderCell(timeSlot.id, day)}
-                        </div>
+                        <th
+                          key={day}
+                          className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border border-gray-200"
+                          style={{ minWidth: '140px' }}
+                        >
+                          {day}
+                        </th>
                       ))}
-                    </div>
-                  </div>
-                ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {timeSlots.map((timeSlot) => (
+                      <tr key={timeSlot.id}>
+                        <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-900 bg-blue-50 font-medium border border-gray-200 relative">
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{formatTime(timeSlot.startTime)}</span>
+                            <span className="text-xs text-gray-500">
+                              {formatTime(timeSlot.endTime)}
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => handleTimeSlotMenuClick(e, timeSlot)}
+                            className="absolute top-1 right-1 text-gray-400 hover:text-gray-600 rounded-full p-1"
+                          >
+                            <MoreVertical size={12} />
+                          </button>
+                        </td>
+                        {DAYS.map((day) => (
+                          <td key={`${timeSlot.id}-${day}`} className="p-0 border border-gray-200">
+                            {renderCell(timeSlot.id, day)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -862,21 +1055,36 @@ const Timetable: React.FC = () => {
       
       {/* Add Entry Modal */}
       <div
-        className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center ${isAddModalOpen ? '' : 'hidden'}`}
+        className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isAddModalOpen ? '' : 'hidden'}`}
         onClick={() => setIsAddModalOpen(false)}
       >
         <div
-          className="bg-white rounded-lg p-8 space-y-4"
+          className="bg-white rounded-lg p-8 space-y-4 max-w-md w-full mx-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="font-bold text-blue-600">
+          <h2 className="font-bold text-blue-600 text-lg">
             <Book className="mr-2 inline-block" size={20} />
             Add New Timetable Entry
           </h2>
+          
+          {selectedTimeSlot && selectedDay && (
+            <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>Time Slot:</strong> {timeSlots.find(ts => ts.id === selectedTimeSlot)?.label}
+              </p>
+              <p className="text-sm text-blue-800">
+                <strong>Day:</strong> {selectedDay}
+              </p>
+              <p className="text-sm text-blue-800">
+                <strong>Class:</strong> {selectedClass} - Section {selectedSection}
+              </p>
+            </div>
+          )}
+          
           <div className="space-y-4">
             <div>
-              <label htmlFor="teacher" className="block text-sm font-medium text-gray-700">
-                Teacher
+              <label htmlFor="teacher" className="block text-sm font-medium text-gray-700 mb-1">
+                Teacher <span className="text-red-500">*</span>
               </label>
               <select
                 id="teacher"
@@ -884,8 +1092,10 @@ const Timetable: React.FC = () => {
                 onChange={(e) => {
                   setFormData({ ...formData, teacherId: e.target.value, subjectName: '' });
                 }}
-                className="mt-1 block w-full rounded-md border-gray-300"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                required
               >
+                <option value="">Select a teacher</option>
                 {teachers.map((teacher) => (
                   <option key={teacher.id} value={teacher.id.toString()}>
                     {teacher.fullName} ({teacher.designation})
@@ -895,41 +1105,52 @@ const Timetable: React.FC = () => {
             </div>
             
             <div>
-              <label htmlFor="subject" className="block text-sm font-medium text-gray-700">
-                Subject
+              <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
+                Subject <span className="text-red-500">*</span>
               </label>
               <select
                 id="subject"
                 value={formData.subjectName}
                 onChange={(e) => setFormData({ ...formData, subjectName: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                disabled={!formData.teacherId}
+                required
               >
+                <option value="">Select a subject</option>
                 {getAvailableSubjects(formData.teacherId).map((subject) => (
                   <option key={subject} value={subject}>
                     {subject}
                   </option>
                 ))}
               </select>
+              {!formData.teacherId && (
+                <p className="text-xs text-gray-500 mt-1">Please select a teacher first</p>
+              )}
             </div>
             
             <div>
-              <label htmlFor="roomNumber" className="block text-sm font-medium text-gray-700">
-                Room Number
+              <label htmlFor="roomNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                Room Number (Optional)
               </label>
               <input
                 type="text"
                 id="roomNumber"
                 value={formData.roomNumber}
                 onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="e.g., 101, Lab-A"
               />
             </div>
           </div>
-          <div className="mt-4 space-x-2">
+          
+          <div className="mt-6 flex justify-end space-x-3">
             <button
               type="button"
-              onClick={() => setIsAddModalOpen(false)}
-              className="rounded-md bg-gray-500 text-white px-4 py-2"
+              onClick={() => {
+                setIsAddModalOpen(false);
+                setFormData({ subjectName: '', teacherId: '', roomNumber: '' });
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Cancel
             </button>
@@ -937,8 +1158,9 @@ const Timetable: React.FC = () => {
               type="button"
               onClick={handleSaveEntry}
               disabled={!formData.teacherId || !formData.subjectName}
-              className="rounded-md bg-green-600 text-white px-4 py-2"
+              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
+              <Plus className="mr-1 inline-block" size={16} />
               Add Entry
             </button>
           </div>
@@ -947,21 +1169,36 @@ const Timetable: React.FC = () => {
       
       {/* Edit Entry Modal */}
       <div
-        className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center ${isEditModalOpen ? '' : 'hidden'}`}
+        className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isEditModalOpen ? '' : 'hidden'}`}
         onClick={() => setIsEditModalOpen(false)}
       >
         <div
-          className="bg-white rounded-lg p-8 space-y-4"
+          className="bg-white rounded-lg p-8 space-y-4 max-w-md w-full mx-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="font-bold text-purple-600">
+          <h2 className="font-bold text-purple-600 text-lg">
             <Edit className="mr-2 inline-block" size={20} />
             Edit Timetable Entry
           </h2>
+          
+          {selectedEntry && (
+            <div className="bg-purple-50 p-3 rounded-md border border-purple-200">
+              <p className="text-sm text-purple-800">
+                <strong>Time:</strong> {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)}
+              </p>
+              <p className="text-sm text-purple-800">
+                <strong>Day:</strong> {selectedEntry.day.toUpperCase()}
+              </p>
+              <p className="text-sm text-purple-800">
+                <strong>Class:</strong> {selectedEntry.className} - Section {selectedEntry.section}
+              </p>
+            </div>
+          )}
+          
           <div className="space-y-4">
             <div>
-              <label htmlFor="teacherEdit" className="block text-sm font-medium text-gray-700">
-                Teacher
+              <label htmlFor="teacherEdit" className="block text-sm font-medium text-gray-700 mb-1">
+                Teacher <span className="text-red-500">*</span>
               </label>
               <select
                 id="teacherEdit"
@@ -971,8 +1208,10 @@ const Timetable: React.FC = () => {
                   teacherId: parseInt(e.target.value),
                   subjectName: '' 
                 })}
-                className="mt-1 block w-full rounded-md border-gray-300"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                required
               >
+                <option value="">Select a teacher</option>
                 {teachers.map((teacher) => (
                   <option key={teacher.id} value={teacher.id.toString()}>
                     {teacher.fullName} ({teacher.designation})
@@ -982,59 +1221,75 @@ const Timetable: React.FC = () => {
             </div>
             
             <div>
-              <label htmlFor="subjectEdit" className="block text-sm font-medium text-gray-700">
-                Subject
+              <label htmlFor="subjectEdit" className="block text-sm font-medium text-gray-700 mb-1">
+                Subject <span className="text-red-500">*</span>
               </label>
               <select
                 id="subjectEdit"
                 value={selectedEntry?.subjectName || ''}
                 onChange={(e) => setSelectedEntry({ ...selectedEntry!, subjectName: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                disabled={!selectedEntry?.teacherId}
+                required
               >
+                <option value="">Select a subject</option>
                 {getAvailableSubjects(selectedEntry?.teacherId?.toString() || '').map((subject) => (
                   <option key={subject} value={subject}>
                     {subject}
                   </option>
                 ))}
               </select>
+              {!selectedEntry?.teacherId && (
+                <p className="text-xs text-gray-500 mt-1">Please select a teacher first</p>
+              )}
             </div>
             
             <div>
-              <label htmlFor="roomNumberEdit" className="block text-sm font-medium text-gray-700">
-                Room Number
+              <label htmlFor="roomNumberEdit" className="block text-sm font-medium text-gray-700 mb-1">
+                Room Number (Optional)
               </label>
               <input
                 type="text"
                 id="roomNumberEdit"
                 value={selectedEntry?.roomNumber || ''}
                 onChange={(e) => setSelectedEntry({ ...selectedEntry!, roomNumber: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                placeholder="e.g., 101, Lab-A"
               />
             </div>
           </div>
-          <div className="mt-4 space-x-2">
+          
+          <div className="mt-6 flex justify-between">
             <button
               type="button"
               onClick={handleDeleteEntry}
-              className="rounded-md bg-red-500 text-white px-4 py-2"
+              className="px-4 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
             >
-              <Trash2 className="mr-2" size={16} />
+              <Trash2 className="mr-1 inline-block" size={16} />
               Delete
             </button>
-            <button
-              type="button"
-              onClick={() => setIsEditModalOpen(false)}
-              className="rounded-md bg-gray-500 text-white px-4 py-2"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleUpdateEntry}
-              className="rounded-md bg-blue-600 text-white px-4 py-2"
-            >
-              Save Changes
-            </button>
+            
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setSelectedEntry(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateEntry}
+                disabled={!selectedEntry?.teacherId || !selectedEntry?.subjectName}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                <CheckCircle className="mr-1 inline-block" size={16} />
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       </div>
